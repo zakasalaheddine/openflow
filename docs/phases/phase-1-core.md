@@ -10,14 +10,14 @@ This is where the test infrastructure is built, because everything after it depe
 
 ## 1. Scaffold
 
-- [ ] Next.js + TypeScript + App Router
-- [ ] Vitest, Playwright (installed and CI-wired, **zero specs yet**), eslint
-- [ ] **eslint boundary rule**: `/core` may not import React, Next, or anything from `/app`. This one rule is what makes the headless runner and the Phase 4 MCP server nearly free — enforce it mechanically, not by memory.
-- [ ] Drizzle + SQLite in WAL mode, six tables per §4, indexes on `node_runs(input_hash)`, `node_runs(status)`, `node_runs(flow_id, node_id)`
-- [ ] `OPENFLOW_DATA_DIR` env var, defaulting to `./data`. **Nothing reads a hardcoded path.**
-- [ ] `FAL_MODE` env var: `live` | `replay` | `off`
-- [ ] `.gitignore`: `data/`, `exports/`, `node_modules/`, `.env*`
-- [ ] `README.md` with **Non-Goals written first**, before the executor exists (§1)
+- [x] Next.js + TypeScript + App Router
+- [x] Vitest, Playwright (installed and CI-wired, **zero specs yet**), eslint
+- [x] **eslint boundary rule**: `/core` may not import React, Next, or anything from `/app`. This one rule is what makes the headless runner and the Phase 4 MCP server nearly free — enforce it mechanically, not by memory.
+- [x] Drizzle + SQLite in WAL mode, six tables per §4, indexes on `node_runs(input_hash)`, `node_runs(status)`, `node_runs(flow_id, node_id)`
+- [x] `OPENFLOW_DATA_DIR` env var, defaulting to `./data`. **Nothing reads a hardcoded path.**
+- [x] `FAL_MODE` env var: `live` | `replay` | `off`
+- [x] `.gitignore`: `data/`, `exports/`, `node_modules/`, `.env*`
+- [x] `README.md` with **Non-Goals written first**, before the executor exists (§1)
 
 ## 2. TDD units
 
@@ -80,19 +80,35 @@ This last one is the test that will actually catch regressions in month three. W
 
 ## 4. Other work
 
-- [ ] `/models/registry.ts` — 3 image rows + one generic fal adapter, `verifiedOn` from Phase 0
-- [ ] Asset store behind a 3-method interface — `put` / `get` / `url` — on local disk
-- [ ] Video normalisation-on-write hook (no video models yet; the boundary exists so Phase 3 plugs in)
-- [ ] `bin/run.ts` — `npx tsx bin/run.ts flows/demo.json`
-- [ ] `npm test` = typecheck → lint → vitest → playwright, one command
-- [ ] `.github/workflows/ci.yml` (see testing-strategy §5) — green on an empty Playwright suite
+- [x] `/models/registry.ts` — 3 image rows + one generic fal adapter, `verifiedOn` from Phase 0
+- [x] Asset store behind a 3-method interface — `put` / `get` / `url` — on local disk
+- [x] Video normalisation-on-write hook (no video models yet; the boundary exists so Phase 3 plugs in)
+- [x] `bin/run.ts` — `npx tsx bin/run.ts flows/demo.json`
+- [x] `npm test` = typecheck → lint → vitest → playwright, one command
+- [x] `.github/workflows/ci.yml` (see testing-strategy §5) — green on an empty Playwright suite
 
-## Gate
+## Gate — met
 
-All three acceptance tests green in CI:
+All three acceptance tests green in CI (run 30474455533, first push):
 
-1. A JSON graph produces images on disk.
-2. A second run costs $0.
-3. Killing the process mid-run and restarting resumes cleanly.
+1. A JSON graph produces images on disk. ✅
+2. A second run costs $0. ✅
+3. Killing the process mid-run and restarting resumes cleanly. ✅
 
-Plus: `npm test` is one command, CI is green on push, and `/core` imports no framework code.
+`npm test` is one command, CI is green on push, and the `/core` boundary rule
+was verified by watching it reject a real `import { useState } from 'react'`.
+
+Verified through the CLI as well as the suite: `FAL_MODE=replay npm run -- run
+flows/demo.json` reports `3 succeeded · $0.09`, and a second invocation reports
+`3 cached · $0.00`.
+
+### What Phase 1 does *not* yet prove
+
+`verifiedOn: null` on every registry row is the honest statement: no live fal
+call has been made. Fixtures are placeholders recorded by
+`bin/record-fixtures.ts`, so the suite validates our *handling* of a plausible
+response shape, not a proven one. The fal field names in `models/input.ts`
+(`image_urls`, `image_url`, `duration`) are unverified for the same reason.
+
+Recording once with `--live` closes this, and is the first thing Phase 2 should
+do with a fal key in hand.
