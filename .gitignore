@@ -8,4 +8,8 @@ dist/
 *.tsbuildinfo
 test-results/
 playwright-report/
+.playwright-data/
+next-env.d.ts
+spike/products/
+spike/out/
 .DS_Store

@@ -1,0 +1,46 @@
+{
+  "name": "openflow-studio",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Local-first node editor for directing on-brand ad creative",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test",
+    "test": "npm run typecheck && npm run lint && npm run test:unit && npm run test:e2e",
+    "db:generate": "drizzle-kit generate",
+    "spike": "tsx spike/spike.ts"
+  },
+  "overrides": {
+    "postcss": "^8.5.25",
+    "sharp": "^0.35.3"
+  },
+  "dependencies": {
+    "@fal-ai/client": "^1.10.1",
+    "better-sqlite3": "^13.0.2",
+    "drizzle-orm": "^0.45.2",
+    "next": "^16.2.12",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.13.1",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "drizzle-kit": "^0.31.10",
+    "eslint": "^9.39.0",
+    "eslint-config-next": "^16.2.12",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}
