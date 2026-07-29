@@ -2,11 +2,14 @@ import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { eq, and, inArray, sql } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
-import { nodeRuns, assets, type NodeRun } from '../db/schema'
-import { byId, estimateCostCents } from '../models/registry'
+import { nodeRuns, assets, flows, anchors, projects, type NodeRun } from '../db/schema'
+import { byId, estimateCostCents, type ModelSpec } from '../models/registry'
+import { buildModelInput } from '../models/input'
 import { localStore } from '../core/assets'
+import { DEFAULT_SETTINGS, type ProjectSettings } from '../core/settings'
 import { assetsDir } from '../env'
 import type { Adapter, ParsedOutput } from '../models/fal'
+import type { Flow, AssetRef } from '../core/types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = BetterSQLite3Database<any>
@@ -37,6 +40,55 @@ const defaultDownload = async (url: string): Promise<Buffer> => {
   const response = await fetch(url)
   if (!response.ok) throw new Error(`Download failed ${response.status} for ${url}`)
   return Buffer.from(await response.arrayBuffer())
+}
+
+function projectConcurrency(db: Db): number {
+  const project = db.select().from(projects).limit(1).get()
+  const settings = { ...DEFAULT_SETTINGS, ...(project?.settings as ProjectSettings | undefined) }
+  return settings.concurrency
+}
+
+/**
+ * Rebuilds a run's fal payload from the graph it came from.
+ *
+ * The node_runs row deliberately stores only the hash, so the prompt cannot
+ * drift between what was hashed and what is sent. The cost of that is this
+ * lookup: the graph is the source of truth, and a run whose node has since been
+ * deleted must fail rather than dispatch an empty prompt at full price.
+ */
+function buildInput(db: Db, run: NodeRun, model: ModelSpec): Record<string, unknown> {
+  const flow = db.select().from(flows).where(eq(flows.id, run.flowId)).get()
+  if (!flow) throw new Error(`Flow ${run.flowId} no longer exists`)
+
+  const graph = flow.graphJson as Flow
+  const node = graph.nodes.find((n) => n.id === run.nodeId)
+  if (!node) throw new Error(`Node ${run.nodeId} no longer exists in the graph`)
+
+  const anchorIds = 'anchors' in node ? node.anchors : []
+  const anchorRefs = anchorIds.flatMap((id) => {
+    const anchor = db.select().from(anchors).where(eq(anchors.id, id)).get()
+    return (anchor?.refImages as string[] | undefined) ?? []
+  })
+
+  const frameFor = (role: 'start_frame' | 'end_frame'): AssetRef | undefined => {
+    const edge = graph.edges.find((e) => e.to === run.nodeId && e.role === role)
+    if (!edge) return undefined
+    const source = db
+      .select()
+      .from(nodeRuns)
+      .where(and(eq(nodeRuns.flowId, run.flowId), eq(nodeRuns.nodeId, edge.from), eq(nodeRuns.status, 'succeeded')))
+      .get()
+    if (!source) return undefined
+    const refs = (source.outputRefs as string[] | null) ?? []
+    const asset = refs[0] ? db.select().from(assets).where(eq(assets.id, refs[0])).get() : undefined
+    return asset ? { id: asset.id, path: asset.path, mime: asset.mime } : undefined
+  }
+
+  return buildModelInput(node, model, {
+    anchorRefs,
+    startFrame: frameFor('start_frame'),
+    endFrame: frameFor('end_frame'),
+  })
 }
 
 /**
@@ -95,6 +147,23 @@ function fail(db: Db, run: NodeRun, error: string) {
     .run()
 }
 
+/**
+ * Normalisation-on-write boundary.
+ *
+ * Models return wildly different fps, codecs and dimensions. Normalising one
+ * clip as it lands is free; fixing it retroactively across a client's whole
+ * library is not, and it is what makes v2's concatenation a cut rather than a
+ * re-encode.
+ *
+ * ponytail: pass-through until Phase 3 adds video. The seam exists now so
+ * Phase 3 plugs ffmpeg in here instead of threading a transcode step through
+ * the worker, and so no video asset can ever be written that bypassed it.
+ */
+async function normalise(bytes: Buffer, output: ParsedOutput): Promise<Buffer> {
+  if (!output.mime.startsWith('video/')) return bytes
+  return bytes
+}
+
 async function persistOutputs(
   db: Db,
   run: NodeRun,
@@ -111,7 +180,8 @@ async function persistOutputs(
     const ext = EXT_BY_MIME[output.mime] ?? '.bin'
     const id = randomUUID()
     const key = path.join(run.id, `${id}${ext}`)
-    const savedPath = store.put(key, await download(output.url))
+    const normalised = await normalise(await download(output.url), output)
+    const savedPath = store.put(key, normalised)
 
     db.insert(assets)
       .values({
@@ -140,8 +210,12 @@ async function persistOutputs(
   // Rounds to the nearest cent, but a real spend never rounds down to zero:
   // a ledger that reports $0.00 for a run fal charged for defeats the whole
   // "see exactly what this creative cost" feature.
-  // ponytail: integer cents, so a large graph drifts by up to half a cent per
-  // node. Store tenths of a cent if that ever shows up against an invoice.
+  //
+  // ponytail: this is the registry's ESTIMATE, not an invoiced amount — fal
+  // does not return a price with the result. Good enough to price a graph and
+  // enforce a cap; reconcile against a real invoice before the README claims
+  // the number is what you were charged. Integer cents also drift by up to half
+  // a cent per node on a large graph.
   const costCents = exact > 0 ? Math.max(1, Math.round(exact)) : 0
 
   db.update(nodeRuns)
@@ -159,8 +233,12 @@ async function persistOutputs(
  * graph makes the queue drain too slowly.
  */
 export async function tick(db: Db, options: TickOptions): Promise<void> {
-  const { adapter, download = defaultDownload, concurrency = 4 } = options
+  const { adapter, download = defaultDownload } = options
   const storeRoot = options.storeRoot ?? assetsDir()
+  // An explicit option wins (tests pin it); otherwise it comes from the project
+  // row, which is what makes `settings.concurrency` a real setting rather than
+  // a documented one.
+  const concurrency = options.concurrency ?? projectConcurrency(db)
 
   reapStale(db)
 
@@ -202,10 +280,20 @@ export async function tick(db: Db, options: TickOptions): Promise<void> {
     return
   }
 
+  let input: Record<string, unknown>
+  try {
+    input = buildInput(db, run, model)
+  } catch (error) {
+    // Refusing beats dispatching a payload we know is wrong: an empty prompt
+    // is billed exactly like a real one.
+    fail(db, run, error instanceof Error ? error.message : String(error))
+    return
+  }
+
   try {
     const { requestId } = await adapter.submit({
       model,
-      input: { prompt: '' },
+      input,
       hash: run.inputHash,
     })
     // Persisted the instant fal accepts. A crash one line later must not orphan

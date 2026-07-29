@@ -2,10 +2,10 @@ import { describe, test, expect, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { claimNext, reapStale, tick, MAX_ATTEMPTS, STALE_CLAIM_MS } from '@/worker/loop'
 import { enqueueRun } from '@/core/executor'
-import { nodeRuns, assets } from '@/db/schema'
+import { nodeRuns, assets, flows } from '@/db/schema'
 import { tempDb, seedProject, seedAnchor, seedFlow } from '../helpers/db'
 import type { Flow } from '@/core/types'
-import type { Adapter } from '@/models/fal'
+import type { Adapter, SubmitRequest } from '@/models/fal'
 
 const flow: Flow = {
   nodes: [{ id: 'img', type: 'image', prompt: 'bottle', anchors: [], modelRole: 'draft', seed: 1 }],
@@ -29,13 +29,18 @@ function setup(graph: Flow = flow) {
 }
 
 /** An adapter that records what it was asked to do and returns what we tell it. */
-function fakeAdapter(over: Partial<Adapter> = {}): Adapter & { submitted: string[] } {
+function fakeAdapter(
+  over: Partial<Adapter> = {},
+): Adapter & { submitted: string[]; requests: SubmitRequest[] } {
   const submitted: string[] = []
+  const requests: SubmitRequest[] = []
   return {
     submitted,
-    async submit({ hash }) {
-      submitted.push(hash)
-      return { requestId: `req-${hash.slice(0, 6)}` }
+    requests,
+    async submit(request) {
+      submitted.push(request.hash)
+      requests.push(request)
+      return { requestId: `req-${request.hash.slice(0, 6)}` }
     },
     async poll() {
       return {
@@ -110,6 +115,74 @@ describe('reapStale', () => {
 
     expect(reapStale(db)).toBe(0)
     expect(db.select().from(nodeRuns).get()?.status).toBe('submitted')
+  })
+})
+
+describe('tick dispatch payload', () => {
+  // Without these, the worker bills fal for N empty-prompt generations and
+  // every other test still passes, because the replay adapter keys off the
+  // hash and never looks at the input.
+
+  test('sends the node prompt', async () => {
+    const { db, flowId } = setup(flow)
+    enqueueRun(db, flowId)
+
+    const adapter = fakeAdapter({ poll: async () => ({ status: 'IN_PROGRESS' }) })
+    await tick(db, { adapter, download: fakeDownload })
+
+    expect(adapter.requests[0].input.prompt).toBe('bottle')
+  })
+
+  test('sends the seed', async () => {
+    const { db, flowId } = setup(flow)
+    enqueueRun(db, flowId)
+
+    const adapter = fakeAdapter({ poll: async () => ({ status: 'IN_PROGRESS' }) })
+    await tick(db, { adapter, download: fakeDownload })
+
+    expect(adapter.requests[0].input.seed).toBe(1)
+  })
+
+  test('sends the anchor reference images', async () => {
+    // An anchor that never reaches the model is the entire product failing
+    // silently: output looks off-brand and reads as a model quality problem.
+    const anchored: Flow = {
+      nodes: [
+        { id: 'img', type: 'image', prompt: 'bottle', anchors: ['anchor-1'], modelRole: 'draft', seed: 1 },
+      ],
+      edges: [],
+    }
+    const { db, flowId } = setup(anchored)
+    enqueueRun(db, flowId)
+
+    const adapter = fakeAdapter({ poll: async () => ({ status: 'IN_PROGRESS' }) })
+    await tick(db, { adapter, download: fakeDownload })
+
+    expect(adapter.requests[0].input.image_urls).toEqual(['ref-a.png'])
+  })
+
+  test('sends the correct prompt when several nodes are queued', async () => {
+    // Guards against dispatching by row order while reading the graph by index.
+    const { db, flowId } = setup(twoNodeFlow)
+    enqueueRun(db, flowId)
+
+    const adapter = fakeAdapter({ poll: async () => ({ status: 'IN_PROGRESS' }) })
+    await tick(db, { adapter, download: fakeDownload, concurrency: 10 })
+    await tick(db, { adapter, download: fakeDownload, concurrency: 10 })
+
+    expect(adapter.requests.map((r) => r.input.prompt).sort()).toEqual(['one', 'two'])
+  })
+
+  test('fails a run whose node has vanished from the graph rather than sending an empty prompt', async () => {
+    const { db, flowId } = setup(flow)
+    enqueueRun(db, flowId)
+    db.update(flows).set({ graphJson: { nodes: [], edges: [] } }).where(eq(flows.id, flowId)).run()
+
+    const adapter = fakeAdapter()
+    await tick(db, { adapter, download: fakeDownload })
+
+    expect(adapter.submitted).toHaveLength(0)
+    expect(db.select().from(nodeRuns).get()?.error).toMatch(/node/i)
   })
 })
 

@@ -4,7 +4,25 @@
 
 Upload a product once and it becomes an *anchor*. Build a graph of shots — images, and video clips branching off those images — each with its own prompt and creative direction. The anchor keeps the product identical across every output. Change the product, bump the anchor version, and every downstream shot goes stale with a price tag attached.
 
-> **Status: pre-code.** The build plan and phase docs are written; implementation starts at Phase 0. Nothing installs yet.
+> **Status: Phase 1 (core, headless) complete.** No canvas yet — that's Phase 2. The headless runner works today.
+
+## Running it
+
+**Node 22.16.0 or newer is required** (`.nvmrc` pins it). Older 22.x patch releases ship a `better-sqlite3` prebuild that segfaults on macOS arm64 — you get exit code 139 and no error message.
+
+```bash
+nvm use          # or any Node >= 22.16.0
+npm install
+npm test         # typecheck, lint, unit, e2e — one command
+
+# Run the demo graph against recorded fixtures. No fal key, no spend.
+FAL_MODE=replay npm run -- run flows/demo.json
+
+# Run it for real. Bring your own fal key; you pay fal directly, at cost.
+FAL_KEY=... FAL_MODE=live npm run -- run flows/demo.json
+```
+
+`FAL_MODE` is `live` by default and forced to `replay`/`off` by the test configs, so a test run can never bill you. `OPENFLOW_DATA_DIR` moves the SQLite file and generated assets off `./data`.
 
 ## Non-Goals
 

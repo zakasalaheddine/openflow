@@ -75,6 +75,29 @@ describe('headless run', () => {
     expect(summary.costCents).toBe(runs.reduce((sum, r) => sum + r.costCents, 0))
   })
 
+  test('dispatches each node with its own prompt and its anchor references', async () => {
+    // Gate #1 is "produces images", but images produced from an empty prompt
+    // are still images. Assert the payload, or the gate passes while the tool
+    // bills fal for renders nobody asked for.
+    const { db, options } = prepared()
+    const seen: Record<string, unknown>[] = []
+    const recording = {
+      ...options,
+      adapter: {
+        async submit(request: Parameters<(typeof options.adapter)['submit']>[0]) {
+          seen.push(request.input)
+          return options.adapter.submit(request)
+        },
+        poll: options.adapter.poll,
+      },
+    }
+
+    await runFlow(db, spec, recording)
+
+    expect(seen.map((i) => i.prompt).sort()).toEqual(['bottle on marble', 'bottle on slate'])
+    for (const input of seen) expect(input.image_urls).toEqual(['a.png', 'b.png'])
+  })
+
   test('links every asset back to the run that produced it', async () => {
     // Provenance is a headline feature; an orphan asset cannot be attributed to
     // a prompt, model or price.

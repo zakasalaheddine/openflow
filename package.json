@@ -14,7 +14,6 @@
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
     "test": "npm run typecheck && npm run lint && npm run test:unit && npm run test:e2e",
-    "db:generate": "drizzle-kit generate",
     "spike": "tsx spike/spike.ts",
     "run": "tsx bin/run.ts",
     "record-fixtures": "tsx bin/record-fixtures.ts"
@@ -38,7 +37,6 @@
     "@types/node": "^22.13.1",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
-    "drizzle-kit": "^0.31.10",
     "eslint": "^9.39.0",
     "eslint-config-next": "^16.2.12",
     "tsx": "^4.20.0",
