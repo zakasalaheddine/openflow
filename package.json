@@ -15,7 +15,9 @@
     "test:e2e": "playwright test",
     "test": "npm run typecheck && npm run lint && npm run test:unit && npm run test:e2e",
     "db:generate": "drizzle-kit generate",
-    "spike": "tsx spike/spike.ts"
+    "spike": "tsx spike/spike.ts",
+    "run": "tsx bin/run.ts",
+    "record-fixtures": "tsx bin/record-fixtures.ts"
   },
   "overrides": {
     "postcss": "^8.5.25",

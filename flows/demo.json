@@ -1,0 +1,42 @@
+{
+  "project": "serum-demo",
+  "settings": {
+    "spendCapPerRun": 500
+  },
+  "anchors": [
+    {
+      "id": "serum-bottle",
+      "kind": "product",
+      "refImages": ["refs/bottle-front.jpg", "refs/bottle-angle.jpg"]
+    }
+  ],
+  "flow": {
+    "nodes": [
+      {
+        "id": "marble",
+        "type": "image",
+        "prompt": "the serum bottle on a marble counter, soft morning window light, shallow depth of field",
+        "anchors": ["serum-bottle"],
+        "modelRole": "draft",
+        "seed": 1
+      },
+      {
+        "id": "slate",
+        "type": "image",
+        "prompt": "the serum bottle on wet slate, hard directional light, deep shadows",
+        "anchors": ["serum-bottle"],
+        "modelRole": "draft",
+        "seed": 2
+      },
+      {
+        "id": "linen",
+        "type": "image",
+        "prompt": "the serum bottle on crumpled linen, diffuse overcast light, muted palette",
+        "anchors": ["serum-bottle"],
+        "modelRole": "draft",
+        "seed": 3
+      }
+    ],
+    "edges": []
+  }
+}

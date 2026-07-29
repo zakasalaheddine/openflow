@@ -110,20 +110,26 @@ export type Adapter = {
 const fixturePathFor = (dir: string, model: ModelSpec, hash: string) =>
   path.join(dir, model.falEndpoint.replaceAll('/', '_'), `${hash}.json`)
 
+/**
+ * Stateless on purpose: the request id carries everything needed to find the
+ * fixture again. An in-memory map would make a restarted process unable to poll
+ * a request it had already submitted — which is precisely the crash-resume
+ * behaviour the acceptance suite exists to prove, so the harness must not be
+ * the thing that fakes it.
+ */
 function replayAdapter(fixtureDir: string): Adapter {
-  const pending = new Map<string, FalRawResult>()
-
   return {
     async submit({ model, hash }) {
       const file = fixturePathFor(fixtureDir, model, hash)
       if (!existsSync(file)) throw new MissingFixtureError(file)
-      const requestId = `replay:${hash}`
-      pending.set(requestId, JSON.parse(readFileSync(file, 'utf8')) as FalRawResult)
-      return { requestId }
+      return { requestId: `replay:${model.falEndpoint}#${hash}` }
     },
     async poll(requestId) {
-      const raw = pending.get(requestId)
-      if (!raw) return { status: 'FAILED', error: `Unknown replay request ${requestId}` }
+      const [endpoint, hash] = requestId.replace(/^replay:/, '').split('#')
+      const file = path.join(fixtureDir, endpoint.replaceAll('/', '_'), `${hash}.json`)
+      if (!existsSync(file)) return { status: 'FAILED', error: `No fixture for ${requestId}` }
+
+      const raw = JSON.parse(readFileSync(file, 'utf8')) as FalRawResult
       // A recorded fal error replays as a failure, so the retry path has a
       // fixture and is actually exercised.
       if (raw.error) return { status: 'FAILED', error: raw.error.message ?? 'fal error' }
