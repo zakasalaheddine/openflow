@@ -1,0 +1,17 @@
+{
+  "id": "before-after",
+  "name": "Before and after",
+  "description": "Two stills of the same subject, one showing the problem and one the result. Use for a claim the picture has to carry.",
+  "slots": ["before", "after"],
+  "flow": {
+    "nodes": [
+      { "id": "before", "type": "image", "label": "before", "position": { "x": 60, "y": 40 }, "prompt": "{{before}}", "modelRole": "draft", "seed": 1 },
+      { "id": "after", "type": "image", "label": "after", "position": { "x": 60, "y": 300 }, "prompt": "{{after}}", "modelRole": "draft", "seed": 2 },
+      { "id": "export", "type": "export", "position": { "x": 420, "y": 170 }, "formats": [] }
+    ],
+    "edges": [
+      { "id": "e1", "from": "before", "to": "export", "role": "input", "position": null },
+      { "id": "e2", "from": "after", "to": "export", "role": "input", "position": null }
+    ]
+  }
+}

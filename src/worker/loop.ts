@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { renameSync } from 'node:fs'
 import path from 'node:path'
 import { eq, and, inArray, sql } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
@@ -8,6 +9,7 @@ import { buildModelInput } from '../models/input'
 import { localStore } from '../core/assets'
 import { composePrompt, referenceFiles } from '../core/compose'
 import { DEFAULT_SETTINGS, type ProjectSettings } from '../core/settings'
+import { probe, ffmpeg, encoderFor } from '../core/ffmpeg'
 import { assetsDir } from '../env'
 import type { Adapter, ParsedOutput } from '../models/fal'
 import type { Flow, AssetRef } from '../core/types'
@@ -45,11 +47,12 @@ const defaultDownload = async (url: string): Promise<Buffer> => {
 
 // ponytail: first project wins, not the flow's project. Correct while there is
 // one workspace; join through flows when multi-project lands.
-function projectConcurrency(db: Db): number {
+function projectSettings(db: Db): ProjectSettings {
   const project = db.select().from(projects).limit(1).get()
-  const settings = { ...DEFAULT_SETTINGS, ...(project?.settings as ProjectSettings | undefined) }
-  return settings.concurrency
+  return { ...DEFAULT_SETTINGS, ...(project?.settings as ProjectSettings | undefined) }
 }
+
+const projectConcurrency = (db: Db): number => projectSettings(db).concurrency
 
 /**
  * Rebuilds a run's fal payload from the graph it came from.
@@ -151,21 +154,45 @@ function fail(db: Db, run: NodeRun, error: string) {
     .run()
 }
 
+export type Measured = { width?: number; height?: number; durationMs?: number; fps?: number; codec?: string }
+
 /**
  * Normalisation-on-write boundary.
  *
- * Models return wildly different fps, codecs and dimensions. Normalising one
- * clip as it lands is free; fixing it retroactively across a client's whole
- * library is not, and it is what makes v2's concatenation a cut rather than a
- * re-encode.
+ * Models return wildly different fps and codecs. Normalising one clip as it
+ * lands is free; fixing it retroactively across a client's whole library is
+ * not, and it is what makes v2's concatenation a cut rather than a re-encode.
  *
- * ponytail: pass-through until Phase 3 adds video. The seam exists now so
- * Phase 3 plugs ffmpeg in here instead of threading a transcode step through
- * the worker, and so no video asset can ever be written that bypassed it.
+ * The measurements come back from the probe, never from the model's own claim
+ * about what it sent — a row that records what was requested turns every
+ * downstream length check into a check of our own optimism.
+ *
+ * Dimensions are deliberately left alone. There is no project-level canvas
+ * size to normalise to, and cropping a clip on the way in would throw away
+ * framing the export step needs: geometry is a per-format decision, made once,
+ * at export.
  */
-async function normalise(bytes: Buffer, output: ParsedOutput): Promise<Buffer> {
-  if (!output.mime.startsWith('video/')) return bytes
-  return bytes
+async function normalise(
+  file: string,
+  output: ParsedOutput,
+  settings: ProjectSettings,
+): Promise<Measured> {
+  if (!output.mime.startsWith('video/')) {
+    return { width: output.width, height: output.height, durationMs: output.durationMs }
+  }
+
+  const measured = await probe(file)
+  if (measured.fps === settings.fps && measured.codec === settings.codec) {
+    // Re-encoding a conforming clip costs time and a generation of quality for
+    // a file that is already correct.
+    return measured
+  }
+
+  const encoder = encoderFor(settings.codec)
+  const normalised = `${file}.normalised${path.extname(file)}`
+  await ffmpeg(['-i', file, '-r', String(settings.fps), '-c:v', encoder, '-pix_fmt', 'yuv420p', normalised])
+  renameSync(normalised, file)
+  return probe(file)
 }
 
 async function persistOutputs(
@@ -176,6 +203,7 @@ async function persistOutputs(
   storeRoot: string,
 ) {
   const store = localStore(storeRoot)
+  const settings = projectSettings(db)
   const refs: string[] = []
 
   for (const output of outputs) {
@@ -184,17 +212,22 @@ async function persistOutputs(
     const ext = EXT_BY_MIME[output.mime] ?? '.bin'
     const id = randomUUID()
     const key = path.join(run.id, `${id}${ext}`)
-    const normalised = await normalise(await download(output.url), output)
-    const savedPath = store.put(key, normalised)
+    const savedPath = store.put(key, await download(output.url))
+    // In place, before the row exists: no asset may be recorded that skipped
+    // this, or the library ends up half-normalised and nothing downstream can
+    // assume anything.
+    const measured = await normalise(savedPath, output, settings)
 
     db.insert(assets)
       .values({
         id,
         path: savedPath,
         mime: output.mime,
-        width: output.width ?? null,
-        height: output.height ?? null,
-        durationMs: output.durationMs ?? null,
+        width: measured.width ?? null,
+        height: measured.height ?? null,
+        durationMs: measured.durationMs ?? null,
+        fps: measured.fps ?? null,
+        codec: measured.codec ?? null,
         sourceRunId: run.id,
         createdAt: new Date().toISOString(),
       })

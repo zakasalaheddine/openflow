@@ -76,6 +76,10 @@ export async function GET(request: Request) {
     ),
     totals: {
       staleCount: preview.stale.length,
+      // A node whose render is queued or polling is neither stale nor done.
+      // Folding it into either one makes the toolbar say "all rendered" while
+      // fal is still working, and an export taken at that moment ships nothing.
+      runningCount: preview.inFlight.length,
       // Rounded here, not in the estimator: full precision internally keeps a
       // sum of many sub-cent nodes accurate, but the UI must never print
       // "$4.594371".

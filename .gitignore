@@ -9,6 +9,7 @@ dist/
 test-results/
 playwright-report/
 .playwright-data/
+.playwright-exports/
 next-env.d.ts
 spike/products/
 spike/out/

@@ -14,6 +14,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ffmpeg for video export and probing; fonts because the runner has none
+      # and the text overlay would rasterise to an empty layer — an export that
+      # silently ships without its headline, and a green suite.
+      - name: Install ffmpeg and fonts
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
+
       - uses: actions/setup-node@v4
         with:
           # One source for the pin. better-sqlite3's prebuild segfaults on some

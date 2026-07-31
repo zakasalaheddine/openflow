@@ -25,7 +25,12 @@ export type FlowState = {
   graph: Flow
   sources: SourceRow[]
   nodes: Record<string, NodeState>
-  totals: { staleCount: number; estimatedCents: number; spentCents: number }
+  totals: {
+    staleCount: number
+    runningCount: number
+    estimatedCents: number
+    spentCents: number
+  }
 }
 
 export const money = (cents: number) => `$${(cents / 100).toFixed(2)}`
@@ -87,6 +92,19 @@ export async function replaceSource(id: string, next: File | string) {
   if (!response.ok) {
     throw new Error(((await response.json()) as { error?: string }).error ?? 'Could not replace')
   }
+}
+
+export type ExportOutcome = {
+  dir: string
+  written: { file: string; format: string }[]
+  rejected: { nodeId: string; format: string; reasons: string[] }[]
+}
+
+export async function startExport(): Promise<ExportOutcome> {
+  const response = await fetch('/api/export', { method: 'POST' })
+  const body = await response.json()
+  if (!response.ok) throw new Error(body.error ?? 'Export failed')
+  return body as ExportOutcome
 }
 
 export type RunOutcome =

@@ -1,0 +1,19 @@
+{
+  "id": "headline-ad",
+  "name": "Headline ad",
+  "description": "One still with a headline and call to action burned on at export. Use when the creative carries copy.",
+  "slots": ["scene", "headline", "cta"],
+  "flow": {
+    "nodes": [
+      { "id": "shot", "type": "image", "label": "scene", "position": { "x": 60, "y": 120 }, "prompt": "{{scene}}", "modelRole": "hero", "seed": 1 },
+      {
+        "id": "export",
+        "type": "export",
+        "position": { "x": 420, "y": 120 },
+        "formats": [],
+        "overlay": { "headline": "{{headline}}", "cta": "{{cta}}" }
+      }
+    ],
+    "edges": [{ "id": "e1", "from": "shot", "to": "export", "role": "input", "position": null }]
+  }
+}

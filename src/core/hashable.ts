@@ -37,6 +37,8 @@ export function hashableConfig(node: FlowNode): Record<string, JsonValue> {
         formats: node.formats as unknown as JsonValue,
         fps: node.fps,
         codec: node.codec,
+        // Changes the exported pixels, so it changes the hash.
+        overlay: (node.overlay ?? null) as unknown as JsonValue,
       }
   }
 }

@@ -66,7 +66,9 @@ describe('hashableConfig', () => {
     expect(hashableConfig(source)).toEqual({ sourceId: 'source:bottle' })
   })
 
-  test('keeps formats, fps and codec on an export node', () => {
+  test('keeps formats, fps, codec and the text overlay on an export node', () => {
+    // `overlay` joined the whitelist in Phase 3: the export node composites the
+    // headline itself, so changing it changes the exported pixels.
     const exportNode: FlowNode = {
       id: 'e',
       type: 'export',
@@ -78,7 +80,14 @@ describe('hashableConfig', () => {
       formats: exportNode.type === 'export' ? exportNode.formats : [],
       fps: 30,
       codec: undefined,
+      overlay: null,
     })
+  })
+
+  test('editing the headline changes an export node config', () => {
+    const base: FlowNode = { id: 'e', type: 'export', formats: [] }
+    const withText: FlowNode = { ...base, type: 'export', overlay: { headline: 'Bottled sunlight' } }
+    expect(hashableConfig(withText)).not.toEqual(hashableConfig(base))
   })
 
   test('a prompt edit still changes the config', () => {

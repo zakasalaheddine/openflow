@@ -199,15 +199,26 @@ function liveAdapter(): Adapter {
  *
  * The browser suite builds graphs through the UI, so it cannot know a node's
  * input hash ahead of time and cannot pre-record a fixture for it. This returns
- * a 1x1 placeholder for anything asked of it and never opens a socket.
+ * a small real file for anything asked of it and never opens a socket.
+ *
+ * The bytes are genuine media, not a 1x1 placeholder: everything downstream of
+ * the worker — the ffprobe, the transcode, the export resize, the spec check —
+ * reads the file rather than the row, and a placeholder makes all of those pass
+ * on garbage. A data URI rather than a path so the worker's one download path
+ * stays the download path.
  *
  * Deliberately not the default and deliberately named: someone running with
  * this set gets obviously-fake output on the first render rather than a subtle
  * quality problem.
  */
-function stubAdapter(): Adapter {
-  const PLACEHOLDER =
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+// Real ad dimensions, not a thumbnail: the export path refuses anything below a
+// format's minimum resolution, so a tiny stub would make every browser export
+// fail the spec check for a reason that has nothing to do with the test.
+export const STUB_MEDIA = { width: 1080, height: 1920, durationMs: 1000, fps: 2 } as const
+
+function stubAdapter(mediaDir: string): Adapter {
+  const dataUri = (file: string, mime: string) =>
+    `data:${mime};base64,${readFileSync(path.join(mediaDir, file)).toString('base64')}`
 
   return {
     async submit({ model, hash }) {
@@ -215,14 +226,16 @@ function stubAdapter(): Adapter {
     },
     async poll(requestId) {
       const format = requestId.replace(/^stub:/, '').split('#')[0]
+      const video = format === 'video'
       return {
         status: 'COMPLETED',
         outputs: [
           {
-            url: PLACEHOLDER,
-            mime: format === 'video' ? 'video/mp4' : 'image/png',
-            width: 1024,
-            height: 1024,
+            url: video ? dataUri('stub.mp4', 'video/mp4') : dataUri('stub.png', 'image/png'),
+            mime: video ? 'video/mp4' : 'image/png',
+            width: STUB_MEDIA.width,
+            height: STUB_MEDIA.height,
+            ...(video ? { durationMs: STUB_MEDIA.durationMs } : {}),
           },
         ],
       }
@@ -230,7 +243,11 @@ function stubAdapter(): Adapter {
   }
 }
 
-export function createAdapter(options: { mode: FalMode; fixtureDir?: string }): Adapter {
+export function createAdapter(options: {
+  mode: FalMode
+  fixtureDir?: string
+  mediaDir?: string
+}): Adapter {
   switch (options.mode) {
     case 'off':
       return {
@@ -244,7 +261,7 @@ export function createAdapter(options: { mode: FalMode; fixtureDir?: string }): 
     case 'replay':
       return replayAdapter(options.fixtureDir ?? path.resolve('test/fixtures/fal'))
     case 'stub':
-      return stubAdapter()
+      return stubAdapter(options.mediaDir ?? path.resolve('test/fixtures/media'))
     case 'live':
       return liveAdapter()
   }

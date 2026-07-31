@@ -127,6 +127,51 @@ describe('adapter in `replay` mode', () => {
   })
 })
 
+describe('adapter in `stub` mode', () => {
+  // The browser suite renders through this adapter, and everything downstream
+  // of the worker reads the file rather than the row. A placeholder makes the
+  // probe, the transcode, the export resize and the spec check all pass on
+  // bytes that are not media at all.
+  const videoModel = resolveModel('video', 'draft')
+
+  const bytesOf = async (spec: typeof model) => {
+    const adapter = createAdapter({ mode: 'stub' })
+    const { requestId } = await adapter.submit({ model: spec, input: {}, hash: 'abc' })
+    const result = await adapter.poll(requestId)
+    const url = result.outputs![0].url
+    return Buffer.from(url.slice(url.indexOf(',') + 1), 'base64')
+  }
+
+  test('returns a real PNG, not a placeholder', async () => {
+    const bytes = await bytesOf(model)
+    expect(bytes.subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+    // A 1x1 PNG is ~70 bytes. Anything that small cannot be resized, checked
+    // against a safe zone, or exported at a real format.
+    expect(bytes.byteLength).toBeGreaterThan(150)
+  })
+
+  test('returns a real MP4 for a video model', async () => {
+    const bytes = await bytesOf(videoModel)
+    // ISO-BMFF: bytes 4..8 of the first box are 'ftyp'.
+    expect(bytes.subarray(4, 8).toString()).toBe('ftyp')
+    expect(bytes.byteLength).toBeGreaterThan(500)
+  })
+
+  test('reports the dimensions the file actually has', async () => {
+    const adapter = createAdapter({ mode: 'stub' })
+    const { requestId } = await adapter.submit({ model: videoModel, input: {}, hash: 'abc' })
+    const [output] = (await adapter.poll(requestId)).outputs!
+    expect(output).toMatchObject({ mime: 'video/mp4', width: 1080, height: 1920, durationMs: 1000 })
+  })
+
+  test('never touches the network', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    await bytesOf(model)
+    expect(fetchSpy).not.toHaveBeenCalled()
+    fetchSpy.mockRestore()
+  })
+})
+
 describe('adapter in `live` mode', () => {
   test('refuses to dispatch without a key rather than failing mid-run', async () => {
     vi.stubEnv('FAL_KEY', '')

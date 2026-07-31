@@ -1,6 +1,7 @@
 'use client'
 
 import type { FlowNode, ModelRole } from '@/core/types'
+import { DEFAULT_TEXT_BOX } from '@/core/spec'
 import { money, type NodeState } from './state'
 
 type Props = {
@@ -69,6 +70,53 @@ export function Inspector({ node, state, onChange, onDelete, onReroll }: Props) 
               <option value="on">On</option>
             </select>
           </label>
+        </>
+      )}
+
+      {node.type === 'export' && (
+        <>
+          {/* Placed here, not asked of the model: a declared box is what makes
+              the safe-zone check arithmetic instead of OCR. */}
+          <label className="field">
+            <span className="slate">Headline</span>
+            <input
+              value={node.overlay?.headline ?? ''}
+              data-testid="overlay-headline"
+              onChange={(e) =>
+                onChange({ ...node, overlay: { ...node.overlay, headline: e.target.value } })
+              }
+            />
+          </label>
+          <label className="field">
+            <span className="slate">Call to action</span>
+            <input
+              value={node.overlay?.cta ?? ''}
+              data-testid="overlay-cta"
+              onChange={(e) => onChange({ ...node, overlay: { ...node.overlay, cta: e.target.value } })}
+            />
+          </label>
+          <label className="field">
+            <span className="slate">Text position (top edge, % of frame)</span>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={Math.round((node.overlay?.box ?? DEFAULT_TEXT_BOX).y * 100)}
+              data-testid="overlay-y"
+              onChange={(e) =>
+                onChange({
+                  ...node,
+                  overlay: {
+                    ...node.overlay,
+                    box: { ...(node.overlay?.box ?? DEFAULT_TEXT_BOX), y: Number(e.target.value) / 100 },
+                  },
+                })
+              }
+            />
+          </label>
+          <span className="hint">
+            Formats come from project settings unless this node names its own.
+          </span>
         </>
       )}
 

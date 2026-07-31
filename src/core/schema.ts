@@ -9,6 +9,29 @@ const position = z.object({ x: z.number(), y: z.number() }).optional()
 
 const modelRole = z.enum(['draft', 'hero', 'specialist'])
 
+/** Fractions of the frame, so 0..1 rather than pixels. */
+const fraction = z.number().min(0).max(1)
+
+const formatSpec = z
+  .object({
+    safeZone: z
+      .object({ top: fraction, right: fraction, bottom: fraction, left: fraction })
+      .partial()
+      .optional(),
+    minScale: z.number().min(0).optional(),
+    maxDurationSec: z.number().min(0).optional(),
+    maxTextCoverage: fraction.optional(),
+  })
+  .optional()
+
+const textOverlay = z
+  .object({
+    headline: z.string().optional(),
+    cta: z.string().optional(),
+    box: z.object({ x: fraction, y: fraction, w: fraction, h: fraction }).optional(),
+  })
+  .optional()
+
 const nodeSchema = z.discriminatedUnion('type', [
   z.object({
     id: z.string().min(1),
@@ -44,9 +67,15 @@ const nodeSchema = z.discriminatedUnion('type', [
     type: z.literal('export'),
     position,
     label: z.string().optional(),
-    formats: z.array(z.object({ name: z.string(), w: z.number(), h: z.number() })),
+    formats: z.array(
+      z.object({ name: z.string(), w: z.number(), h: z.number(), spec: formatSpec }),
+    ),
     fps: z.number().optional(),
     codec: z.string().optional(),
+    // Dropped silently before this existed, which made every spec check pass:
+    // no box, no safe-zone rule, and an export that shipped its headline into
+    // the platform's own chrome.
+    overlay: textOverlay,
   }),
 ])
 

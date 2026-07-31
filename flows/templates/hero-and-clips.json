@@ -1,0 +1,23 @@
+{
+  "id": "hero-and-clips",
+  "name": "Hero and clips",
+  "description": "One hero still, then three clips that start from that exact frame. Use when the ad needs motion but the product must not drift.",
+  "slots": ["hero", "clip_one", "clip_two", "clip_three"],
+  "flow": {
+    "nodes": [
+      { "id": "hero", "type": "image", "label": "hero", "position": { "x": 60, "y": 300 }, "prompt": "{{hero}}", "modelRole": "hero", "seed": 1 },
+      { "id": "clip-1", "type": "video", "label": "clip one", "position": { "x": 420, "y": 40 }, "prompt": "{{clip_one}}", "durationSec": 5, "audio": false, "modelRole": "draft", "seed": 11 },
+      { "id": "clip-2", "type": "video", "label": "clip two", "position": { "x": 420, "y": 300 }, "prompt": "{{clip_two}}", "durationSec": 5, "audio": false, "modelRole": "draft", "seed": 12 },
+      { "id": "clip-3", "type": "video", "label": "clip three", "position": { "x": 420, "y": 560 }, "prompt": "{{clip_three}}", "durationSec": 5, "audio": false, "modelRole": "draft", "seed": 13 },
+      { "id": "export", "type": "export", "position": { "x": 780, "y": 300 }, "formats": [] }
+    ],
+    "edges": [
+      { "id": "e1", "from": "hero", "to": "clip-1", "role": "start_frame", "position": null },
+      { "id": "e2", "from": "hero", "to": "clip-2", "role": "start_frame", "position": null },
+      { "id": "e3", "from": "hero", "to": "clip-3", "role": "start_frame", "position": null },
+      { "id": "e4", "from": "clip-1", "to": "export", "role": "input", "position": null },
+      { "id": "e5", "from": "clip-2", "to": "export", "role": "input", "position": null },
+      { "id": "e6", "from": "clip-3", "to": "export", "role": "input", "position": null }
+    ]
+  }
+}

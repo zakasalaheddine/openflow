@@ -22,6 +22,7 @@ import {
   fetchFlow,
   saveGraph,
   startRun,
+  startExport,
   uploadFile,
   createTextSource,
   previewReplace,
@@ -79,6 +80,7 @@ function CanvasInner() {
   const [hovered, setHovered] = useState<NodeId | null>(null)
   const [replacing, setReplacing] = useState<{ id: string; radius: BlastRadius } | null>(null)
   const [dropping, setDropping] = useState(false)
+  const [exported, setExported] = useState<{ written: number; refusals: string[] } | null>(null)
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<RfNode>([])
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<RfEdge>([])
@@ -302,6 +304,44 @@ function CanvasInner() {
     setSelectedId(id)
   }
 
+  /**
+   * One gesture, another clip off the same frame — the shape of the work is
+   * three shots and nine clips, and building the ninth by hand is where a
+   * canvas starts to feel like a chore.
+   *
+   * The new clip inherits the previous sibling's prompt because that is what
+   * you are almost always doing: the same direction with one word changed.
+   * A fresh seed, though — an identical sibling is a re-roll, not a fan-out.
+   *
+   * ponytail: alt-click rather than the alt-drag the plan named. Same gesture
+   * count, and a synthetic alt-drag from a node body is indistinguishable from
+   * a pan, so the drag version could not be tested honestly.
+   */
+  function fanOut(fromId: NodeId) {
+    const current = graphRef.current
+    const from = current.nodes.find((n) => n.id === fromId)
+    if (from?.type !== 'image') return
+
+    const siblings = current.edges.filter((e) => e.from === fromId && e.role === 'start_frame')
+    const previous = current.nodes.find((n) => n.id === siblings.at(-1)?.to)
+    const anchor = from.position ?? slotFor(current.nodes.indexOf(from))
+
+    const id = newId('video')
+    const node: FlowNode = {
+      id,
+      type: 'video',
+      position: { x: anchor.x + COLUMN, y: anchor.y + siblings.length * ROW },
+      prompt: previous && 'prompt' in previous ? previous.prompt : '',
+      durationSec: 5,
+      audio: false,
+      modelRole: 'draft',
+      seed: Math.floor(Math.random() * 1_000_000),
+    }
+
+    void commit((graph) => applyWire({ ...graph, nodes: [...graph.nodes, node] }, fromId, id, { role }))
+    setSelectedId(id)
+  }
+
   /** Adds a source node for an already-uploaded asset, optionally wiring it in. */
   function addSourceNode(sourceId: string, position: { x: number; y: number }, wireTo?: string) {
     const id = newId('asset')
@@ -364,6 +404,21 @@ function CanvasInner() {
     await load()
   }
 
+  async function exportAll() {
+    setNotice(null)
+    try {
+      const outcome = await startExport()
+      setExported({
+        written: outcome.written.length,
+        // Every refusal, named. A count alone tells you something was refused
+        // and nothing about what to drag two pixels to fix.
+        refusals: outcome.rejected.flatMap((r) => r.reasons),
+      })
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Export failed')
+    }
+  }
+
   const totals = state?.totals
 
   return (
@@ -415,14 +470,24 @@ function CanvasInner() {
 
         {totals && (
           <span
-            className={totals.staleCount > 0 ? 'ledger ledger--due' : 'ledger ledger--clear'}
+            className={
+              totals.staleCount > 0 || totals.runningCount > 0
+                ? 'ledger ledger--due'
+                : 'ledger ledger--clear'
+            }
             data-testid="ledger"
           >
             {totals.staleCount > 0
               ? `${totals.staleCount} stale · ${money(totals.estimatedCents)} to render`
-              : `all rendered · ${money(totals.spentCents)} spent`}
+              : totals.runningCount > 0
+                ? `rendering ${totals.runningCount}…`
+                : `all rendered · ${money(totals.spentCents)} spent`}
           </span>
         )}
+
+        <button className="chip" onClick={() => void exportAll()} data-testid="export">
+          Export
+        </button>
 
         <button className="run" onClick={() => void run()} data-testid="run">
           Run
@@ -469,7 +534,7 @@ function CanvasInner() {
           onConnectEnd={() => {
             interactingRef.current = false
           }}
-          onNodeClick={(_, node) => setSelectedId(node.id)}
+          onNodeClick={(event, node) => (event.altKey ? fanOut(node.id) : setSelectedId(node.id))}
           onNodeMouseEnter={(_, node) => setHovered(node.id)}
           onNodeMouseLeave={() => setHovered(null)}
           onPaneClick={() => setSelectedId(null)}
@@ -497,6 +562,29 @@ function CanvasInner() {
             <p className="banner" role="status" data-testid="notice">
               {notice}
             </p>
+          </div>
+        )}
+
+        {exported && (
+          <div className="floating">
+            <div className="banner" role="status" aria-label="Export result">
+              <p data-testid="export-result">
+                {exported.written} {exported.written === 1 ? 'file' : 'files'} written to ./exports
+                {exported.refusals.length > 0
+                  ? ` · ${exported.refusals.length} refused`
+                  : ''}
+              </p>
+              {exported.refusals.map((reason) => (
+                <p key={reason} className="hint" data-testid="export-refusal">
+                  {reason}
+                </p>
+              ))}
+              <div className="banner__actions">
+                <button className="chip" onClick={() => setExported(null)}>
+                  Dismiss
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
