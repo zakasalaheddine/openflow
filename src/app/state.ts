@@ -107,6 +107,32 @@ export async function startExport(): Promise<ExportOutcome> {
   return body as ExportOutcome
 }
 
+export type BriefState = {
+  brandProfile: string
+  enabled: boolean
+  templates: { id: string; name: string; description: string }[]
+}
+
+export const fetchBrief = async (): Promise<BriefState> => (await fetch('/api/brief')).json()
+
+export async function saveBrandProfile(brandProfile: string) {
+  await fetch('/api/brief', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ brandProfile }),
+  })
+}
+
+/** Writes a graph; dispatches nothing. Run stays a deliberate act. */
+export async function submitBrief(brief: string): Promise<void> {
+  const response = await fetch('/api/brief', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ brief }),
+  })
+  if (!response.ok) throw new Error(((await response.json()) as { error?: string }).error ?? 'Brief failed')
+}
+
 export type RunOutcome =
   | { kind: 'started'; enqueued: number; cached: number }
   | { kind: 'needs-confirmation'; message: string; estimatedCents: number }

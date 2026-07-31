@@ -42,6 +42,9 @@ export default defineConfig({
       // input hashes cannot be known in advance to record fixtures against.
       // Fixture-driven execution is covered by test/acceptance.
       FAL_MODE: 'stub',
+      // Recorded responses, keyed by prompt. A prompt change surfaces as a
+      // missing fixture rather than a live call CI would pay for.
+      LLM_MODE: 'replay',
     },
   },
 })

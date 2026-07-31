@@ -1,0 +1,8 @@
+{
+  "templateId": "three-scenes",
+  "prompts": {
+    "scene_one": "the serum bottle on warm marble, morning light",
+    "scene_two": "the bottle on wet slate, cool shadow",
+    "scene_three": "the bottle on rumpled linen, late afternoon"
+  }
+}

@@ -23,6 +23,9 @@ import {
   saveGraph,
   startRun,
   startExport,
+  fetchBrief,
+  saveBrandProfile,
+  submitBrief,
   uploadFile,
   createTextSource,
   previewReplace,
@@ -81,6 +84,8 @@ function CanvasInner() {
   const [replacing, setReplacing] = useState<{ id: string; radius: BlastRadius } | null>(null)
   const [dropping, setDropping] = useState(false)
   const [exported, setExported] = useState<{ written: number; refusals: string[] } | null>(null)
+  const [brief, setBrief] = useState<{ text: string; profile: string } | null>(null)
+  const [briefing, setBriefing] = useState(false)
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<RfNode>([])
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<RfEdge>([])
@@ -419,6 +424,29 @@ function CanvasInner() {
     }
   }
 
+  async function openBrief() {
+    setNotice(null)
+    const { brandProfile } = await fetchBrief()
+    setBrief({ text: '', profile: brandProfile })
+  }
+
+  async function runBrief() {
+    if (!brief) return
+    setBriefing(true)
+    try {
+      // The profile is saved first and separately: it is a thing a person
+      // confirmed about their brand, and it should survive a brief that fails.
+      await saveBrandProfile(brief.profile)
+      await submitBrief(brief.text)
+      setBrief(null)
+      await load()
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Brief failed')
+    } finally {
+      setBriefing(false)
+    }
+  }
+
   const totals = state?.totals
 
   return (
@@ -484,6 +512,10 @@ function CanvasInner() {
                 : `all rendered · ${money(totals.spentCents)} spent`}
           </span>
         )}
+
+        <button className="chip" onClick={() => void openBrief()} data-testid="brief">
+          Brief
+        </button>
 
         <button className="chip" onClick={() => void exportAll()} data-testid="export">
           Export
@@ -562,6 +594,49 @@ function CanvasInner() {
             <p className="banner" role="status" data-testid="notice">
               {notice}
             </p>
+          </div>
+        )}
+
+        {brief && (
+          <div className="floating">
+            <div className="banner" role="dialog" aria-label="Brief">
+              <label className="field">
+                <span className="slate">Brand profile</span>
+                <textarea
+                  rows={3}
+                  value={brief.profile}
+                  placeholder="Warm, editorial, never clinical. Product always in frame."
+                  data-testid="brand-profile"
+                  onChange={(e) => setBrief({ ...brief, profile: e.target.value })}
+                />
+              </label>
+              <label className="field">
+                <span className="slate">Brief</span>
+                <textarea
+                  rows={3}
+                  value={brief.text}
+                  placeholder="Launch the serum. Three scenes for a feed test."
+                  data-testid="brief-text"
+                  onChange={(e) => setBrief({ ...brief, text: e.target.value })}
+                />
+              </label>
+              {/* It writes a graph and stops. Nothing is dispatched — what comes
+                  back is a starting point, and Run stays a deliberate act. */}
+              <span className="hint">Fills a template. Nothing renders until you press Run.</span>
+              <div className="banner__actions">
+                <button
+                  className="chip"
+                  disabled={briefing || !brief.text.trim()}
+                  onClick={() => void runBrief()}
+                  data-testid="brief-submit"
+                >
+                  {briefing ? 'Writing…' : 'Build the graph'}
+                </button>
+                <button className="chip" onClick={() => setBrief(null)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

@@ -16,7 +16,11 @@ The repo goes public at the end of this phase, finished or not.
 - [x] Export node; configurable formats; custom format creation
 - [x] **Spec validation** — safe zones, min resolution, duration limits, text coverage. Text this project places is checked as a declared box; text an image model burned into its own output is invisible here and is not claimed to be checked.
 - [x] `manifest.json` on export
-- [x] brief→flow validation + 4 templates in `/flows/templates/`. **No UI entry point and no brand-profile generation** — both need an LLM provider seam (an `LLM_MODE` mirroring `FAL_MODE`), which this phase did not build.
+- [x] Brand profile + brief→flow + 4 templates in `/flows/templates/`, behind an
+      `LLM_MODE` seam mirroring `FAL_MODE` (`live` / `replay` / `off`; `off` is
+      the default, so a canvas without a second API key degrades rather than
+      erroring oddly). The profile is stored on the project and confirmed by a
+      person — the model is never asked to write one and save it unseen.
 - [x] `npx openflow-studio` launcher; Dockerfile secondary
 - [x] `DEMO=1` mode — live runs disabled, example flows pre-baked as cache hits
 - [x] README per the §10 ordering. **No screenshot** — the serum graph shot the
@@ -71,9 +75,9 @@ the export step needs — geometry is a per-format decision, made once, at expor
 **`e2e/spec-validation.spec.ts`**
 - an export that violates a safe zone surfaces the failure in the UI with the reason, and does not silently ship
 
-**`e2e/brief-to-flow.spec.ts`** — *not written.* There is nothing to drive it
-until a provider seam exists; the validation it would exercise is covered by
-`test/unit/brief-to-flow.test.ts` against canned responses.
+**`e2e/brief-to-flow.spec.ts`** — `LLM_MODE=replay` against a recorded response
+keyed by prompt, so a prompt change surfaces as a missing fixture rather than a
+live call CI would pay for.
 - a brief plus a confirmed brand profile produces a valid graph on the canvas
 - every generated node is editable afterwards — the LLM's output is a starting point, not a commitment
 

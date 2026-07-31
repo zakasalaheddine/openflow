@@ -58,5 +58,12 @@ export const falMode = (): FalMode =>
  */
 export type LlmMode = 'live' | 'replay' | 'off'
 
-export const llmMode = (): LlmMode =>
-  isDemo() ? 'replay' : ((process.env.LLM_MODE as LlmMode | undefined) ?? (process.env.ANTHROPIC_API_KEY ? 'live' : 'off'))
+export const llmMode = (): LlmMode => {
+  if (isDemo()) return 'replay'
+  // `||`, not `??`: an exported-but-empty LLM_MODE is a variable someone
+  // cleared, not a mode called "".
+  return (
+    (process.env.LLM_MODE as LlmMode | undefined) ||
+    (process.env.ANTHROPIC_API_KEY ? 'live' : 'off')
+  )
+}
