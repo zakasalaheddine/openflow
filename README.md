@@ -11,7 +11,7 @@ Upload a product once and it becomes an *anchor*. Build a graph of shots — ima
 **Node 22.16.0 or newer is required** (`.nvmrc` pins it). Older 22.x patch releases ship a `better-sqlite3` prebuild that segfaults on macOS arm64 — you get exit code 139 and no error message.
 
 ```bash
-nvm use          # or any Node >= 22.16.0
+nvm use          # reads .nvmrc — do this first, npm run dev refuses without it
 npm install
 npm test         # typecheck, lint, unit, e2e — one command
 
