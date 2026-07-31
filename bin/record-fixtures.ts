@@ -17,6 +17,9 @@ import { importFlowFile, readFlowFile } from '../src/core/run-flow'
 import { planRun } from '../src/core/executor'
 import { byId } from '../src/models/registry'
 import { createAdapter } from '../src/models/fal'
+import { loadDotEnv } from '../src/env'
+
+loadDotEnv()
 
 const PLACEHOLDER_PNG =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='

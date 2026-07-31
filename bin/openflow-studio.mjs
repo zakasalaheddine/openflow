@@ -38,6 +38,14 @@ const run = (command, args, env = {}) =>
 // onto the Node that segfaults.
 await import(pathToFileURL(path.join(root, 'scripts/check-node.mjs')).href)
 
+// The same `.env` Next will read once it boots — `root`, not `process.cwd()`,
+// because the server is spawned with its cwd pinned there. Read here too so a
+// key already sitting in the file does not produce a prompt asking for it.
+// Like Next, an exported variable still wins; a missing file is the norm.
+try {
+  process.loadEnvFile(path.join(root, '.env'))
+} catch {}
+
 /**
  * A key is only needed to generate. Asking for one before the canvas has even
  * opened turns a 30-second install into a signup, so an empty answer is a valid

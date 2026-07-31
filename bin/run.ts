@@ -8,8 +8,12 @@
 import { openDb } from '../src/db'
 import { readFlowFile, runFlow } from '../src/core/run-flow'
 import { createAdapter } from '../src/models/fal'
-import { falMode } from '../src/env'
+import { falMode, loadDotEnv } from '../src/env'
 import type { ModelRole } from '../src/core/types'
+
+// Before anything reads process.env. The canvas gets `.env` from Next; this
+// runner has no framework to do it for us.
+loadDotEnv()
 
 const [file, ...rest] = process.argv.slice(2)
 

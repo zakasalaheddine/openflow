@@ -3,6 +3,8 @@ data/
 exports/
 .env
 .env.*
+# The one that is meant to be committed — it holds no secrets, only their names.
+!.env.example
 .next/
 dist/
 *.tsbuildinfo

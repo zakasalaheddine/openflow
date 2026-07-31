@@ -16,7 +16,8 @@
     "src",
     "test/fixtures/fal",
     "next.config.ts",
-    "tsconfig.json"
+    "tsconfig.json",
+    ".env.example"
   ],
   "scripts": {
     "check-node": "node scripts/check-node.mjs",

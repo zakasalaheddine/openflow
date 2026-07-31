@@ -1,6 +1,29 @@
 import path from 'node:path'
 
 /**
+ * Loads `.env` for the entrypoints Next does not start.
+ *
+ * `next dev` and `next start` read `.env` themselves, so the canvas has always
+ * honoured it. The headless runner and the launcher do not — which is why
+ * `FAL_KEY` in a `.env` still produced a launcher prompt asking for the key it
+ * was already given. Call this first in anything with its own `main`.
+ *
+ * `process.loadEnvFile` is stdlib and, like Next, leaves an already-exported
+ * variable alone: `FAL_MODE=off npm run …` must still win over the file, or a
+ * suite that must not spend could be re-armed by a stray line in `.env`.
+ *
+ * ponytail: `.env` only, not `.env.local`/`.env.<mode>`. Add the cascade if
+ * anyone actually needs to keep two profiles side by side.
+ */
+export function loadDotEnv(file = '.env') {
+  try {
+    process.loadEnvFile(path.resolve(file))
+  } catch {
+    // No `.env` is the normal case, not a failure.
+  }
+}
+
+/**
  * Every path and every network-mode decision resolves through here.
  * Nothing else in the codebase may read `process.env.OPENFLOW_DATA_DIR` or
  * hardcode `./data` — tests point this at a temp dir per file, and a shared
