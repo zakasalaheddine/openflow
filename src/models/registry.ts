@@ -68,6 +68,62 @@ export const REGISTRY: ModelSpec[] = [
     cost: { unit: 'image', amount: 4 },
     verifiedOn: null,
   },
+
+  // Video rows land in Phase 2 rather than Phase 3 because the canvas needs
+  // them before any clip is ever rendered: wiring gates on caps.startEndFrame,
+  // and the priced toolbar count needs cost.unit 'second' to say what a branch
+  // of clips would cost. Phase 3 adds the execution path, not these rows.
+  //
+  // The video landscape is unstable; confirm availability before wiring. Every
+  // row here is verifiedOn: null for exactly that reason.
+  {
+    id: 'hailuo-2-3-pro',
+    format: 'video',
+    role: 'draft',
+    falEndpoint: 'fal-ai/minimax/hailuo-02-3/pro/image-to-video',
+    caps: {
+      refImages: 0,
+      textRendering: false,
+      startEndFrame: true,
+      nativeAudio: false,
+      maxDurationSec: 10,
+    },
+    cost: { unit: 'second', amount: 10 },
+    verifiedOn: null,
+  },
+  {
+    id: 'veo-3-1',
+    format: 'video',
+    role: 'hero',
+    falEndpoint: 'fal-ai/veo3.1/image-to-video',
+    caps: {
+      refImages: 0,
+      textRendering: false,
+      startEndFrame: true,
+      nativeAudio: true,
+      maxDurationSec: 8,
+    },
+    cost: { unit: 'second', amount: 40 },
+    verifiedOn: null,
+  },
+  {
+    id: 'kling-3-pro',
+    format: 'video',
+    role: 'specialist',
+    // The specialist slot goes to whichever model exposes start AND end frame
+    // control — that capability is what end-frame anchoring depends on if
+    // Phase 0 finds identity drifts across a clip.
+    falEndpoint: 'fal-ai/kling-video/v3/pro/image-to-video',
+    caps: {
+      refImages: 0,
+      textRendering: false,
+      startEndFrame: true,
+      nativeAudio: false,
+      maxDurationSec: 10,
+    },
+    cost: { unit: 'second', amount: 19 },
+    verifiedOn: null,
+  },
 ]
 
 export function resolveModel(format: ModelFormat, role: ModelRole): ModelSpec {

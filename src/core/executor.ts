@@ -5,6 +5,7 @@ import { projects, flows, anchors, nodeRuns } from '../db/schema'
 import { inputHash } from './hash'
 import { hashableConfig } from './hashable'
 import { topoOrder } from './graph'
+import { previewRun } from './preview'
 import { DEFAULT_SETTINGS, type ProjectSettings } from './settings'
 import type { Flow, FlowNode, ModelRole, NodeId } from './types'
 import { resolveModel, assertAnchorsSupported, estimateCostCents } from '../models/registry'
@@ -159,23 +160,10 @@ export function enqueueRun(
   options: { role?: ModelRole; confirmOverspend?: boolean } = {},
 ): EnqueueResult {
   const { settings } = loadContext(db, flowId)
-  const planned = planRun(db, flowId, options)
 
-  const hashes = planned.map((p) => p.inputHash)
-  const existing = hashes.length
-    ? db.select().from(nodeRuns).where(inArray(nodeRuns.inputHash, hashes)).all()
-    : []
-
-  // Only a success satisfies a hash. Treating a failure as a cache hit would
-  // let one content-policy refusal poison a node permanently.
-  const satisfied = new Set(existing.filter((r) => r.status === 'succeeded').map((r) => r.inputHash))
-  const inFlight = new Set(
-    existing.filter((r) => (IN_FLIGHT as readonly string[]).includes(r.status)).map((r) => r.inputHash),
-  )
-
-  const cached = planned.filter((p) => satisfied.has(p.inputHash))
-  const enqueued = planned.filter((p) => !satisfied.has(p.inputHash) && !inFlight.has(p.inputHash))
-  const estimatedCents = enqueued.reduce((sum, p) => sum + p.estimatedCents, 0)
+  // Same derivation the toolbar shows. One function, so the quoted price and
+  // the charged price cannot drift apart.
+  const { stale: enqueued, cached, estimatedCents } = previewRun(db, flowId, options)
 
   if (!options.confirmOverspend && estimatedCents > settings.spendCapPerRun) {
     throw new SpendCapExceededError(estimatedCents, settings.spendCapPerRun)
