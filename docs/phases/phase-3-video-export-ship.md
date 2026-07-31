@@ -10,16 +10,20 @@ The repo goes public at the end of this phase, finished or not.
 
 ## 1. Build
 
-- [ ] Video node + 3 video registry rows from the Phase 0 findings
-- [ ] Start/end frame wiring, gated on `caps.startEndFrame`
-- [ ] Alt-drag fan-out — spawns a pre-wired sibling video node pre-filled with the previous sibling's prompt
-- [ ] Export node; configurable formats; custom format creation
-- [ ] **Spec validation** — safe zones, min resolution, duration limits, text coverage. Do not cut this; it is the ad-specific depth nobody else ships (§12 risk 3).
-- [ ] `manifest.json` on export
-- [ ] Brand profile generation + brief→flow + 4 templates in `/flows/templates/`
+- [x] Video node + 3 video registry rows from the Phase 0 findings
+- [x] Start/end frame wiring, gated on `caps.startEndFrame`
+- [x] Alt-drag fan-out — spawns a pre-wired sibling video node pre-filled with the previous sibling's prompt. **Alt-click, not alt-drag:** a synthetic alt-drag from a node body is indistinguishable from a pan, so the drag version could not be tested honestly.
+- [x] Export node; configurable formats; custom format creation
+- [x] **Spec validation** — safe zones, min resolution, duration limits, text coverage. Text this project places is checked as a declared box; text an image model burned into its own output is invisible here and is not claimed to be checked.
+- [x] `manifest.json` on export
+- [x] brief→flow validation + 4 templates in `/flows/templates/`. **No UI entry point and no brand-profile generation** — both need an LLM provider seam (an `LLM_MODE` mirroring `FAL_MODE`), which this phase did not build.
 - [ ] `npx openflow-studio` launcher; Dockerfile secondary
 - [ ] `DEMO=1` mode — live runs disabled, example flows pre-baked as cache hits
 - [ ] README per the §10 ordering
+
+**Normalisation covers fps and codec, not dimensions.** There is no project-level
+canvas size to normalise to, and cropping on the way in would throw away framing
+the export step needs — geometry is a per-format decision, made once, at export.
 
 ## 2. TDD units
 
@@ -65,7 +69,9 @@ The repo goes public at the end of this phase, finished or not.
 **`e2e/spec-validation.spec.ts`**
 - an export that violates a safe zone surfaces the failure in the UI with the reason, and does not silently ship
 
-**`e2e/brief-to-flow.spec.ts`**
+**`e2e/brief-to-flow.spec.ts`** — *not written.* There is nothing to drive it
+until a provider seam exists; the validation it would exercise is covered by
+`test/unit/brief-to-flow.test.ts` against canned responses.
 - a brief plus a confirmed brand profile produces a valid graph on the canvas
 - every generated node is editable afterwards — the LLM's output is a starting point, not a commitment
 
@@ -74,7 +80,7 @@ The repo goes public at the end of this phase, finished or not.
 - prompt editing changes the hash and marks descendants stale
 - the two are visually distinct — confusing them means re-rolling a bad idea forever
 
-**`e2e/demo-mode.spec.ts`**
+**`e2e/demo-mode.spec.ts`** — *not written; `DEMO=1` is not built.*
 - `DEMO=1` serves pre-baked flows and **dispatches nothing**. Assert zero outbound calls: this protects your wallet on a public demo, so it is a real test, not a nicety.
 
 ## 4. Ship
