@@ -67,7 +67,10 @@ State logic stays out of components and gets unit tested. Components get covered
 
 ## Gate — NOT MET
 
-`e2e/serum-graph.spec.ts` is marked `test.fixme` and does not pass.
+`e2e/serum-graph.spec.ts` fails, and is left failing rather than skipped. CI is
+red until the gate passes — skipping it would make the build green while the
+gate is unmet, which is the "reads as covered when it isn't" failure
+`docs/testing-strategy.md` exists to prevent.
 
 **What works:** everything else. 153 unit tests and 7 browser specs are green —
 anchor chips add zero edges, anchor bumps price the blast radius across flows
@@ -88,8 +91,18 @@ synchronously inside `onConnect`. Re-seeding nodes and edges independently
 moved it from "always fails" to "fails on the second wire", so the remaining
 cause is very likely still a re-seed racing the gesture.
 
-**Next thing to try:** stop re-seeding from the server entirely after a local
-edit — treat the client graph as authoritative between commits and reconcile
-only on load or when another surface changes the flow.
+Also ruled out since: re-seeding after a commit at all. Applying edits purely
+locally and never taking the server's graph back changed nothing, so the cause
+is neither the reseed nor the round trip.
+
+**Next things to try, in order:**
+1. Reproduce by hand in a real browser. Every result so far comes from
+   synthetic pointer events; confirm a human dragging twice hits it too, before
+   spending more on a fault that may be Playwright-specific.
+2. If a human does hit it: bisect by deleting features from the canvas —
+   polling, the commit queue, the anchor rail — until wiring works twice, then
+   add back.
+3. If a human does not: the spec is at fault, not the app. Drive connections
+   through React Flow's API in the spec instead of synthetic pointer events.
 
 The human check the spec can't make: build that graph yourself once and confirm it's actually pleasant. If wiring nine video nodes is tedious, alt-drag fan-out (Phase 3) is the fix — note it and move on, don't redesign here.

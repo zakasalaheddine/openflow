@@ -12,8 +12,11 @@ import { resetWorkspace, waitForLedger, wire } from './helpers'
 test.describe.configure({ mode: 'serial' })
 
 /**
- * THE PHASE 2 GATE — NOT MET. Marked fixme so the rest of the suite stays a
- * meaningful signal instead of a permanently red build nobody reads.
+ * THE PHASE 2 GATE — NOT MET, and left failing on purpose.
+ *
+ * Skipping it would make CI green while the gate is unmet, which is exactly the
+ * "reads as covered when it isn't" failure docs/testing-strategy.md warns about.
+ * A red build here is the system working: the phase is not done.
  *
  * Symptom: the first wire lands; the second connection gesture in the same page
  * session never starts (React Flow draws no connection line, onConnect never
@@ -27,7 +30,7 @@ test.describe.configure({ mode: 'serial' })
  * "always fails" to "fails on the second wire", so the remaining cause is
  * almost certainly still a re-seed racing the gesture.
  */
-test.fixme('builds the 3-image to 9-video serum graph from an empty canvas', async ({ page, request }) => {
+test('builds the 3-image to 9-video serum graph from an empty canvas', async ({ page, request }) => {
   test.setTimeout(120_000)
   await resetWorkspace(request)
   await page.goto('/')
@@ -116,7 +119,7 @@ test.fixme('builds the 3-image to 9-video serum graph from an empty canvas', asy
   await expect(page.getByTestId('ledger')).toContainText('stale')
 })
 
-test.fixme('renders every node in the graph it just built', async ({ page, request }) => {
+test('renders every node in the graph it just built', async ({ page, request }) => {
   test.setTimeout(180_000)
   await page.goto('/')
   await waitForLedger(page)

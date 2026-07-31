@@ -42,6 +42,8 @@ const defaultDownload = async (url: string): Promise<Buffer> => {
   return Buffer.from(await response.arrayBuffer())
 }
 
+// ponytail: first project wins, not the flow's project. Correct while there is
+// one workspace; join through flows when multi-project lands.
 function projectConcurrency(db: Db): number {
   const project = db.select().from(projects).limit(1).get()
   const settings = { ...DEFAULT_SETTINGS, ...(project?.settings as ProjectSettings | undefined) }

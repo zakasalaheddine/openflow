@@ -13,5 +13,5 @@ next-env.d.ts
 spike/products/
 spike/out/
 .playwright-mcp/
-*.png
+/canvas-*.png
 .DS_Store
