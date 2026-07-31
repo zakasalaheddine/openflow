@@ -78,7 +78,7 @@ button {
 
 .shell {
   display: grid;
-  grid-template-columns: var(--rail) 1fr;
+  grid-template-columns: 1fr;
   grid-template-rows: 52px 1fr;
   height: 100vh;
 }
@@ -89,7 +89,7 @@ button {
  * a node and not be able to select it.
  */
 .shell[data-inspector='open'] {
-  grid-template-columns: var(--rail) 1fr var(--inspector);
+  grid-template-columns: 1fr var(--inspector);
 }
 
 .topbar {
@@ -176,94 +176,6 @@ button {
 .run:disabled {
   opacity: 0.35;
   cursor: not-allowed;
-}
-
-/* ---------- left rail: the client ---------- */
-
-.rail {
-  border-right: 1px solid var(--line);
-  background: var(--panel);
-  overflow-y: auto;
-  padding: 16px 14px;
-}
-
-.rail__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.anchor {
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  padding: 10px;
-  margin-bottom: 10px;
-  background: var(--raised);
-}
-
-.anchor[data-attached='true'] {
-  border-color: var(--line-bright);
-  box-shadow: inset 2px 0 0 var(--fixed);
-}
-
-.anchor__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.anchor__name {
-  font-size: 13px;
-}
-
-.anchor__refs {
-  display: flex;
-  gap: 4px;
-  margin-top: 8px;
-}
-
-.anchor__ref {
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--line-bright);
-  border-radius: 2px;
-  background: var(--ground);
-  display: grid;
-  place-items: center;
-  font-family: var(--mono);
-  font-size: 8px;
-  color: var(--slate-dim);
-  overflow: hidden;
-}
-
-.anchor__actions {
-  display: flex;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.chip {
-  padding: 4px 9px;
-  border: 1px solid var(--line-bright);
-  border-radius: 2px;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--slate);
-}
-
-.chip[aria-pressed='true'] {
-  background: var(--fixed);
-  border-color: var(--fixed);
-  color: var(--ground);
-}
-
-.chip--danger:hover {
-  border-color: var(--safelight);
-  color: var(--safelight);
 }
 
 /* ---------- canvas ---------- */
@@ -560,11 +472,8 @@ button {
 }
 
 @media (max-width: 900px) {
-  .shell {
+  .shell[data-inspector='open'] {
     grid-template-columns: 1fr;
-  }
-  .rail {
-    display: none;
   }
 }
 
@@ -573,4 +482,144 @@ button {
     transition: none !important;
     animation: none !important;
   }
+}
+
+
+/* ---------- chips, banners, floats ---------- */
+
+.chip {
+  padding: 4px 9px;
+  border: 1px solid var(--line-bright);
+  border-radius: 2px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--slate);
+}
+
+.chip[aria-pressed='true'] {
+  background: var(--raised);
+  border-color: var(--line-bright);
+  color: var(--ink);
+}
+
+.banner__actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.floating {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  max-width: 420px;
+}
+
+/* ---------- reference edges, drawn quietly ---------- */
+
+/*
+ * A reference is true whether or not you are looking at it. Generation edges —
+ * shot to clip — are the spine of the graph and stay solid; references are
+ * thin, dashed and dimmed, and ⌥R takes them off screen entirely.
+ */
+.react-flow__edge.edge--reference .react-flow__edge-path {
+  stroke: var(--slate-dim);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+  opacity: 0.55;
+}
+
+.react-flow__edge.edge--generation .react-flow__edge-path {
+  stroke: var(--fixed);
+  stroke-width: 1.5;
+  stroke-dasharray: none;
+  opacity: 1;
+}
+
+/* Hovering an asset answers "what does this product touch". */
+.react-flow__node.lit .node {
+  border-color: var(--fixed);
+  box-shadow: 0 0 0 1px var(--fixed);
+}
+
+/* ---------- source node: the asset itself ---------- */
+
+.node--source {
+  width: 168px;
+  border-style: dashed;
+  border-color: var(--slate-dim);
+  opacity: 1;
+}
+
+.node--source .node__slate {
+  background: transparent;
+}
+
+.node__frame--source {
+  aspect-ratio: 1;
+  align-items: stretch;
+}
+
+.node__text {
+  margin: 0;
+  padding: 8px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--slate);
+  overflow: hidden;
+}
+
+.node__replace {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--slate-dim);
+}
+
+.node__replace:hover {
+  color: var(--safelight);
+}
+
+.node__prompt--editing {
+  display: block;
+  width: 100%;
+  height: 72px;
+  resize: none;
+  border: none;
+  border-top: 1px solid var(--safelight-dim);
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  mask-image: none;
+}
+
+/* ---------- drop target ---------- */
+
+.canvas[data-dropping='true']::after {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border: 1px dashed var(--fixed);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.drop-veil {
+  position: absolute;
+  left: 50%;
+  top: 24px;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border-radius: 2px;
+  background: var(--raised);
+  border: 1px solid var(--fixed);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fixed);
+  pointer-events: none;
 }

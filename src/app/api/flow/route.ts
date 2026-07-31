@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { eq, inArray } from 'drizzle-orm'
 import { getDb } from '@/db'
 import { flows, nodeRuns, assets } from '@/db/schema'
-import { ensureWorkspace, saveGraph, listAnchors } from '@/core/workspace'
+import { ensureWorkspace, saveGraph, listSources } from '@/core/workspace'
 import { previewRun } from '@/core/preview'
 import { flowSchema } from '@/core/schema'
 import type { Flow, ModelRole } from '@/core/types'
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
     projectId,
     flowId,
     graph,
-    anchors: listAnchors(db, projectId),
+    sources: listSources(db, projectId),
     nodes: Object.fromEntries(
       graph.nodes.map((node) => {
         const run = latest.get(node.id)

@@ -1,12 +1,11 @@
 'use client'
 
 import type { FlowNode, ModelRole } from '@/core/types'
-import { money, type AnchorRow, type NodeState } from './state'
+import { money, type NodeState } from './state'
 
 type Props = {
   node: FlowNode
   state: NodeState | undefined
-  anchors: AnchorRow[]
   onChange: (next: FlowNode) => void
   onDelete: () => void
   onReroll: () => void
@@ -17,9 +16,7 @@ type Props = {
  * re-roll keeps the direction and changes the dice, editing changes the
  * direction. Confusing the two means re-rolling a bad idea forever.
  */
-export function Inspector({ node, state, anchors, onChange, onDelete, onReroll }: Props) {
-  const hasPrompt = 'prompt' in node
-  const hasAnchors = 'anchors' in node
+export function Inspector({ node, state, onChange, onDelete, onReroll }: Props) {
 
   return (
     <aside className="inspector" aria-label={`Inspector for ${node.id}`}>
@@ -46,50 +43,8 @@ export function Inspector({ node, state, anchors, onChange, onDelete, onReroll }
         />
       </label>
 
-      {hasPrompt && (
-        <label className="field">
-          <span className="slate">Direction</span>
-          <textarea
-            rows={5}
-            value={node.prompt}
-            data-testid="node-prompt"
-            placeholder="Describe the shot"
-            onChange={(e) => onChange({ ...node, prompt: e.target.value })}
-          />
-        </label>
-      )}
+      <p className="hint">Double-click the prompt on the card to edit the direction.</p>
 
-      {hasAnchors && (
-        <div className="field">
-          <span className="slate">Anchors</span>
-          <div className="inspector__chips">
-            {anchors.length === 0 && <span className="hint">No anchors yet. Add one in the left rail.</span>}
-            {anchors.map((anchor) => {
-              const attached = node.anchors.includes(anchor.id)
-              return (
-                <button
-                  key={anchor.id}
-                  className="chip"
-                  aria-pressed={attached}
-                  data-testid={`anchor-chip-${anchor.id}`}
-                  onClick={() =>
-                    onChange({
-                      ...node,
-                      // A chip, not a wire. Twelve nodes referencing one bottle
-                      // add zero edges, and the canvas stays readable.
-                      anchors: attached
-                        ? node.anchors.filter((id) => id !== anchor.id)
-                        : [...node.anchors, anchor.id],
-                    })
-                  }
-                >
-                  {anchor.kind} v{anchor.version}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
 
       {node.type === 'video' && (
         <>

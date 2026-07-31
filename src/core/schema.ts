@@ -7,17 +7,6 @@ import { z } from 'zod'
  */
 const position = z.object({ x: z.number(), y: z.number() }).optional()
 
-const assetRef = z.object({
-  id: z.string(),
-  path: z.string(),
-  mime: z.string(),
-  width: z.number().optional(),
-  height: z.number().optional(),
-  durationMs: z.number().optional(),
-  fps: z.number().optional(),
-  codec: z.string().optional(),
-})
-
 const modelRole = z.enum(['draft', 'hero', 'specialist'])
 
 const nodeSchema = z.discriminatedUnion('type', [
@@ -26,7 +15,7 @@ const nodeSchema = z.discriminatedUnion('type', [
     type: z.literal('source'),
     position,
     label: z.string().optional(),
-    assets: z.array(assetRef),
+    sourceId: z.string().min(1),
   }),
   z.object({
     id: z.string().min(1),
@@ -34,7 +23,6 @@ const nodeSchema = z.discriminatedUnion('type', [
     position,
     label: z.string().optional(),
     prompt: z.string(),
-    anchors: z.array(z.string()),
     modelRole,
     seed: z.number().int().optional(),
   }),
@@ -44,7 +32,6 @@ const nodeSchema = z.discriminatedUnion('type', [
     position,
     label: z.string().optional(),
     prompt: z.string(),
-    anchors: z.array(z.string()),
     // Bounded: duration is priced per second, and an unbounded value from a
     // client is an unbounded invoice.
     durationSec: z.number().min(1).max(60),
@@ -67,7 +54,7 @@ const edgeSchema = z.object({
   id: z.string().min(1),
   from: z.string().min(1),
   to: z.string().min(1),
-  role: z.enum(['start_frame', 'end_frame', 'input']),
+  role: z.enum(['reference', 'start_frame', 'end_frame', 'input']),
   position: z.number().nullable(),
 })
 
@@ -93,9 +80,4 @@ export const flowSchema = z
     }
   })
 
-export const anchorInputSchema = z.object({
-  name: z.string().min(1).optional(),
-  kind: z.string().min(1),
-  refImages: z.array(z.string()).min(1),
-  notes: z.string().optional(),
-})
+

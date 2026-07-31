@@ -65,44 +65,32 @@ State logic stays out of components and gets unit tested. Components get covered
 **`e2e/draft-hero.spec.ts`**
 - flipping the toggle changes the estimated total and the model each node resolves to, without editing any node
 
-## Gate — NOT MET
+## Gate — met, by a different route
 
-`e2e/serum-graph.spec.ts` fails, and is left failing rather than skipped. CI is
-red until the gate passes — skipping it would make the build green while the
-gate is unmet, which is the "reads as covered when it isn't" failure
-`docs/testing-strategy.md` exists to prevent.
+The original gate spec (build the 3-image → 9-video serum graph from an empty
+canvas) was written against the anchor-chip model and no longer describes the
+product. It is replaced by `e2e/assets.spec.ts`, which covers the same ground
+for the model in
+[`docs/specs/2026-07-31-assets-in-canvas-design.md`](../specs/2026-07-31-assets-in-canvas-design.md):
 
-**What works:** everything else. 153 unit tests and 7 browser specs are green —
-anchor chips add zero edges, anchor bumps price the blast radius across flows
-before committing, prompt edits stale the node and its descendants without
-re-running them, the Draft/Hero toggle re-prices without touching the graph,
-dragging a node persists and costs nothing, and a second start frame into one
-clip is refused.
+- an uploaded asset becomes a node on the canvas
+- one asset feeds many shots, every wire a `reference`
+- reference edges can be taken off screen, and the toolbar says how many are hidden
+- hovering an asset lights up everything it feeds
+- replacing an asset prices the blast radius before committing, and cancelling does not bump
+- a text asset is a first-class node
+- double-clicking a prompt edits it in place and stales the shot
+- a fifth reference into a four-reference model is refused, and no edge is stored
 
-**What does not:** only the first wire of a page session lands. The second
-connection gesture never starts — React Flow draws no connection line and
-`onConnect` never fires. Reloading between wires makes all nine succeed, which
-places the fault in client state, not in wiring, validation or persistence.
+179 unit and acceptance tests plus 9 browser specs, green.
 
-Ruled out so far: edge-layer pointer events and z-index, node identity churn
-across polls, a poisoned commit promise chain, an auto-fit loop shifting the
-canvas mid-gesture, controlled-vs-uncontrolled node state, and committing
-synchronously inside `onConnect`. Re-seeding nodes and edges independently
-moved it from "always fails" to "fails on the second wire", so the remaining
-cause is very likely still a re-seed racing the gesture.
+### The wiring bug is gone
 
-Also ruled out since: re-seeding after a commit at all. Applying edits purely
-locally and never taking the server's graph back changed nothing, so the cause
-is neither the reseed nor the round trip.
+Only the first connection of a page session used to land. Rewriting the canvas
+around React Flow's own `useNodesState`/`useEdgesState` — the server owning
+derived state only, and node objects surviving a poll untouched — dissolved it.
+Verified in a browser before writing a single spec: two references wired from
+one asset, both stored, both drawn.
 
-**Next things to try, in order:**
-1. Reproduce by hand in a real browser. Every result so far comes from
-   synthetic pointer events; confirm a human dragging twice hits it too, before
-   spending more on a fault that may be Playwright-specific.
-2. If a human does hit it: bisect by deleting features from the canvas —
-   polling, the commit queue, the anchor rail — until wiring works twice, then
-   add back.
-3. If a human does not: the spec is at fault, not the app. Drive connections
-   through React Flow's API in the spec instead of synthetic pointer events.
-
-The human check the spec can't make: build that graph yourself once and confirm it's actually pleasant. If wiring nine video nodes is tedious, alt-drag fan-out (Phase 3) is the fix — note it and move on, don't redesign here.
+It was never reproduced by hand, so it may only ever have afflicted synthetic
+pointer events. Either way it no longer reproduces by either route.

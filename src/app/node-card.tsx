@@ -1,13 +1,17 @@
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { FlowNode } from '@/core/types'
-import { money, type NodeState } from './state'
+import { money, type NodeState, type SourceRow } from './state'
 
 export type CardData = {
   node: FlowNode
   state: NodeState
   selected: boolean
+  source?: SourceRow
+  onPrompt: (nodeId: string, prompt: string) => void
+  onReplace: (sourceId: string) => void
 }
 
 const STATUS_LABEL: Record<NodeState['status'], string> = {
@@ -28,12 +32,17 @@ const STATUS_LABEL: Record<NodeState['status'], string> = {
  * up surprising someone with an invoice.
  */
 export function NodeCard({ data }: NodeProps) {
-  const { node, state, selected } = data as unknown as CardData
+  const { node, state, selected, source, onPrompt, onReplace } = data as unknown as CardData
+
+  if (node.type === 'source') {
+    return <SourceCard node={node} source={source} selected={selected} onReplace={onReplace} />
+  }
+
   const output = state.outputs[0]
 
   return (
     <div className="node" data-status={state.status} data-selected={selected} data-testid={`node-${node.id}`}>
-      {node.type !== 'source' && <Handle type="target" position={Position.Left} />}
+      <Handle type="target" position={Position.Left} />
       {node.type !== 'export' && <Handle type="source" position={Position.Right} />}
 
       <header className="node__slate">
@@ -45,7 +54,14 @@ export function NodeCard({ data }: NodeProps) {
       <div className="node__frame">
         {output ? (
           output.mime.startsWith('video/') ? (
-            <video src={output.url} muted loop playsInline onMouseEnter={(e) => e.currentTarget.play()} onMouseLeave={(e) => e.currentTarget.pause()} />
+            <video
+              src={output.url}
+              muted
+              loop
+              playsInline
+              onMouseEnter={(e) => void e.currentTarget.play().catch(() => undefined)}
+              onMouseLeave={(e) => e.currentTarget.pause()}
+            />
           ) : (
             // Plain <img>: these are locally generated files served off disk by
             // this same process. next/image would put an optimiser in front of
@@ -58,7 +74,9 @@ export function NodeCard({ data }: NodeProps) {
         )}
       </div>
 
-      {'prompt' in node && <p className="node__prompt">{node.prompt || 'No direction yet'}</p>}
+      {'prompt' in node && (
+        <EditablePrompt value={node.prompt} onCommit={(next) => onPrompt(node.id, next)} />
+      )}
 
       <footer className="node__foot">
         <span className="node__status" data-status={state.status} data-testid={`status-${node.id}`}>
@@ -77,6 +95,113 @@ export function NodeCard({ data }: NodeProps) {
           </span>
         </footer>
       )}
+    </div>
+  )
+}
+
+/**
+ * Read-only until double-clicked.
+ *
+ * An always-live textarea on every card makes twelve shots unscannable, and
+ * §6.1 says reviewing twelve at once is the point of the canvas.
+ */
+function EditablePrompt({ value, onCommit }: { value: string; onCommit: (next: string) => void }) {
+  // `draft` is null when not editing, so there is no copy of the prompt to keep
+  // in sync with the server — the value on screen is always the real one.
+  const [draft, setDraft] = useState<string | null>(null)
+  const ref = useRef<HTMLTextAreaElement>(null)
+  const editing = draft !== null
+
+  useEffect(() => {
+    if (editing) ref.current?.focus()
+  }, [editing])
+
+  if (draft === null) {
+    return (
+      <p
+        className="node__prompt"
+        onDoubleClick={() => setDraft(value)}
+        title="Double-click to edit"
+        data-testid="node-prompt-text"
+      >
+        {value || 'Double-click to describe the shot'}
+      </p>
+    )
+  }
+
+  const commit = () => {
+    const next = draft
+    setDraft(null)
+    if (next !== value) onCommit(next)
+  }
+
+  return (
+    <textarea
+      ref={ref}
+      className="node__prompt node__prompt--editing nodrag"
+      value={draft}
+      data-testid="node-prompt-input"
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') setDraft(null)
+        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) commit()
+      }}
+    />
+  )
+}
+
+/** An uploaded asset: the product, a reference clip, or a fragment of brand tone. */
+function SourceCard({
+  node,
+  source,
+  selected,
+  onReplace,
+}: {
+  node: FlowNode
+  source?: SourceRow
+  selected: boolean
+  onReplace: (sourceId: string) => void
+}) {
+  const sourceId = node.type === 'source' ? node.sourceId : ''
+  const kind = source?.kind ?? 'image'
+  const file = source?.files?.[0]
+
+  return (
+    <div
+      className="node node--source"
+      data-kind={kind}
+      data-selected={selected}
+      data-testid={`node-${node.id}`}
+    >
+      <Handle type="source" position={Position.Right} />
+
+      <header className="node__slate">
+        <span className="node__id">{node.label ?? kind}</span>
+        <span className="node__role" data-testid={`version-${node.id}`}>
+          v{source?.version ?? '—'}
+        </span>
+      </header>
+
+      <div className="node__frame node__frame--source">
+        {!source ? (
+          <span className="node__empty">missing</span>
+        ) : kind === 'text' ? (
+          <p className="node__text">{source.text}</p>
+        ) : kind === 'video' ? (
+          <video src={`/${file ?? ''}`} muted loop playsInline />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={`/${file ?? ''}`} alt={node.label ?? 'Reference'} />
+        )}
+      </div>
+
+      <footer className="node__foot">
+        <span className="slate">asset</span>
+        <button className="node__replace nodrag" onClick={() => onReplace(sourceId)} data-testid={`replace-${node.id}`}>
+          Replace
+        </button>
+      </footer>
     </div>
   )
 }

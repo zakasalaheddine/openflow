@@ -18,16 +18,22 @@ import { UnsupportedCapabilityError } from '@/models/registry'
 import type { Flow, FlowNode, ModelRole, NodeId } from '@/core/types'
 import { NodeCard } from './node-card'
 import { Inspector } from './inspector'
-import { AnchorRail } from './anchor-rail'
-import { fetchFlow, saveGraph, startRun, money, type FlowState, type NodeState } from './state'
+import {
+  fetchFlow,
+  saveGraph,
+  startRun,
+  uploadFile,
+  createTextSource,
+  previewReplace,
+  replaceSource,
+  money,
+  type BlastRadius,
+  type FlowState,
+  type NodeState,
+} from './state'
 
 const nodeTypes = { card: NodeCard }
 
-/**
- * Grid placement, not a cascade. Offsetting each new node by a few pixels piles
- * twelve shots into a diagonal stack where every card covers the handles of the
- * one before it — you cannot wire what you cannot point at.
- */
 const COLUMN = 250
 const ROW = 265
 const COLUMNS = 4
@@ -50,13 +56,6 @@ const BLANK: NodeState = {
 let counter = 0
 const newId = (type: string) => `${type}-${++counter}-${Math.random().toString(36).slice(2, 6)}`
 
-/**
- * Nodes and edges are reseeded independently.
- *
- * Keying one "shape" on both meant that adding an edge rebuilt every node
- * object, React Flow re-registered every Handle, and no further connection
- * could be started for the rest of the session — wiring worked exactly once.
- */
 const nodeShapeOf = (graph: Flow) => graph.nodes.map((n) => n.id).join('|')
 const edgeShapeOf = (graph: Flow) => graph.edges.map((e) => `${e.from}>${e.to}:${e.role}`).join('|')
 
@@ -69,47 +68,34 @@ export function Canvas() {
 }
 
 function CanvasInner() {
-  const { fitView } = useReactFlow()
+  const { fitView, screenToFlowPosition } = useReactFlow()
 
   const [role, setRole] = useState<ModelRole>('draft')
   const [state, setState] = useState<FlowState | null>(null)
   const [selectedId, setSelectedId] = useState<NodeId | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
+  const [showRefs, setShowRefs] = useState(true)
+  const [hovered, setHovered] = useState<NodeId | null>(null)
+  const [replacing, setReplacing] = useState<{ id: string; radius: BlastRadius } | null>(null)
+  const [dropping, setDropping] = useState(false)
 
-  /**
-   * React Flow owns interaction state.
-   *
-   * Rebuilding its nodes from the server on every poll re-registered every
-   * Handle, and any pointer gesture that started inside that window was
-   * silently dropped — wiring worked once per session and then stopped. The
-   * server owns *derived* state only: status, price, thumbnails.
-   */
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<RfNode>([])
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<RfEdge>([])
 
-  /** Authoritative graph for edits, so a quick second edit never reads a stale render. */
   const graphRef = useRef<Flow>({ nodes: [], edges: [] })
   const nodeShapeRef = useRef<string>('')
   const edgeShapeRef = useRef<string>('')
   const queueRef = useRef<Promise<void>>(Promise.resolve())
   const interactingRef = useRef(false)
-  /**
-   * True only between a real pointer-down drag and its release.
-   *
-   * React Flow also emits `position` changes with `dragging: false` when nodes
-   * are re-seeded, so treating every one of those as a drag-end made each
-   * commit trigger another commit — a self-sustaining loop that re-rendered the
-   * canvas continuously and swallowed every subsequent wiring gesture.
-   */
   const draggingRef = useRef(false)
   const fitViewRef = useRef(fitView)
+  const replaceInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fitViewRef.current = fitView
   }, [fitView])
 
-  /** Applies a server snapshot: reseed structure only when it actually changed. */
   const absorb = useCallback(
     (next: FlowState) => {
       setState(next)
@@ -123,7 +109,8 @@ function CanvasInner() {
             id: e.id,
             source: e.from,
             target: e.to,
-            'data-role': e.role,
+            data: { role: e.role },
+            className: e.role === 'reference' ? 'edge--reference' : 'edge--generation',
           })),
         )
       }
@@ -136,7 +123,7 @@ function CanvasInner() {
             id: node.id,
             type: 'card',
             position: node.position ?? slotFor(index),
-            data: { node, state: next.nodes[node.id] ?? BLANK, selected: false },
+            data: { node, state: next.nodes[node.id] ?? BLANK },
           })),
         )
         return
@@ -156,7 +143,7 @@ function CanvasInner() {
           ) {
             return rf
           }
-          return { ...rf, data: { node, state: nodeState, selected: false } }
+          return { ...rf, data: { node, state: nodeState } }
         }),
       )
     },
@@ -166,7 +153,6 @@ function CanvasInner() {
   useEffect(() => {
     let alive = true
     const pull = async () => {
-      // A poll landing mid-gesture would replace nodes under the pointer.
       if (interactingRef.current) return
       try {
         const next = await fetchFlow(role)
@@ -191,11 +177,6 @@ function CanvasInner() {
     }
   }, [role, absorb])
 
-  /**
-   * Takes an updater and runs commits one at a time. Passing a graph captured
-   * from the current render meant wiring nine edges in quick succession sent
-   * nine graphs that each held only their own edge, and eight were lost.
-   */
   const commit = useCallback(
     (update: (current: Flow) => Flow) => {
       queueRef.current = queueRef.current
@@ -220,8 +201,6 @@ function CanvasInner() {
           }
           await load()
         })
-        // A rejected link poisons a promise chain permanently, silencing every
-        // later edit without a sound.
         .catch(() => undefined)
       return queueRef.current
     },
@@ -231,9 +210,6 @@ function CanvasInner() {
   const nodeCount = state?.graph.nodes.length ?? 0
   useEffect(() => {
     if (nodeCount === 0) return
-    // Depends on the count alone: `fitView` is a new function every render, so
-    // including it re-fitted continuously and shifted the canvas out from under
-    // the pointer mid-gesture.
     const id = setTimeout(() => void fitViewRef.current({ padding: 0.15, duration: 0 }), 80)
     return () => clearTimeout(id)
   }, [nodeCount])
@@ -241,6 +217,13 @@ function CanvasInner() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setSelectedId(null)
+      // ⌥R. The generation graph — shots and clips — is what you review; the
+      // references are what make it correct, and they need not always be on
+      // screen to be true.
+      if (event.altKey && event.code === 'KeyR') {
+        event.preventDefault()
+        setShowRefs((on) => !on)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -248,64 +231,126 @@ function CanvasInner() {
 
   const graph = state?.graph
   const selected = graph?.nodes.find((n) => n.id === selectedId) ?? null
+  const sourcesById = useMemo(() => new Map((state?.sources ?? []).map((s) => [s.id, s])), [state])
 
-  const decorated = useMemo(
-    () => rfNodes.map((n) => ({ ...n, data: { ...n.data, selected: n.id === selectedId } })),
-    [rfNodes, selectedId],
+  /** Everything the hovered asset feeds — "what does this product touch", in one gesture. */
+  const litUp = useMemo(() => {
+    if (!hovered || !graph) return new Set<NodeId>()
+    const lit = new Set<NodeId>()
+    const walk = (id: NodeId) => {
+      for (const edge of graph.edges) {
+        if (edge.from === id && !lit.has(edge.to)) {
+          lit.add(edge.to)
+          walk(edge.to)
+        }
+      }
+    }
+    walk(hovered)
+    return lit
+  }, [hovered, graph])
+
+  const onPrompt = useCallback(
+    (nodeId: string, prompt: string) => {
+      void commit((current) => ({
+        ...current,
+        nodes: current.nodes.map((n) => (n.id === nodeId ? ({ ...n, prompt } as FlowNode) : n)),
+      }))
+    },
+    [commit],
   )
 
-  function addNode(type: 'image' | 'video' | 'source' | 'export') {
+  const onReplace = useCallback(async (sourceId: string) => {
+    setReplacing({ id: sourceId, radius: await previewReplace(sourceId) })
+  }, [])
+
+  const decorated = useMemo(
+    () =>
+      rfNodes.map((n) => {
+        const node = (n.data as { node: FlowNode }).node
+        return {
+          ...n,
+          className: hovered && litUp.has(n.id) ? 'lit' : undefined,
+          data: {
+            ...n.data,
+            selected: n.id === selectedId,
+            source: node.type === 'source' ? sourcesById.get(node.sourceId) : undefined,
+            onPrompt,
+            onReplace,
+          },
+        }
+      }),
+    [rfNodes, selectedId, sourcesById, hovered, litUp, onPrompt, onReplace],
+  )
+
+  const visibleEdges = useMemo(
+    () => (showRefs ? rfEdges : rfEdges.filter((e) => e.data?.role !== 'reference')),
+    [rfEdges, showRefs],
+  )
+  const hiddenRefs = rfEdges.length - visibleEdges.length
+
+  function addNode(type: 'image' | 'video' | 'export') {
     const id = newId(type)
     const position = slotFor(graphRef.current.nodes.length)
     const node =
       type === 'image'
-        ? { id, type, position, prompt: '', anchors: [], modelRole: 'draft' as const, seed: 1 }
+        ? { id, type, position, prompt: '', modelRole: 'draft' as const, seed: 1 }
         : type === 'video'
-          ? { id, type, position, prompt: '', anchors: [], durationSec: 5, audio: false, modelRole: 'draft' as const, seed: 1 }
-          : type === 'source'
-            ? { id, type, position, assets: [] }
-            : { id, type, position, formats: [] }
+          ? { id, type, position, prompt: '', durationSec: 5, audio: false, modelRole: 'draft' as const, seed: 1 }
+          : { id, type, position, formats: [] }
 
     void commit((current) => ({ ...current, nodes: [...current.nodes, node as FlowNode] }))
     setSelectedId(id)
+  }
+
+  /** Adds a source node for an already-uploaded asset, optionally wiring it in. */
+  function addSourceNode(sourceId: string, position: { x: number; y: number }, wireTo?: string) {
+    const id = newId('asset')
+    void commit((current) => {
+      const withNode: Flow = {
+        ...current,
+        nodes: [...current.nodes, { id, type: 'source', sourceId, position }],
+      }
+      return wireTo ? applyWire(withNode, id, wireTo, { role }) : withNode
+    })
+  }
+
+  async function handleDrop(event: React.DragEvent) {
+    event.preventDefault()
+    setDropping(false)
+
+    const point = screenToFlowPosition({ x: event.clientX, y: event.clientY })
+    // Dropping onto a shot uploads *and* wires it in — the shortest path from a
+    // file on your desktop to a reference the model will honour.
+    const onNode = (event.target as HTMLElement).closest('[data-testid^="node-"]')
+    const wireTo = onNode?.getAttribute('data-testid')?.replace('node-', '')
+
+    const text = event.dataTransfer.getData('text/plain')
+    const files = Array.from(event.dataTransfer.files)
+
+    try {
+      for (const file of files) {
+        const { id } = await uploadFile(file)
+        addSourceNode(id, point, wireTo)
+      }
+      if (files.length === 0 && text.trim()) {
+        const { id } = await createTextSource(text)
+        addSourceNode(id, point, wireTo)
+      }
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Upload failed')
+    }
   }
 
   function onConnect(connection: Connection) {
     const { source, target } = connection
     if (!source || !target) return
     setNotice(null)
-
-    // Deferred out of the handler on purpose. Committing synchronously
-    // re-rendered React Flow while it was still finishing the gesture, which
-    // fired onConnect a second time for the same drag and left its internal
-    // connection state stuck — after which no further wire could be started.
-    //
-    // Refused at wiring time regardless: accepting a wire the model cannot
-    // honour and dropping it at render time bills for a clip that ignored its
-    // own first frame.
+    // Deferred out of the handler: committing synchronously re-renders React
+    // Flow while it is still finishing the gesture, which fires onConnect twice
+    // for one drag.
     setTimeout(() => {
       void commit((current) => applyWire(current, source, target, { role }))
     }, 0)
-  }
-
-  function updateNode(next: FlowNode) {
-    void commit((current) => ({
-      ...current,
-      nodes: current.nodes.map((n) => (n.id === next.id ? next : n)),
-    }))
-  }
-
-  function toggleAnchorOnSelected(anchorId: string) {
-    if (!selected || !('anchors' in selected)) {
-      setNotice('Select an image or video shot first.')
-      return
-    }
-    updateNode({
-      ...selected,
-      anchors: selected.anchors.includes(anchorId)
-        ? selected.anchors.filter((id) => id !== anchorId)
-        : [...selected.anchors, anchorId],
-    })
   }
 
   async function run(confirmOverspend = false) {
@@ -320,10 +365,20 @@ function CanvasInner() {
   }
 
   const totals = state?.totals
-  const attached = selected && 'anchors' in selected ? selected.anchors : []
 
   return (
-    <div className="shell" data-inspector={selected ? 'open' : 'closed'}>
+    <div
+      className="shell"
+      data-inspector={selected ? 'open' : 'closed'}
+      onDragOver={(e) => {
+        e.preventDefault()
+        setDropping(true)
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setDropping(false)
+      }}
+      onDrop={handleDrop}
+    >
       <header className="topbar">
         <h1 className="topbar__title">OpenFlow</h1>
 
@@ -340,11 +395,21 @@ function CanvasInner() {
           ))}
         </div>
 
-        {(['image', 'video', 'source', 'export'] as const).map((type) => (
+        {(['image', 'video', 'export'] as const).map((type) => (
           <button key={type} className="chip" onClick={() => addNode(type)} data-testid={`add-${type}`}>
             + {type}
           </button>
         ))}
+
+        <button
+          className="chip"
+          aria-pressed={!showRefs}
+          onClick={() => setShowRefs((on) => !on)}
+          data-testid="toggle-refs"
+          title="⌥R"
+        >
+          {hiddenRefs > 0 ? `${hiddenRefs} refs hidden` : 'refs'}
+        </button>
 
         <span className="topbar__spacer" />
 
@@ -364,17 +429,10 @@ function CanvasInner() {
         </button>
       </header>
 
-      <AnchorRail
-        anchors={state?.anchors ?? []}
-        attachedIds={attached}
-        onToggle={toggleAnchorOnSelected}
-        onRefresh={load}
-      />
-
-      <main className="canvas">
+      <main className="canvas" data-dropping={dropping}>
         <ReactFlow
           nodes={decorated}
-          edges={rfEdges}
+          edges={visibleEdges}
           nodeTypes={nodeTypes}
           onNodesChange={(changes) => {
             onNodesChange(changes)
@@ -389,13 +447,12 @@ function CanvasInner() {
                 ? [{ id: c.id, position: c.position }]
                 : [],
             )
-            // Only a drag the user actually started may be persisted.
+            // Only a drag the user actually started may be persisted: React Flow
+            // emits the same change shape when nodes are re-seeded.
             if (ended.length === 0 || !draggingRef.current) return
             draggingRef.current = false
             interactingRef.current = false
 
-            // Position is not in the input hash, so persisting a drag costs
-            // nothing and re-renders nothing. See core/hashable.ts.
             const moved = new Map(ended.map((c) => [c.id, c.position]))
             void commit((current) => ({
               ...current,
@@ -413,6 +470,8 @@ function CanvasInner() {
             interactingRef.current = false
           }}
           onNodeClick={(_, node) => setSelectedId(node.id)}
+          onNodeMouseEnter={(_, node) => setHovered(node.id)}
+          onNodeMouseLeave={() => setHovered(null)}
           onPaneClick={() => setSelectedId(null)}
           proOptions={{ hideAttribution: true }}
           minZoom={0.2}
@@ -424,12 +483,17 @@ function CanvasInner() {
         {nodeCount === 0 && (
           <div className="empty-canvas">
             <span className="slate">Empty call sheet</span>
-            <p className="hint">Add a shot to begin. Anchors keep the product identical across all of them.</p>
+            <p className="hint">
+              Drop a product photo, a clip or a note anywhere here. Add a shot, wire the asset in, and
+              it stays identical across every frame.
+            </p>
           </div>
         )}
 
+        {dropping && <div className="drop-veil">Drop to add an asset</div>}
+
         {notice && (
-          <div style={{ position: 'absolute', left: 16, bottom: 16, maxWidth: 420 }}>
+          <div className="floating">
             <p className="banner" role="status" data-testid="notice">
               {notice}
             </p>
@@ -437,10 +501,10 @@ function CanvasInner() {
         )}
 
         {confirming && (
-          <div style={{ position: 'absolute', left: 16, bottom: 16, maxWidth: 420 }}>
+          <div className="floating">
             <div className="banner" role="alertdialog" aria-label="Confirm spend">
               <p data-testid="spend-warning">{confirming}</p>
-              <div className="anchor__actions">
+              <div className="banner__actions">
                 <button className="chip" onClick={() => void run(true)} data-testid="confirm-spend">
                   Render anyway
                 </button>
@@ -451,20 +515,73 @@ function CanvasInner() {
             </div>
           </div>
         )}
+
+        {replacing && (
+          <div className="floating">
+            <div className="banner" role="alertdialog" aria-label="Confirm replacement">
+              {/* Never silently re-run. One replacement can invalidate two campaigns. */}
+              <p data-testid="replace-warning">
+                {replacing.radius.nodeCount} {replacing.radius.nodeCount === 1 ? 'shot' : 'shots'} across{' '}
+                {replacing.radius.flowCount} {replacing.radius.flowCount === 1 ? 'flow' : 'flows'} go stale ·{' '}
+                {money(replacing.radius.estimatedCents)} to refresh.
+              </p>
+              <div className="banner__actions">
+                <button
+                  className="chip"
+                  onClick={() => replaceInputRef.current?.click()}
+                  data-testid="confirm-replace"
+                >
+                  Choose a file
+                </button>
+                <button className="chip" onClick={() => setReplacing(null)}>
+                  Cancel
+                </button>
+              </div>
+              <input
+                ref={replaceInputRef}
+                type="file"
+                hidden
+                data-testid="replace-input"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  if (!file || !replacing) return
+                  try {
+                    await replaceSource(replacing.id, file)
+                  } catch (error) {
+                    setNotice(error instanceof Error ? error.message : 'Could not replace')
+                  }
+                  setReplacing(null)
+                  await load()
+                }}
+              />
+            </div>
+          </div>
+        )}
       </main>
 
       {selected && (
         <Inspector
           node={selected}
           state={state?.nodes[selected.id]}
-          anchors={state?.anchors ?? []}
-          onChange={updateNode}
+          onChange={(next) =>
+            void commit((current) => ({
+              ...current,
+              nodes: current.nodes.map((n) => (n.id === next.id ? next : n)),
+            }))
+          }
           onDelete={() => {
             void commit((current) => removeNode(current, selected.id))
             setSelectedId(null)
           }}
           onReroll={() =>
-            updateNode({ ...selected, seed: Math.floor(Math.random() * 1_000_000) } as FlowNode)
+            void commit((current) => ({
+              ...current,
+              nodes: current.nodes.map((n) =>
+                n.id === selected.id
+                  ? ({ ...n, seed: Math.floor(Math.random() * 1_000_000) } as FlowNode)
+                  : n,
+              ),
+            }))
           }
         />
       )}

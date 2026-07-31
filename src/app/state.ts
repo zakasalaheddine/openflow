@@ -10,10 +10,11 @@ export type NodeState = {
   outputs: { id: string; url: string; mime: string }[]
 }
 
-export type AnchorRow = {
+export type SourceRow = {
   id: string
-  kind: string
-  refImages: string[]
+  kind: 'image' | 'video' | 'text'
+  files: string[]
+  text: string | null
   notes: string | null
   version: number
 }
@@ -22,7 +23,7 @@ export type FlowState = {
   projectId: string
   flowId: string
   graph: Flow
-  anchors: AnchorRow[]
+  sources: SourceRow[]
   nodes: Record<string, NodeState>
   totals: { staleCount: number; estimatedCents: number; spentCents: number }
 }
@@ -43,6 +44,48 @@ export async function saveGraph(graph: Flow) {
   })
   if (!response.ok) {
     throw new Error(((await response.json()) as { error?: string }).error ?? 'Could not save')
+  }
+}
+
+/** Uploads a dropped file and returns the new source's id. */
+export async function uploadFile(file: File): Promise<{ id: string; kind: SourceRow['kind'] }> {
+  const body = new FormData()
+  body.append('file', file)
+  const response = await fetch('/api/sources', { method: 'POST', body })
+  const json = await response.json()
+  if (!response.ok) throw new Error(json.error ?? 'Upload failed')
+  return json
+}
+
+export async function createTextSource(text: string): Promise<{ id: string }> {
+  const body = new FormData()
+  body.append('text', text)
+  const response = await fetch('/api/sources', { method: 'POST', body })
+  const json = await response.json()
+  if (!response.ok) throw new Error(json.error ?? 'Could not save that note')
+  return json
+}
+
+export type BlastRadius = { nodeCount: number; flowCount: number; estimatedCents: number }
+
+/** What replacing this asset would invalidate, without invalidating anything. */
+export async function previewReplace(id: string): Promise<BlastRadius> {
+  const body = new FormData()
+  body.append('id', id)
+  body.append('preview', '1')
+  const response = await fetch('/api/sources', { method: 'PATCH', body })
+  return (await response.json()).preview
+}
+
+export async function replaceSource(id: string, next: File | string) {
+  const body = new FormData()
+  body.append('id', id)
+  if (typeof next === 'string') body.append('text', next)
+  else body.append('file', next)
+
+  const response = await fetch('/api/sources', { method: 'PATCH', body })
+  if (!response.ok) {
+    throw new Error(((await response.json()) as { error?: string }).error ?? 'Could not replace')
   }
 }
 
