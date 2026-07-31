@@ -13,7 +13,7 @@ import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { createInterface } from 'node:readline/promises'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const PORT = process.env.PORT ?? '3000'
@@ -30,8 +30,13 @@ const run = (command, args, env = {}) =>
     child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`${command} exited ${code}`))))
   })
 
-/** Same gate as the npm scripts. A silent segfault is the worst failure mode. */
-await import(path.join(root, 'scripts/check-node.mjs'))
+// Same gate as the npm scripts. A silent segfault is the worst failure mode
+// there is, and this is the one install path where nobody has run npm first.
+//
+// A file URL, not a bare path: dynamic import() rejects absolute filesystem
+// paths, so the version check silently never ran and the launcher booted happily
+// onto the Node that segfaults.
+await import(pathToFileURL(path.join(root, 'scripts/check-node.mjs')).href)
 
 /**
  * A key is only needed to generate. Asking for one before the canvas has even

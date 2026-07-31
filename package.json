@@ -14,6 +14,7 @@
     "flows",
     "scripts",
     "src",
+    "test/fixtures/fal",
     "next.config.ts",
     "tsconfig.json"
   ],
