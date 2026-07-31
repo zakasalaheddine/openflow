@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { eq, and, inArray } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { projects, flows, anchors, nodeRuns } from '../db/schema'
-import { inputHash, type JsonValue } from './hash'
+import { inputHash } from './hash'
+import { hashableConfig } from './hashable'
 import { topoOrder } from './graph'
 import { DEFAULT_SETTINGS, type ProjectSettings } from './settings'
 import type { Flow, FlowNode, ModelRole, NodeId } from './types'
@@ -91,7 +92,10 @@ export function planRun(
     const nodeAnchors = 'anchors' in node ? node.anchors : []
     const versions = nodeAnchors.map((id) => anchorVersions.get(id) ?? 0)
 
-    const { id: _id, type: _type, ...config } = node
+    // Whitelisted, never `{ id, type, ...rest }`: the canvas stores `position`
+    // on every node and a blacklist would make dragging a node re-bill its
+    // whole subtree. See core/hashable.ts.
+    const config = hashableConfig(node)
 
     if (!isRunnable(node)) {
       // Still hashed: an export node's config feeds nothing downstream today,
@@ -100,7 +104,7 @@ export function planRun(
         nodeId,
         inputHash({
           nodeType: node.type,
-          config: config as Record<string, JsonValue>,
+          config,
           upstreamHashes,
           anchorVersions: versions,
           modelId: '',
@@ -114,7 +118,7 @@ export function planRun(
 
     const hash = inputHash({
       nodeType: node.type,
-      config: config as Record<string, JsonValue>,
+      config,
       upstreamHashes,
       anchorVersions: versions,
       modelId: model.id,

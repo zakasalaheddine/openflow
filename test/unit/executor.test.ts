@@ -1,7 +1,7 @@
 import { describe, test, expect } from 'vitest'
 import { planRun, enqueueRun, SpendCapExceededError } from '@/core/executor'
 import { UnsupportedCapabilityError } from '@/models/registry'
-import { nodeRuns, anchors, projects } from '@/db/schema'
+import { nodeRuns, anchors, projects, flows } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { tempDb, seedProject, seedAnchor, seedFlow } from '../helpers/db'
 import type { Flow } from '@/core/types'
@@ -52,6 +52,21 @@ describe('planRun', () => {
     const { db, flowId } = setup(imageFlow)
     db.update(anchors).set({ version: 2 }).where(eq(anchors.id, 'anchor-1')).run()
     expect(planRun(db, flowId)[0].inputHash).not.toBe(before)
+  })
+
+  test('moving a node on the canvas does not change its input hash', () => {
+    // End-to-end version of the hashable-config whitelist. If this regresses,
+    // tidying a layout silently re-bills every node that was moved.
+    const { db, flowId } = setup(imageFlow)
+    const before = planRun(db, flowId)[0].inputHash
+
+    const moved: Flow = {
+      ...imageFlow,
+      nodes: [{ ...imageFlow.nodes[0], position: { x: 640, y: 480 }, label: 'Hero' }],
+    }
+    db.update(flows).set({ graphJson: moved }).where(eq(flows.id, flowId)).run()
+
+    expect(planRun(db, flowId)[0].inputHash).toBe(before)
   })
 
   test('estimates a cost for each node', () => {

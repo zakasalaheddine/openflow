@@ -23,14 +23,30 @@ export type AdFormat = {
   h: number
 }
 
-export type SourceNode = {
+/**
+ * Canvas coordinates. Stored in `graph_json` so a reload does not scramble the
+ * layout, and deliberately excluded from the input hash — see core/hashable.ts.
+ */
+export type NodePosition = { x: number; y: number }
+
+type NodeBase = {
   id: NodeId
+  /**
+   * Optional so a hand-written flow file (`flows/demo.json`, the headless
+   * runner) never has to invent coordinates. The canvas assigns one on create
+   * and falls back to an auto-layout when it is missing.
+   */
+  position?: NodePosition
+  /** View-only. Never hashed. */
+  label?: string
+}
+
+export type SourceNode = NodeBase & {
   type: 'source'
   assets: AssetRef[]
 }
 
-export type ImageNode = {
-  id: NodeId
+export type ImageNode = NodeBase & {
   type: 'image'
   prompt: string
   anchors: AnchorId[]
@@ -38,8 +54,7 @@ export type ImageNode = {
   seed?: number
 }
 
-export type VideoNode = {
-  id: NodeId
+export type VideoNode = NodeBase & {
   type: 'video'
   prompt: string
   anchors: AnchorId[]
@@ -49,8 +64,7 @@ export type VideoNode = {
   seed?: number
 }
 
-export type ExportNode = {
-  id: NodeId
+export type ExportNode = NodeBase & {
   type: 'export'
   formats: AdFormat[]
   fps?: number
