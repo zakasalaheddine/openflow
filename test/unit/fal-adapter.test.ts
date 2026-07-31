@@ -179,4 +179,85 @@ describe('adapter in `live` mode', () => {
     await expect(adapter.submit({ model, input: {}, hash: 'abc' })).rejects.toThrow(/FAL_KEY/)
     vi.unstubAllEnvs()
   })
+
+  /**
+   * Every model but one has a sub-path in its endpoint, and fal's queue URLs do
+   * not carry it. Rebuilding the poll URL from the full endpoint is a 405 on all
+   * of them — submitted and billed, and uncollectable.
+   */
+  test('polls the url fal handed back, not one rebuilt from the endpoint', async () => {
+    vi.stubEnv('FAL_KEY', 'test-key')
+    const seen: string[] = []
+    const fetchMock = vi.fn(async (url: string) => {
+      seen.push(url)
+      const body = url.endsWith('/status')
+        ? { status: 'COMPLETED' }
+        : url.includes('/requests/')
+          ? { images: [{ url: 'https://fal.media/a.png', content_type: 'image/png' }] }
+          : {
+              request_id: 'req-1',
+              // The sub-path fal drops. `flux-2-pro` has none, so name one that does.
+              response_url: 'https://queue.fal.run/fal-ai/minimax/requests/req-1',
+            }
+      return { ok: true, status: 200, json: async () => body } as Response
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = createAdapter({ mode: 'live' })
+    const video = resolveModel('video', 'draft')
+    const { requestId } = await adapter.submit({ model: video, input: {}, hash: 'abc' })
+    const result = await adapter.poll(requestId)
+
+    expect(result.status).toBe('COMPLETED')
+    expect(seen[1]).toBe('https://queue.fal.run/fal-ai/minimax/requests/req-1/status')
+    expect(seen[2]).toBe('https://queue.fal.run/fal-ai/minimax/requests/req-1')
+    expect(seen.some((url) => url.includes('/image-to-video/requests/'))).toBe(false)
+
+    vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
+  })
+
+  test('a payload carrying references goes to the endpoint that has a field for them', async () => {
+    // `fal-ai/flux-2-pro` has no `image_urls` in its schema at all. Sending one
+    // there is not an error — it is dropped, and a full-price render comes back
+    // that never saw the product photo.
+    vi.stubEnv('FAL_KEY', 'test-key')
+    const seen: string[] = []
+    const fetchMock = vi.fn(async (url: string) => {
+      seen.push(url)
+      return { ok: true, status: 200, json: async () => ({ request_id: 'r' }) } as Response
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = createAdapter({ mode: 'live' })
+    await adapter.submit({ model, input: { prompt: 'a', image_urls: ['x.png'] }, hash: 'h' })
+    await adapter.submit({ model, input: { prompt: 'a' }, hash: 'h' })
+
+    expect(seen[0]).toBe('https://queue.fal.run/fal-ai/flux-2-pro/edit')
+    expect(seen[1]).toBe('https://queue.fal.run/fal-ai/flux-2-pro')
+
+    vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
+  })
+
+  test('a run submitted before that fix is still resumable, sub-path dropped', async () => {
+    // Never restarted: a `submitted` row has a fal request id and real money on
+    // it, so the old `endpoint#id` encoding has to keep resolving.
+    vi.stubEnv('FAL_KEY', 'test-key')
+    const seen: string[] = []
+    const fetchMock = vi.fn(async (url: string) => {
+      seen.push(url)
+      return { ok: true, status: 200, json: async () => ({ status: 'IN_PROGRESS' }) } as Response
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = createAdapter({ mode: 'live' })
+    const result = await adapter.poll('fal-ai/minimax/hailuo-02/pro/image-to-video#req-9')
+
+    expect(result.status).toBe('IN_PROGRESS')
+    expect(seen[0]).toBe('https://queue.fal.run/fal-ai/minimax/requests/req-9/status')
+
+    vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
+  })
 })

@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from 'node:fs'
 import path from 'node:path'
-import type { ModelSpec } from './registry'
+import { endpointFor, type ModelSpec } from './registry'
 import type { FalMode } from '../env'
 
 /**
@@ -107,8 +107,18 @@ export type Adapter = {
   poll(requestId: string): Promise<PollResult>
 }
 
-const fixturePathFor = (dir: string, model: ModelSpec, hash: string) =>
-  path.join(dir, model.falEndpoint.replaceAll('/', '_'), `${hash}.json`)
+const fixturePathFor = (dir: string, endpoint: string, hash: string) =>
+  path.join(dir, endpoint.replaceAll('/', '_'), `${hash}.json`)
+
+/**
+ * Which of the model's endpoints this payload is for.
+ *
+ * Read off the payload rather than plumbed down from the graph: `image_urls` is
+ * present exactly when references were wired in, and the alternative is a fourth
+ * argument threaded through the worker for something the input already states.
+ */
+const endpointOf = ({ model, input }: SubmitRequest) =>
+  endpointFor(model, Array.isArray(input.image_urls) && input.image_urls.length > 0)
 
 /**
  * Stateless on purpose: the request id carries everything needed to find the
@@ -119,10 +129,11 @@ const fixturePathFor = (dir: string, model: ModelSpec, hash: string) =>
  */
 function replayAdapter(fixtureDir: string): Adapter {
   return {
-    async submit({ model, hash }) {
-      const file = fixturePathFor(fixtureDir, model, hash)
+    async submit(request) {
+      const endpoint = endpointOf(request)
+      const file = fixturePathFor(fixtureDir, endpoint, request.hash)
       if (!existsSync(file)) throw new MissingFixtureError(file)
-      return { requestId: `replay:${model.falEndpoint}#${hash}` }
+      return { requestId: `replay:${endpoint}#${request.hash}` }
     },
     async poll(requestId) {
       const [endpoint, hash] = requestId.replace(/^replay:/, '').split('#')
@@ -166,25 +177,42 @@ function liveAdapter(): Adapter {
 
   const queueBase = (endpoint: string) => `https://queue.fal.run/${endpoint}`
 
-  // The queue endpoint is stateless per request id, but the status URL needs the
-  // endpoint back. Encoding it into the request id keeps the worker's job row
-  // to a single string column.
+  /**
+   * Where to poll, taken from fal rather than rebuilt from the endpoint.
+   *
+   * Submitting to `fal-ai/flux-2/pro` returns a result URL of
+   * `…/fal-ai/flux-2/requests/{id}` — the sub-path is *dropped*. Rebuilding it
+   * with the sub-path still attached is a 405 on every model whose endpoint has
+   * one, which is five of the six rows in the registry: the render is submitted
+   * and paid for, and the poll that would collect it can never succeed.
+   *
+   * A run submitted by an older build stored `endpoint#request_id` instead. It
+   * is resumed on its own terms, never restarted, because it has real money
+   * attached — the sub-path is dropped here the way fal drops it.
+   */
+  const resultUrl = (requestId: string) => {
+    if (requestId.startsWith('http')) return requestId
+    const [endpoint, id] = requestId.split('#')
+    const [owner, app] = endpoint.split('/')
+    return `${queueBase(`${owner}/${app}`)}/requests/${id}`
+  }
+
   return {
-    async submit({ model, input }) {
+    async submit(request) {
       requireKey()
-      const body = (await call(queueBase(model.falEndpoint), {
+      const body = (await call(queueBase(endpointOf(request)), {
         method: 'POST',
-        body: JSON.stringify(input),
-      })) as { request_id: string }
-      return { requestId: `${model.falEndpoint}#${body.request_id}` }
+        body: JSON.stringify(request.input),
+      })) as { request_id: string; response_url?: string }
+      // fal's own URL when it gives one; the derived form is the fallback, not
+      // the rule, so a future change to how fal shapes these follows for free.
+      return { requestId: body.response_url ?? `${endpointOf(request)}#${body.request_id}` }
     },
     async poll(requestId) {
-      const [endpoint, id] = requestId.split('#')
-      const status = (await call(`${queueBase(endpoint)}/requests/${id}/status`)) as {
-        status: string
-      }
+      const url = resultUrl(requestId)
+      const status = (await call(`${url}/status`)) as { status: string }
       if (status.status === 'COMPLETED') {
-        const raw = (await call(`${queueBase(endpoint)}/requests/${id}`)) as FalRawResult
+        const raw = (await call(url)) as FalRawResult
         if (raw.error) return { status: 'FAILED', error: raw.error.message ?? 'fal error' }
         return { status: 'COMPLETED', outputs: parseOutputs(raw) }
       }

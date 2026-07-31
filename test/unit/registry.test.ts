@@ -35,10 +35,30 @@ describe('REGISTRY', () => {
     expect(new Set(keys).size).toBe(keys.length)
   })
 
-  test('marks every row unverified until a live call has been made', () => {
-    // Stamping a date on a row nobody has called is a lie that survives into
-    // Phase 3, when a broken endpoint costs a video run to discover.
-    expect(REGISTRY.every((m) => m.verifiedOn === null)).toBe(true)
+  test('stamps verifiedOn with a real past date, or leaves it null', () => {
+    // Stamping a date on a row nobody has called is a lie that survives until a
+    // broken endpoint costs a video run to discover — which is exactly how
+    // `fal-ai/flux-2/pro` shipped dead. A row may only carry a date once someone
+    // has actually rendered through it, so the date must at least be one that
+    // has happened.
+    const today = new Date().toISOString().slice(0, 10)
+    for (const model of REGISTRY) {
+      if (model.verifiedOn === null) continue
+      expect(model.verifiedOn).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+      expect(model.verifiedOn <= today).toBe(true)
+    }
+  })
+
+  test('every endpoint is a fal owner/app path, and edit variants extend their own', () => {
+    // Cheap standing guard on the shape. It cannot prove an endpoint exists —
+    // only a live call does that — but a typo'd slug that drops the owner is
+    // caught here rather than by a 404 someone pays to see.
+    for (const model of REGISTRY) {
+      expect(model.falEndpoint).toMatch(/^[a-z0-9-]+\/[a-z0-9.\-/]+$/)
+      if (model.editEndpoint) {
+        expect(model.editEndpoint.startsWith(`${model.falEndpoint}/`)).toBe(true)
+      }
+    }
   })
 })
 

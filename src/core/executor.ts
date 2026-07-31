@@ -8,9 +8,9 @@ import { topoOrder, ancestors } from './graph'
 import { previewRun } from './preview'
 import { DEFAULT_SETTINGS, type ProjectSettings } from './settings'
 import { referencesOf } from './wiring'
-import { composePrompt } from './compose'
+import { composePrompt, referenceFiles } from './compose'
 import type { Flow, FlowNode, ModelRole, NodeId } from './types'
-import { resolveModel, assertAnchorsSupported, estimateCostCents } from '../models/registry'
+import { resolveModel, assertAnchorsSupported, estimateCostCents, endpointFor } from '../models/registry'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = BetterSQLite3Database<any>
@@ -37,6 +37,16 @@ export type PlannedNode = {
   nodeId: NodeId
   inputHash: string
   modelId: string
+  /**
+   * Which of the model's endpoints this node dispatches to — the `/edit` one
+   * when reference files ride along. Carried on the plan because fixtures are
+   * filed under it, and a recording written to the wrong folder replays as a
+   * missing fixture rather than as the wrong image.
+   *
+   * The adapter derives the same thing from the payload, which is the authority
+   * at dispatch. Both read the same fact: does this call carry `image_urls`.
+   */
+  endpoint: string
   estimatedCents: number
 }
 
@@ -133,6 +143,10 @@ export function planRun(
       nodeId,
       inputHash: hash,
       modelId: model.id,
+      endpoint: endpointFor(
+        model,
+        model.caps.refImages > 0 && referenceFiles(graph, nodeId, library).length > 0,
+      ),
       estimatedCents: estimateCostCents(model, {
         ...ESTIMATE_PIXELS,
         ...(node.type === 'video' ? { durationSec: node.durationSec } : {}),

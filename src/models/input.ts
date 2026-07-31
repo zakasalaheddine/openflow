@@ -42,12 +42,20 @@ export function buildModelInput(
       }
     }
     case 'video': {
+      // kling calls frame zero `start_image_url`; hailuo and veo call it
+      // `image_url`. Both fal schemas confirm it, and the distinction is not
+      // cosmetic: an unknown key is dropped without complaint, so the wrong name
+      // buys a full clip that never saw its start frame.
+      const startField = model.id === 'kling-3-pro' ? 'start_image_url' : 'image_url'
+
       return {
         prompt: context.prompt ?? node.prompt,
         duration: node.durationSec,
         ...(node.seed === undefined ? {} : { seed: node.seed }),
-        ...(model.caps.nativeAudio ? { audio: node.audio } : {}),
-        ...(context.startFrame ? { image_url: context.startFrame.path } : {}),
+        // `generate_audio`, per veo3.1's and kling's schemas. `audio` is not a
+        // field either endpoint has, and would have been silently ignored.
+        ...(model.caps.nativeAudio ? { generate_audio: node.audio } : {}),
+        ...(context.startFrame ? { [startField]: context.startFrame.path } : {}),
         ...(context.endFrame ? { end_image_url: context.endFrame.path } : {}),
         ...(context.anchorRefs.length > 0 && model.caps.refImages > 0
           ? { image_urls: context.anchorRefs }

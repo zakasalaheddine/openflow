@@ -40,7 +40,9 @@ const { flowId } = importFlowFile(db, spec, `record:${path.basename(file)}`)
 
 for (const planned of planRun(db, flowId)) {
   const model = byId(planned.modelId)!
-  const dir = path.join(outDir, model.falEndpoint.replaceAll('/', '_'))
+  // The plan's endpoint, not the row's: a node with references wired in
+  // dispatches to `/edit`, and that is the folder replay will look in.
+  const dir = path.join(outDir, planned.endpoint.replaceAll('/', '_'))
   mkdirSync(dir, { recursive: true })
 
   let body: unknown

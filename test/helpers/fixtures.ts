@@ -2,7 +2,6 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach } from 'vitest'
-import { byId } from '@/models/registry'
 import type { PlannedNode } from '@/core/executor'
 
 const dirs: string[] = []
@@ -33,8 +32,7 @@ export function recordSuccess(
   planned: PlannedNode,
   body: unknown = { images: [{ url: PNG_1PX, content_type: 'image/png', width: 1024, height: 1024 }] },
 ) {
-  const model = byId(planned.modelId)!
-  const dir = path.join(fixtureDir, model.falEndpoint.replaceAll('/', '_'))
+  const dir = path.join(fixtureDir, planned.endpoint.replaceAll('/', '_'))
   mkdirSync(dir, { recursive: true })
   writeFileSync(path.join(dir, `${planned.inputHash}.json`), JSON.stringify(body))
 }

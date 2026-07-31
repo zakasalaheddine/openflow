@@ -7,6 +7,14 @@ export type ModelSpec = {
   format: ModelFormat
   role: ModelRole
   falEndpoint: string
+  /**
+   * Where the same model accepts reference images, when that is a different
+   * endpoint. fal splits these: `fal-ai/flux-2-pro` has no `image_urls` field at
+   * all, and `fal-ai/flux-2-pro/edit` requires one. Without the split a wired-in
+   * product photo passes the capability gate and is then dropped on the floor by
+   * an endpoint that has nowhere to put it.
+   */
+  editEndpoint?: string
   caps: {
     /** 0 = cannot honour anchors at all. */
     refImages: number
@@ -35,24 +43,37 @@ export class UnsupportedCapabilityError extends Error {
  * and updates it. Prices below are from public pricing pages and are estimates
  * until then.
  *
- * ponytail: prices and endpoints unverified — Phase 0's spike is what stamps
- * `verifiedOn` and corrects `cost.amount` from real invoices.
+ * Every endpoint slug below has been resolved against fal's live queue and its
+ * field names read off fal's published schema. Two were wrong when checked:
+ * `fal-ai/flux-2/pro` and `fal-ai/minimax/hailuo-02-3/pro/image-to-video` both
+ * answered `Path … not found`, which is precisely what `verifiedOn: null` was
+ * there to warn about.
+ *
+ * ponytail: resolving is not rendering. Only `flux-2-pro` has completed a real
+ * render end to end; the rest are known to exist and to accept the fields we
+ * send, not known to come back with a file. Prices remain public-page estimates
+ * on every row — fal returns no price with a result.
  */
 export const REGISTRY: ModelSpec[] = [
   {
     id: 'flux-2-pro',
     format: 'image',
     role: 'draft',
-    falEndpoint: 'fal-ai/flux-2/pro',
+    falEndpoint: 'fal-ai/flux-2-pro',
+    editEndpoint: 'fal-ai/flux-2-pro/edit',
     caps: { refImages: 4, textRendering: false, startEndFrame: false, nativeAudio: false },
     cost: { unit: 'megapixel', amount: 3 },
-    verifiedOn: null,
+    // One live render, 2026-07-31: submitted, polled, downloaded, on disk.
+    // The endpoint and the queue round-trip are proven. `cost.amount` is not —
+    // fal returns no price with a result, so it is still a public-page estimate.
+    verifiedOn: '2026-07-31',
   },
   {
     id: 'nano-banana-pro',
     format: 'image',
     role: 'hero',
     falEndpoint: 'fal-ai/nano-banana-pro',
+    editEndpoint: 'fal-ai/nano-banana-pro/edit',
     caps: { refImages: 6, textRendering: true, startEndFrame: false, nativeAudio: false },
     cost: { unit: 'image', amount: 15 },
     verifiedOn: null,
@@ -80,7 +101,7 @@ export const REGISTRY: ModelSpec[] = [
     id: 'hailuo-2-3-pro',
     format: 'video',
     role: 'draft',
-    falEndpoint: 'fal-ai/minimax/hailuo-02-3/pro/image-to-video',
+    falEndpoint: 'fal-ai/minimax/hailuo-02/pro/image-to-video',
     caps: {
       refImages: 0,
       textRendering: false,
@@ -135,6 +156,17 @@ export function resolveModel(format: ModelFormat, role: ModelRole): ModelSpec {
 }
 
 export const byId = (id: string) => REGISTRY.find((m) => m.id === id)
+
+/**
+ * The endpoint that can actually accept this payload.
+ *
+ * Reference images are a different endpoint on the same model, not a different
+ * model — the row, the price and the id all stay put, only the URL moves. An
+ * unknown key is dropped without complaint, so sending `image_urls` to the plain
+ * endpoint is a full-price render that silently ignored the product photo.
+ */
+export const endpointFor = (model: ModelSpec, hasReferences: boolean) =>
+  hasReferences && model.editEndpoint ? model.editEndpoint : model.falEndpoint
 
 /**
  * Refuse rather than silently drop. An ignored anchor produces off-brand output
