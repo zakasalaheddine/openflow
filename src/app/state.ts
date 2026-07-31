@@ -138,11 +138,16 @@ export type RunOutcome =
   | { kind: 'needs-confirmation'; message: string; estimatedCents: number }
   | { kind: 'refused'; message: string }
 
-export async function startRun(role: ModelRole, confirmOverspend = false): Promise<RunOutcome> {
+/** `nodeId` renders that one node plus any upstream it still needs; omit it for the whole flow. */
+export async function startRun(
+  role: ModelRole,
+  confirmOverspend = false,
+  nodeId?: string,
+): Promise<RunOutcome> {
   const response = await fetch('/api/run', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role, confirmOverspend }),
+    body: JSON.stringify({ role, confirmOverspend, nodeId }),
   })
   const body = await response.json()
 

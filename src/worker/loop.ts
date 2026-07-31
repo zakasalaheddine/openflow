@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { renameSync } from 'node:fs'
 import path from 'node:path'
-import { eq, and, inArray, sql } from 'drizzle-orm'
+import { eq, and, desc, inArray, sql } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { nodeRuns, assets, flows, sources, projects, type NodeRun } from '../db/schema'
 import { byId, estimateCostCents, type ModelSpec } from '../models/registry'
@@ -11,6 +11,7 @@ import { composePrompt, referenceFiles } from '../core/compose'
 import { DEFAULT_SETTINGS, type ProjectSettings } from '../core/settings'
 import { probe, ffmpeg, encoderFor, FfmpegMissingError, type Probe } from '../core/ffmpeg'
 import { assetsDir } from '../env'
+import { IN_FLIGHT } from '../core/executor'
 import type { Adapter, ParsedOutput } from '../models/fal'
 import type { Flow, AssetRef } from '../core/types'
 
@@ -79,15 +80,32 @@ function buildInput(db: Db, run: NodeRun, model: ModelSpec): Record<string, unkn
   const frameFor = (role: 'start_frame' | 'end_frame'): AssetRef | undefined => {
     const edge = graph.edges.find((e) => e.to === run.nodeId && e.role === role)
     if (!edge) return undefined
+    // Newest first, and only then the first row. A node that has rendered more
+    // than once — edit the prompt, render again, then run the clip — has two
+    // succeeded rows, and an unordered `.get()` takes whichever the database
+    // hands back, which is the *oldest*. The clip then anchors to a frame that
+    // is no longer on the parent card, at full price, and reads as the model
+    // ignoring its start frame. Same "latest run per node" rule the canvas uses
+    // to decide which frame that card shows, so the two cannot disagree.
+    //
+    // ponytail: newest, not the one this run was hashed against — that would
+    // need the run's resolved role, which the row does not carry. The two differ
+    // only if the flow's role changed, or a prompt was edited back to an older
+    // value, between enqueue and dispatch. Persist the role on node_runs if that
+    // ever stops being exotic.
     const source = db
       .select()
       .from(nodeRuns)
       .where(and(eq(nodeRuns.flowId, run.flowId), eq(nodeRuns.nodeId, edge.from), eq(nodeRuns.status, 'succeeded')))
+      .orderBy(desc(nodeRuns.createdAt))
       .get()
-    if (!source) return undefined
-    const refs = (source.outputRefs as string[] | null) ?? []
+    const refs = (source?.outputRefs as string[] | null) ?? []
     const asset = refs[0] ? db.select().from(assets).where(eq(assets.id, refs[0])).get() : undefined
-    return asset ? { id: asset.id, path: asset.path, mime: asset.mime } : undefined
+    // The edge exists, so the graph promises this clip is anchored to a frame.
+    // buildModelInput would quietly omit `image_url` and fal would bill a
+    // text-to-video render at full price — refusing costs nothing.
+    if (!asset) throw new Error(`Upstream ${edge.from} has no rendered ${role} for ${run.nodeId}`)
+    return { id: asset.id, path: asset.path, mime: asset.mime }
   }
 
   return buildModelInput(node, model, {
@@ -99,29 +117,79 @@ function buildInput(db: Db, run: NodeRun, model: ModelSpec): Record<string, unkn
 }
 
 /**
+ * Whether a queued run is still waiting on a parent node.
+ *
+ * `tick` claims up to `concurrency` runs in one pass, so an image and the clip
+ * built from it are otherwise dispatched together — and the clip, finding no
+ * succeeded frame, is billed for a render that ignored its anchor. Held here
+ * rather than at dispatch: dispatch failure burns an attempt, and a clip that
+ * simply waited its turn would exhaust MAX_ATTEMPTS and land `failed`.
+ *
+ * Every parent blocks it, including `reference` edges that could in principle
+ * proceed. Conservative on purpose — it costs a little parallelism, never
+ * correctness.
+ *
+ * A parent that has genuinely `failed` is not in flight, so this stops holding
+ * the child: it dispatches, buildInput refuses, and the child fails honestly
+ * rather than leaving `drain` to spin out its tick budget.
+ *
+ * ponytail: linear scan with a graph load per candidate, called up to
+ * `concurrency` times a tick. Nothing at twelve nodes; cache the flow graph for
+ * the duration of a tick if a large queue makes it show.
+ */
+function waitingOnUpstream(db: Db, run: NodeRun): boolean {
+  const flow = db.select().from(flows).where(eq(flows.id, run.flowId)).get()
+  if (!flow) return false
+
+  const parents = (flow.graphJson as Flow).edges
+    .filter((e) => e.to === run.nodeId)
+    .map((e) => e.from)
+  if (parents.length === 0) return false
+
+  return (
+    db
+      .select()
+      .from(nodeRuns)
+      .where(
+        and(
+          eq(nodeRuns.flowId, run.flowId),
+          inArray(nodeRuns.nodeId, parents),
+          inArray(nodeRuns.status, [...IN_FLIGHT]),
+        ),
+      )
+      .all().length > 0
+  )
+}
+
+/**
  * Atomic claim. SQLite serialises writes, so the UPDATE ... WHERE status='queued'
  * either wins or affects zero rows — two ticks can never take the same run and
  * pay fal twice for one node.
  */
 export function claimNext(db: Db): NodeRun | null {
-  const candidate = db
+  const candidates = db
     .select()
     .from(nodeRuns)
     .where(eq(nodeRuns.status, 'queued'))
     .orderBy(nodeRuns.createdAt)
-    .limit(1)
-    .get()
-  if (!candidate) return null
+    .all()
 
-  const claimedAt = new Date().toISOString()
-  const result = db
-    .update(nodeRuns)
-    .set({ status: 'claimed', claimedAt })
-    .where(and(eq(nodeRuns.id, candidate.id), eq(nodeRuns.status, 'queued')))
-    .run()
+  for (const candidate of candidates) {
+    if (waitingOnUpstream(db, candidate)) continue
 
-  if (result.changes === 0) return null
-  return { ...candidate, status: 'claimed', claimedAt }
+    const claimedAt = new Date().toISOString()
+    const result = db
+      .update(nodeRuns)
+      .set({ status: 'claimed', claimedAt })
+      .where(and(eq(nodeRuns.id, candidate.id), eq(nodeRuns.status, 'queued')))
+      .run()
+
+    // Lost the race to another tick — try the next one rather than idling.
+    if (result.changes === 0) continue
+    return { ...candidate, status: 'claimed', claimedAt }
+  }
+
+  return null
 }
 
 /**

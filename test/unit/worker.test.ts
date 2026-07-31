@@ -20,6 +20,16 @@ const twoNodeFlow: Flow = {
   edges: [],
 }
 
+/** A shot, the clip cut from it, and one unrelated shot beside them. */
+const clipFlow: Flow = {
+  nodes: [
+    { id: 'img', type: 'image', prompt: 'bottle', modelRole: 'draft', seed: 1 },
+    { id: 'clip', type: 'video', prompt: 'push in', durationSec: 5, audio: false, modelRole: 'draft', seed: 2 },
+    { id: 'other', type: 'image', prompt: 'slate', modelRole: 'draft', seed: 3 },
+  ],
+  edges: [{ id: 'e1', from: 'img', to: 'clip', role: 'start_frame', position: null }],
+}
+
 function setup(graph: Flow = flow) {
   const { db, dir } = tempDb()
   const projectId = seedProject(db)
@@ -78,6 +88,32 @@ describe('claimNext', () => {
   test('returns null when nothing is queued', () => {
     const { db } = setup()
     expect(claimNext(db)).toBeNull()
+  })
+
+  test('holds a clip back until the frame it is cut from has rendered', () => {
+    // `tick` claims up to `concurrency` runs per pass, so without this the image
+    // and the clip go out together — and the clip, finding no frame, is billed
+    // for a text-to-video render that ignored its anchor.
+    const { db, flowId } = setup(clipFlow)
+    enqueueRun(db, flowId)
+
+    // Everything claimable goes out; the clip is not among it.
+    const firstPass = [claimNext(db)?.nodeId, claimNext(db)?.nodeId, claimNext(db)?.nodeId]
+    expect(firstPass.sort()).toEqual(['img', 'other', undefined])
+
+    db.update(nodeRuns).set({ status: 'succeeded' }).where(eq(nodeRuns.nodeId, 'img')).run()
+    expect(claimNext(db)?.nodeId).toBe('clip')
+  })
+
+  test('a blocked clip does not stall an unrelated shot behind it', () => {
+    const { db, flowId } = setup(clipFlow)
+    enqueueRun(db, flowId)
+    db.update(nodeRuns).set({ status: 'succeeded' }).where(eq(nodeRuns.nodeId, 'img')).run()
+    db.update(nodeRuns).set({ status: 'queued' }).where(eq(nodeRuns.nodeId, 'img')).run()
+
+    // img is queued again, so clip is blocked — 'other' must still be claimable.
+    const claimed = [claimNext(db)?.nodeId, claimNext(db)?.nodeId]
+    expect(claimed.sort()).toEqual(['img', 'other'])
   })
 })
 
@@ -226,6 +262,65 @@ describe('tick', () => {
     const run = db.select().from(nodeRuns).get()!
     expect(run.falRequestId).toBe('req-' + run.inputHash.slice(0, 6))
     expect(['submitted', 'polling']).toContain(run.status)
+  })
+
+  test('never dispatches a clip whose start frame was never rendered', async () => {
+    // The frame is gone for good — the graph still promises the clip is anchored
+    // to it, and buildModelInput would quietly drop `image_url` and let fal bill
+    // a full text-to-video render that ignored the anchor.
+    const { db, flowId } = setup(clipFlow)
+    enqueueRun(db, flowId)
+    db.update(nodeRuns).set({ status: 'failed', attempt: MAX_ATTEMPTS }).where(eq(nodeRuns.nodeId, 'img')).run()
+
+    const adapter = fakeAdapter()
+    for (let i = 0; i < MAX_ATTEMPTS + 2; i++) await tick(db, { adapter, download: fakeDownload })
+
+    const clip = db.select().from(nodeRuns).where(eq(nodeRuns.nodeId, 'clip')).get()!
+    expect(clip.status).toBe('failed')
+    expect(clip.error).toContain('no rendered start_frame')
+    expect(adapter.submitted).not.toContain(clip.inputHash)
+  })
+
+  test('a clip anchors to the frame now on its parent card, not the first one ever rendered', async () => {
+    // Edit the shot, render it again, then run the clip: the image node has two
+    // succeeded rows. An unordered lookup takes the oldest, so the clip is built
+    // from a frame that is no longer on screen — at full price, and reading as
+    // the model having ignored its start frame.
+    const { db, flowId } = setup(clipFlow)
+    enqueueRun(db, flowId)
+    const clipRun = db.select().from(nodeRuns).where(eq(nodeRuns.nodeId, 'clip')).get()!
+
+    // Stand in for that history: the original frame, and the re-render that
+    // replaced it on the canvas.
+    db.delete(nodeRuns).where(eq(nodeRuns.nodeId, 'img')).run()
+    for (const [runId, assetId, when] of [
+      ['run-first', 'frame-first', '2026-01-01T00:00:00.000Z'],
+      ['run-latest', 'frame-latest', '2026-06-01T00:00:00.000Z'],
+    ] as const) {
+      db.insert(assets)
+        .values({ id: assetId, path: `/frames/${assetId}.png`, mime: 'image/png', sourceRunId: runId, createdAt: when })
+        .run()
+      db.insert(nodeRuns)
+        .values({
+          id: runId,
+          flowId,
+          nodeId: 'img',
+          inputHash: runId,
+          status: 'succeeded',
+          modelId: 'flux-2-pro',
+          costCents: 1,
+          attempt: 0,
+          createdAt: when,
+          outputRefs: [assetId],
+        })
+        .run()
+    }
+
+    const adapter = fakeAdapter()
+    await tick(db, { adapter, download: fakeDownload })
+
+    const dispatched = adapter.requests.find((r) => r.hash === clipRun.inputHash)!
+    expect(dispatched.input.image_url).toBe('/frames/frame-latest.png')
   })
 
   test('completes a run, writes an asset row and records the cost', async () => {

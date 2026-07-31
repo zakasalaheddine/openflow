@@ -81,6 +81,8 @@ Prices are estimates from public pricing pages until a live call stamps `verifie
 
 Every render is keyed by an input hash chained through the graph, so a second run costs $0 and a changed prompt invalidates exactly its descendants. Exports are matched on that same hash: a shot you edited but did not re-render is refused rather than shipped under its new prompt.
 
+**Run all** renders the whole flow. Every generator card also carries its own **Run**, which renders that shot and whatever upstream it still needs — never the shot alone, because a clip whose start frame was never rendered would dispatch as text-to-video and be billed in full for an anchor it never saw. The spend cap is judged on that narrowed run, so pricing one shot is not a confirmation dialog about the graph beside it.
+
 ## Docs
 
 | | |

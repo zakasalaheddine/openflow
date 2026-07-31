@@ -571,7 +571,8 @@ button {
   overflow: hidden;
 }
 
-.node__replace {
+.node__replace,
+.node__run {
   font-family: var(--mono);
   font-size: 9px;
   letter-spacing: 0.12em;
@@ -579,8 +580,16 @@ button {
   color: var(--slate-dim);
 }
 
-.node__replace:hover {
+.node__replace:hover,
+.node__run:not(:disabled):hover {
   color: var(--safelight);
+}
+
+/* Stays in the layout when it cannot be pressed: a footer that reflows as a
+   render finishes makes twelve cards twitch. */
+.node__run:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 .node__prompt--editing {

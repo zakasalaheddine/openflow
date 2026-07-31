@@ -15,6 +15,16 @@ const imageFlow: Flow = {
   edges: [{ id: 'e1', from: 'bottle', to: 'img', role: 'reference', position: null }],
 }
 
+/** A shot, the clip cut from it, and an unrelated shot beside them. */
+const branchFlow: Flow = {
+  nodes: [
+    { id: 'img', type: 'image', prompt: 'bottle on marble', modelRole: 'draft', seed: 1 },
+    { id: 'clip', type: 'video', prompt: 'slow push in', durationSec: 5, audio: false, modelRole: 'draft', seed: 2 },
+    { id: 'other', type: 'image', prompt: 'bottle on slate', modelRole: 'draft', seed: 3 },
+  ],
+  edges: [{ id: 'e1', from: 'img', to: 'clip', role: 'start_frame', position: null }],
+}
+
 const twoImageFlow: Flow = {
   nodes: [
     { id: 'a', type: 'image', prompt: 'one', modelRole: 'draft', seed: 1 },
@@ -145,6 +155,40 @@ describe('enqueueRun', () => {
     enqueueRun(db, flowId)
     expect(enqueueRun(db, flowId).enqueued).toHaveLength(0)
     expect(db.select().from(nodeRuns).all()).toHaveLength(1)
+  })
+
+  test('only: enqueues the node and its ancestors, and nothing beside them', () => {
+    const { db, flowId } = setup(branchFlow)
+    const result = enqueueRun(db, flowId, { only: 'clip' })
+    expect(result.enqueued.map((p) => p.nodeId).sort()).toEqual(['clip', 'img'])
+    expect(db.select().from(nodeRuns).all().map((r) => r.nodeId).sort()).toEqual(['clip', 'img'])
+  })
+
+  test('only: an already-rendered ancestor is not re-enqueued', () => {
+    const { db, flowId } = setup(branchFlow)
+    enqueueRun(db, flowId, { only: 'img' })
+    const [first] = db.select().from(nodeRuns).all()
+    db.update(nodeRuns).set({ status: 'succeeded', costCents: 15 }).where(eq(nodeRuns.id, first.id)).run()
+
+    const result = enqueueRun(db, flowId, { only: 'clip' })
+    expect(result.enqueued.map((p) => p.nodeId)).toEqual(['clip'])
+    expect(result.cached.map((p) => p.nodeId)).toEqual(['img'])
+  })
+
+  test('only: the spend cap is judged on the narrowed run, not the whole flow', () => {
+    // The money path. Quoting the flow's total against the cap would make one
+    // cheap node demand confirmation because the graph beside it is expensive.
+    const wholeFlow = (() => {
+      const { db, flowId } = setup(branchFlow)
+      return enqueueRun(db, flowId, { confirmOverspend: true }).estimatedCents
+    })()
+
+    const { db, flowId } = setup(branchFlow, { spendCapPerRun: wholeFlow - 1 })
+    expect(() => enqueueRun(db, flowId)).toThrow(SpendCapExceededError)
+
+    const narrowed = enqueueRun(db, flowId, { only: 'other' })
+    expect(narrowed.estimatedCents).toBeLessThan(wholeFlow)
+    expect(narrowed.enqueued.map((p) => p.nodeId)).toEqual(['other'])
   })
 
   test('blocks when the estimated total exceeds the spend cap', () => {

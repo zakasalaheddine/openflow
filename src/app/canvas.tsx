@@ -78,7 +78,9 @@ function CanvasInner() {
   const [state, setState] = useState<FlowState | null>(null)
   const [selectedId, setSelectedId] = useState<NodeId | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const [confirming, setConfirming] = useState<string | null>(null)
+  // Carries the node so "Render anyway" repeats the click that was refused,
+  // rather than silently widening one shot into the whole flow.
+  const [confirming, setConfirming] = useState<{ message: string; nodeId?: NodeId } | null>(null)
   const [showRefs, setShowRefs] = useState(true)
   const [hovered, setHovered] = useState<NodeId | null>(null)
   const [replacing, setReplacing] = useState<{ id: string; radius: BlastRadius } | null>(null)
@@ -270,6 +272,35 @@ function CanvasInner() {
     setReplacing({ id: sourceId, radius: await previewReplace(sourceId) })
   }, [])
 
+  /**
+   * One Run, two scopes. Without `nodeId` it is the toolbar's whole-flow run;
+   * with one it is a single card's, and the executor pulls in whatever upstream
+   * that card still needs rather than dispatching it unanchored.
+   */
+  const run = useCallback(
+    async (options: { nodeId?: NodeId; confirmOverspend?: boolean } = {}) => {
+      const outcome = await startRun(role, options.confirmOverspend === true, options.nodeId)
+      if (outcome.kind === 'needs-confirmation') {
+        setConfirming({ message: outcome.message, nodeId: options.nodeId })
+        return
+      }
+      setConfirming(null)
+      setNotice(
+        outcome.kind === 'refused'
+          ? outcome.message
+          : // Nothing enqueued reads as a dead button. It means the hash is
+            // already satisfied — say so, and name the way to render it again.
+            outcome.enqueued === 0
+            ? 'Already rendered at these settings. Re-roll the seed to render it again.'
+            : null,
+      )
+      await load()
+    },
+    [role, load],
+  )
+
+  const onRun = useCallback((nodeId: NodeId) => void run({ nodeId }), [run])
+
   const decorated = useMemo(
     () =>
       rfNodes.map((n) => {
@@ -283,10 +314,11 @@ function CanvasInner() {
             source: node.type === 'source' ? sourcesById.get(node.sourceId) : undefined,
             onPrompt,
             onReplace,
+            onRun,
           },
         }
       }),
-    [rfNodes, selectedId, sourcesById, hovered, litUp, onPrompt, onReplace],
+    [rfNodes, selectedId, sourcesById, hovered, litUp, onPrompt, onReplace, onRun],
   )
 
   const visibleEdges = useMemo(
@@ -396,17 +428,6 @@ function CanvasInner() {
     setTimeout(() => {
       void commit((current) => applyWire(current, source, target, { role }))
     }, 0)
-  }
-
-  async function run(confirmOverspend = false) {
-    const outcome = await startRun(role, confirmOverspend)
-    if (outcome.kind === 'needs-confirmation') {
-      setConfirming(outcome.message)
-      return
-    }
-    setConfirming(null)
-    setNotice(outcome.kind === 'refused' ? outcome.message : null)
-    await load()
   }
 
   async function exportAll() {
@@ -522,7 +543,7 @@ function CanvasInner() {
         </button>
 
         <button className="run" onClick={() => void run()} data-testid="run">
-          Run
+          Run all
         </button>
       </header>
 
@@ -666,9 +687,13 @@ function CanvasInner() {
         {confirming && (
           <div className="floating">
             <div className="banner" role="alertdialog" aria-label="Confirm spend">
-              <p data-testid="spend-warning">{confirming}</p>
+              <p data-testid="spend-warning">{confirming.message}</p>
               <div className="banner__actions">
-                <button className="chip" onClick={() => void run(true)} data-testid="confirm-spend">
+                <button
+                  className="chip"
+                  onClick={() => void run({ nodeId: confirming.nodeId, confirmOverspend: true })}
+                  data-testid="confirm-spend"
+                >
                   Render anyway
                 </button>
                 <button className="chip" onClick={() => setConfirming(null)}>

@@ -4,7 +4,7 @@ import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { projects, flows, sources, nodeRuns } from '../db/schema'
 import { inputHash } from './hash'
 import { hashableConfig } from './hashable'
-import { topoOrder } from './graph'
+import { topoOrder, ancestors } from './graph'
 import { previewRun } from './preview'
 import { DEFAULT_SETTINGS, type ProjectSettings } from './settings'
 import { referencesOf } from './wiring'
@@ -155,17 +155,33 @@ export type EnqueueResult = {
  * The spend check runs before the first insert. Blocking afterwards would leave
  * rows behind that a restarting worker picks up and spends against — the exact
  * accident the cap exists to prevent.
+ *
+ * `only` narrows the run to one node and the ancestors it needs. Not the node
+ * alone: a clip whose start frame was never rendered would dispatch as
+ * text-to-video and be billed in full for a frame it never saw.
  */
 export function enqueueRun(
   db: Db,
   flowId: string,
-  options: { role?: ModelRole; confirmOverspend?: boolean } = {},
+  options: { role?: ModelRole; confirmOverspend?: boolean; only?: NodeId } = {},
 ): EnqueueResult {
-  const { settings } = loadContext(db, flowId)
+  const { settings, graph } = loadContext(db, flowId)
 
   // Same derivation the toolbar shows. One function, so the quoted price and
   // the charged price cannot drift apart.
-  const { stale: enqueued, cached, estimatedCents } = previewRun(db, flowId, options)
+  const preview = previewRun(db, flowId, options)
+  let { stale: enqueued, cached } = preview
+  let { estimatedCents } = preview
+
+  if (options.only) {
+    const shape = { nodeIds: graph.nodes.map((n) => n.id), edges: graph.edges }
+    const wanted = new Set<NodeId>([options.only, ...ancestors(shape, options.only)])
+    enqueued = enqueued.filter((p) => wanted.has(p.nodeId))
+    cached = cached.filter((p) => wanted.has(p.nodeId))
+    // Re-derived, and before the cap: quoting the whole graph's price for one
+    // node makes a $0.40 click demand confirmation against a $50 cap.
+    estimatedCents = enqueued.reduce((sum, p) => sum + p.estimatedCents, 0)
+  }
 
   if (!options.confirmOverspend && estimatedCents > settings.spendCapPerRun) {
     throw new SpendCapExceededError(estimatedCents, settings.spendCapPerRun)

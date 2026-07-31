@@ -12,6 +12,7 @@ export type CardData = {
   source?: SourceRow
   onPrompt: (nodeId: string, prompt: string) => void
   onReplace: (sourceId: string) => void
+  onRun: (nodeId: string) => void
 }
 
 const STATUS_LABEL: Record<NodeState['status'], string> = {
@@ -32,7 +33,7 @@ const STATUS_LABEL: Record<NodeState['status'], string> = {
  * up surprising someone with an invoice.
  */
 export function NodeCard({ data }: NodeProps) {
-  const { node, state, selected, source, onPrompt, onReplace } = data as unknown as CardData
+  const { node, state, selected, source, onPrompt, onReplace, onRun } = data as unknown as CardData
 
   if (node.type === 'source') {
     return <SourceCard node={node} source={source} selected={selected} onReplace={onReplace} />
@@ -85,6 +86,24 @@ export function NodeCard({ data }: NodeProps) {
         <span data-testid={`price-${node.id}`}>
           {state.status === 'succeeded' ? money(state.costCents) : money(state.estimatedCents)}
         </span>
+        {/* Reviewing one shot is not the same as committing to twelve. The card
+            renders itself and whatever upstream it still needs — nothing else.
+            `nodrag` and the stopped propagation keep the click off React Flow's
+            drag handler and off the canvas's alt-click fan-out. */}
+        {node.type !== 'export' && (
+          <button
+            className="node__run nodrag"
+            data-testid={`run-${node.id}`}
+            disabled={state.status !== 'stale' && state.status !== 'failed'}
+            title={state.status === 'succeeded' ? 'Already rendered — re-roll to render again' : 'Render this shot'}
+            onClick={(event) => {
+              event.stopPropagation()
+              onRun(node.id)
+            }}
+          >
+            {state.status === 'failed' ? 'Retry' : 'Run'}
+          </button>
+        )}
       </footer>
 
       {state.subtree.nodeCount > 0 && (
