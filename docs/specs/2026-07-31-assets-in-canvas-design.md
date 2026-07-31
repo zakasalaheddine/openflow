@@ -82,10 +82,10 @@ A fourth role joins the existing three:
 `anchorVersions` is **removed from `inputHash` entirely**, and this is a
 simplification rather than a loss.
 
-A source node's `hashableConfig` is `{ sourceId, version }`. Because hashes chain
-through `upstreamHashes`, bumping a source's version changes that source node's
-hash, which changes every descendant's hash for free. The guarantee is identical;
-it arrives through the existing chain instead of through a parallel field.
+Because hashes chain through `upstreamHashes`, bumping a source's version changes
+that source node's hash, which changes every descendant's hash for free. The
+guarantee is identical; it arrives through the existing chain instead of through
+a parallel field.
 
 `hashableConfig` stays pure — it sees a node and nothing else — so it returns
 only what is on the node:
