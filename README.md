@@ -34,6 +34,8 @@ FAL_KEY=... FAL_MODE=live npm run -- run flows/demo.json
 
 Copy [`.env.example`](./.env.example) to `.env` and edit it — `next dev`, `next start`, `npx openflow-studio` and the headless runner all read it, so nothing has to be exported by hand. An exported variable still wins over the file, which is what keeps `FAL_MODE=off npm run …` honest.
 
+Assets live on your machine. Set `CLOUDINARY_URL` and uploads and rendered frames are pushed to Cloudinary as well, and fal is handed a URL instead of the file inlined into its request — the difference between a reference that works and one refused for being over 12 MB. Local copies are kept regardless: `ffmpeg` and `sharp` read files, so export never depends on the network.
+
 `FAL_MODE` is `live` by default and forced to `replay`/`off`/`stub` by the test configs, so a test run can never bill you. `DEMO=1` forces `replay`, pre-bakes the demo flow from recorded fixtures, and refuses every render request — that is the mode a public demo runs in. `OPENFLOW_DATA_DIR` moves the SQLite file and generated assets off `./data`; `OPENFLOW_EXPORTS_DIR` moves exported files off `./exports`.
 
 ## Non-Goals

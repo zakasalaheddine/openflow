@@ -76,7 +76,14 @@ export const nodeRuns = sqliteTable(
 
 export const assets = sqliteTable('assets', {
   id: text('id').primaryKey(),
+  /**
+   * The file on this machine. Stays authoritative even when the asset is also
+   * hosted: ffmpeg and sharp read files, so the export path would otherwise
+   * have to download every frame it was about to resize.
+   */
   path: text('path').notNull(),
+  /** Public URL when a hosted store is configured — what fal is given to fetch. */
+  hostedUrl: text('hosted_url'),
   mime: text('mime').notNull(),
   width: integer('width'),
   height: integer('height'),

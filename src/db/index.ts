@@ -84,6 +84,7 @@ function migrate(sqlite: Database.Database) {
     CREATE TABLE IF NOT EXISTS assets (
       id TEXT PRIMARY KEY,
       path TEXT NOT NULL,
+      hosted_url TEXT,
       mime TEXT NOT NULL,
       width INTEGER,
       height INTEGER,
@@ -104,6 +105,18 @@ function migrate(sqlite: Database.Database) {
       created_at TEXT NOT NULL
     );
   `)
+
+  // `CREATE TABLE IF NOT EXISTS` does nothing to a table that already exists, so
+  // a database created before a column was added never gets it. Added here, and
+  // tolerated when already present, because the alternative is a shipped
+  // database that reads fine until the first query naming the new column.
+  for (const alter of ['ALTER TABLE assets ADD COLUMN hosted_url TEXT']) {
+    try {
+      sqlite.exec(alter)
+    } catch (error) {
+      if (!/duplicate column name/i.test(String(error))) throw error
+    }
+  }
 }
 
 let cached: Db | undefined

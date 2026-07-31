@@ -40,13 +40,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Send a file or some text.' }, { status: 400 })
     }
 
-    const stored = storeUpload(assetsDir(), {
+    const stored = await storeUpload(assetsDir(), {
       mime: file.type,
       bytes: Buffer.from(await file.arrayBuffer()),
     })
 
     return NextResponse.json({
-      id: createSource(db, projectId, { kind: stored.kind, files: [stored.key] }),
+      id: createSource(db, projectId, { kind: stored.kind, files: [stored.reference] }),
       kind: stored.kind,
     })
   } catch (error) {
@@ -95,10 +95,12 @@ export async function PATCH(request: Request) {
         : file instanceof File
           ? {
               files: [
-                storeUpload(assetsDir(), {
-                  mime: file.type,
-                  bytes: Buffer.from(await file.arrayBuffer()),
-                }).key,
+                (
+                  await storeUpload(assetsDir(), {
+                    mime: file.type,
+                    bytes: Buffer.from(await file.arrayBuffer()),
+                  })
+                ).reference,
               ],
             }
           : {}

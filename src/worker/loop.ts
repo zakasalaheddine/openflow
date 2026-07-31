@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto'
-import { renameSync } from 'node:fs'
+import { readFileSync, renameSync } from 'node:fs'
 import path from 'node:path'
 import { eq, and, desc, inArray, sql } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { nodeRuns, assets, flows, sources, projects, type NodeRun } from '../db/schema'
 import { byId, estimateCostCents, type ModelSpec } from '../models/registry'
 import { buildModelInput } from '../models/input'
-import { localStore } from '../core/assets'
+import { localStore, storeFor } from '../core/assets'
 import { composePrompt, referenceFiles } from '../core/compose'
 import { DEFAULT_SETTINGS, type ProjectSettings } from '../core/settings'
 import { probe, ffmpeg, encoderFor, FfmpegMissingError, type Probe } from '../core/ffmpeg'
@@ -155,7 +155,9 @@ function buildInput(
     if (!asset) throw new Error(`Upstream ${edge.from} has no rendered ${role} for ${run.nodeId}`)
     return {
       id: asset.id,
-      path: fetchableUrl(asset.path, asset.mime, storeRoot),
+      // The hosted URL when there is one — fal fetches it directly rather than
+      // having the frame base64'd into the request.
+      path: fetchableUrl(asset.hostedUrl ?? asset.path, asset.mime, storeRoot),
       mime: asset.mime,
     }
   }
@@ -337,7 +339,8 @@ async function persistOutputs(
   download: (url: string) => Promise<Buffer>,
   storeRoot: string,
 ) {
-  const store = localStore(storeRoot)
+  const local = localStore(storeRoot)
+  const store = storeFor(storeRoot)
   const settings = projectSettings(db)
   const refs: string[] = []
 
@@ -347,16 +350,24 @@ async function persistOutputs(
     const ext = EXT_BY_MIME[output.mime] ?? '.bin'
     const id = randomUUID()
     const key = path.join(run.id, `${id}${ext}`)
-    const savedPath = store.put(key, await download(output.url))
+    const savedPath = await local.put(key, await download(output.url))
     // In place, before the row exists: no asset may be recorded that skipped
     // this, or the library ends up half-normalised and nothing downstream can
     // assume anything.
     const measured = await normalise(savedPath, output, settings)
 
+    // Published after normalising, never before: a hosted store handing out the
+    // pre-transcode clip would serve a file whose fps and codec disagree with
+    // the row that describes it. Local-only stores publish nothing — `hosted`
+    // *is* the local store, and re-putting identical bytes would be a second
+    // write for no one.
+    const hostedUrl = store.hosted ? await store.put(key, readFileSync(savedPath)) : null
+
     db.insert(assets)
       .values({
         id,
         path: savedPath,
+        hostedUrl,
         mime: output.mime,
         width: measured.width ?? null,
         height: measured.height ?? null,

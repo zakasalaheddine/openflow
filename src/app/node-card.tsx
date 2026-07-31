@@ -184,7 +184,10 @@ function SourceCard({
 }) {
   const sourceId = node.type === 'source' ? node.sourceId : ''
   const kind = source?.kind ?? 'image'
-  const file = source?.files?.[0]
+  // A hosted store records the CDN URL itself; a local one records a store key
+  // this app serves. Prefixing a URL with `/` is how you get `/https://…`.
+  const raw = source?.files?.[0]
+  const file = !raw ? '' : /^https?:\/\//.test(raw) ? raw : `/${raw}`
 
   return (
     <div
@@ -208,10 +211,10 @@ function SourceCard({
         ) : kind === 'text' ? (
           <p className="node__text">{source.text}</p>
         ) : kind === 'video' ? (
-          <video src={`/${file ?? ''}`} muted loop playsInline />
+          <video src={file} muted loop playsInline />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={`/${file ?? ''}`} alt={node.label ?? 'Reference'} />
+          <img src={file} alt={node.label ?? 'Reference'} />
         )}
       </div>
 
