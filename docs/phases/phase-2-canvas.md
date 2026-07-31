@@ -65,8 +65,31 @@ State logic stays out of components and gets unit tested. Components get covered
 **`e2e/draft-hero.spec.ts`**
 - flipping the toggle changes the estimated total and the model each node resolves to, without editing any node
 
-## Gate
+## Gate — NOT MET
 
-`e2e/serum-graph.spec.ts` green in CI, plus every Phase 1 acceptance test still green.
+`e2e/serum-graph.spec.ts` is marked `test.fixme` and does not pass.
+
+**What works:** everything else. 153 unit tests and 7 browser specs are green —
+anchor chips add zero edges, anchor bumps price the blast radius across flows
+before committing, prompt edits stale the node and its descendants without
+re-running them, the Draft/Hero toggle re-prices without touching the graph,
+dragging a node persists and costs nothing, and a second start frame into one
+clip is refused.
+
+**What does not:** only the first wire of a page session lands. The second
+connection gesture never starts — React Flow draws no connection line and
+`onConnect` never fires. Reloading between wires makes all nine succeed, which
+places the fault in client state, not in wiring, validation or persistence.
+
+Ruled out so far: edge-layer pointer events and z-index, node identity churn
+across polls, a poisoned commit promise chain, an auto-fit loop shifting the
+canvas mid-gesture, controlled-vs-uncontrolled node state, and committing
+synchronously inside `onConnect`. Re-seeding nodes and edges independently
+moved it from "always fails" to "fails on the second wire", so the remaining
+cause is very likely still a re-seed racing the gesture.
+
+**Next thing to try:** stop re-seeding from the server entirely after a local
+edit — treat the client graph as authoritative between commits and reconcile
+only on load or when another surface changes the flow.
 
 The human check the spec can't make: build that graph yourself once and confirm it's actually pleasant. If wiring nine video nodes is tedious, alt-drag fan-out (Phase 3) is the fix — note it and move on, don't redesign here.

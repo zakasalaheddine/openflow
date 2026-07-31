@@ -269,11 +269,25 @@ export async function tick(db: Db, options: TickOptions): Promise<void> {
     }
   }
 
-  if (inFlight.length >= concurrency) return
+  // Fill the budget rather than dispatching one per tick. Claiming a single run
+  // per tick made `concurrency` decorative — a twelve-node graph drained at one
+  // node every two seconds no matter what the project setting said.
+  //
+  // Claim the whole batch *before* dispatching any of it. Interleaving the two
+  // lets a run that fails and returns to `queued` be re-claimed later in the
+  // same loop, burning all three attempts in one tick against, say, a network
+  // that is down for a second.
+  const batch: NodeRun[] = []
+  for (let slot = inFlight.length; slot < concurrency; slot++) {
+    const run = claimNext(db)
+    if (!run) break
+    batch.push(run)
+  }
 
-  const run = claimNext(db)
-  if (!run) return
+  for (const run of batch) await dispatch(db, run, adapter)
+}
 
+async function dispatch(db: Db, run: NodeRun, adapter: Adapter) {
   const model = byId(run.modelId)
   if (!model) {
     fail(db, run, `Unknown model ${run.modelId}`)
@@ -291,13 +305,10 @@ export async function tick(db: Db, options: TickOptions): Promise<void> {
   }
 
   try {
-    const { requestId } = await adapter.submit({
-      model,
-      input,
-      hash: run.inputHash,
-    })
+    const { requestId } = await adapter.submit({ model, input, hash: run.inputHash })
     // Persisted the instant fal accepts. A crash one line later must not orphan
     // a render that is already being billed.
+    //
     // `attempt` is bumped only by fail(), so one dispatch counts once. Bumping
     // it here as well made every failure cost two attempts and the retry
     // ceiling fire after one and a half retries.

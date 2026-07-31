@@ -1,0 +1,576 @@
+@import '@xyflow/react/dist/style.css';
+
+/*
+ * Darkroom, not IDE.
+ *
+ * You review a shoot under a safelight, so the ground is a deep blue-black and
+ * the generated frames read as prints on a light table. Amber is the safelight
+ * and is spent on exactly one meaning — stale, and therefore costing money.
+ * Nothing else in the interface is allowed to use it, so the eye learns that
+ * amber means "this will be billed".
+ */
+:root {
+  --ground: #14161c;
+  --panel: #191c24;
+  --raised: #1f232d;
+  --line: #2a2f3c;
+  --line-bright: #3a4152;
+
+  --ink: #e9e7e2;
+  --slate: #8d95a8;
+  --slate-dim: #5b6376;
+
+  --safelight: #ff8a3d;
+  --safelight-dim: #6b3a1c;
+  --fixed: #74d3a6;
+  --fault: #ff6b6b;
+
+  --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --rail: 264px;
+  --inspector: 340px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Everything measurable is typed like a call sheet; only prose is set in sans. */
+.slate {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--slate);
+}
+
+.figure {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--safelight);
+  outline-offset: 2px;
+}
+
+/* ---------- shell ---------- */
+
+.shell {
+  display: grid;
+  grid-template-columns: var(--rail) 1fr;
+  grid-template-rows: 52px 1fr;
+  height: 100vh;
+}
+
+/*
+ * The inspector takes a column rather than floating over the canvas. Overlaying
+ * it hid whichever shots sat under it and made them unclickable — you could see
+ * a node and not be able to select it.
+ */
+.shell[data-inspector='open'] {
+  grid-template-columns: var(--rail) 1fr var(--inspector);
+}
+
+.topbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.topbar__title {
+  margin: 0;
+  font-weight: 500;
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.topbar__spacer {
+  flex: 1;
+}
+
+/*
+ * The ledger line. Reads like the summary on a lab invoice, because that is
+ * what it is: how many frames are unexposed and what developing them costs.
+ */
+.ledger {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  padding: 5px 10px;
+  border: 1px solid var(--line-bright);
+  border-radius: 2px;
+}
+
+.ledger--due {
+  border-color: var(--safelight-dim);
+  color: var(--safelight);
+}
+
+.ledger--clear {
+  color: var(--slate);
+}
+
+.toggle {
+  display: flex;
+  border: 1px solid var(--line-bright);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.toggle button {
+  padding: 5px 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--slate);
+}
+
+.toggle button[aria-pressed='true'] {
+  background: var(--raised);
+  color: var(--ink);
+}
+
+.run {
+  padding: 7px 18px;
+  border-radius: 2px;
+  background: var(--ink);
+  color: var(--ground);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.run:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ---------- left rail: the client ---------- */
+
+.rail {
+  border-right: 1px solid var(--line);
+  background: var(--panel);
+  overflow-y: auto;
+  padding: 16px 14px;
+}
+
+.rail__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.anchor {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 10px;
+  margin-bottom: 10px;
+  background: var(--raised);
+}
+
+.anchor[data-attached='true'] {
+  border-color: var(--line-bright);
+  box-shadow: inset 2px 0 0 var(--fixed);
+}
+
+.anchor__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.anchor__name {
+  font-size: 13px;
+}
+
+.anchor__refs {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.anchor__ref {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line-bright);
+  border-radius: 2px;
+  background: var(--ground);
+  display: grid;
+  place-items: center;
+  font-family: var(--mono);
+  font-size: 8px;
+  color: var(--slate-dim);
+  overflow: hidden;
+}
+
+.anchor__actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.chip {
+  padding: 4px 9px;
+  border: 1px solid var(--line-bright);
+  border-radius: 2px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--slate);
+}
+
+.chip[aria-pressed='true'] {
+  background: var(--fixed);
+  border-color: var(--fixed);
+  color: var(--ground);
+}
+
+.chip--danger:hover {
+  border-color: var(--safelight);
+  color: var(--safelight);
+}
+
+/* ---------- canvas ---------- */
+
+.canvas {
+  position: relative;
+  min-width: 0;
+}
+
+.react-flow__background {
+  background: var(--ground);
+}
+
+/*
+ * The edge layer takes no pointer input.
+ *
+ * React Flow draws a fat invisible interaction path along every edge, and it
+ * starts exactly on the source handle. Once a shot had one clip wired to it,
+ * that path swallowed the pointerdown and no second connection could ever
+ * begin — branching, the core interaction of the tool, worked exactly once per
+ * shot. The layer sits above the nodes, so no z-index on the handle can win.
+ *
+ * ponytail: costs edge selection, which no feature uses yet. When edge
+ * deletion arrives, re-enable pointer events on the path only and inset it so
+ * it stops short of both handles.
+ */
+.react-flow__edges {
+  pointer-events: none;
+}
+
+.react-flow__edge-path {
+  stroke: var(--line-bright);
+  stroke-width: 1.5;
+}
+
+.react-flow__edge[data-role='start_frame'] .react-flow__edge-path {
+  stroke: var(--fixed);
+  stroke-dasharray: 5 3;
+}
+
+.react-flow__handle {
+  /*
+   * Above the edge layer. Once a shot had one clip wired to it, the edge's
+   * interaction path sat over the handle and swallowed the pointer, so a second
+   * clip could never be wired from the same shot — and branching is the core
+   * interaction of the whole tool.
+   */
+  z-index: 10;
+  pointer-events: all;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--line-bright);
+  border: 1px solid var(--ground);
+}
+
+.react-flow__handle:hover {
+  background: var(--fixed);
+}
+
+/* ---------- node: a strip of production paperwork ---------- */
+
+.node {
+  width: 200px;
+  border: 1px solid var(--line-bright);
+  border-radius: 3px;
+  background: var(--panel);
+  /*
+   * NOT overflow: hidden. Handles sit half outside the card, so clipping them
+   * left them visible and measurable but not hit-testable — pointer events
+   * never reached them and wiring silently did nothing. Round the first and
+   * last children instead.
+   */
+  transition: opacity 120ms ease, border-color 120ms ease;
+}
+
+.node__slate {
+  border-radius: 2px 2px 0 0;
+}
+
+.node__foot:last-child {
+  border-radius: 0 0 2px 2px;
+}
+
+.node[data-selected='true'] {
+  border-color: var(--ink);
+}
+
+/* Stale is dimmed like an unexposed frame, and says so in the margin. */
+.node[data-status='stale'] {
+  opacity: 0.62;
+  border-color: var(--safelight-dim);
+}
+
+.node[data-status='failed'] {
+  border-color: var(--fault);
+}
+
+/* The slate. Struck bar, shot id, role, price — the signature of the whole UI. */
+.node__slate {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.node__clap {
+  width: 14px;
+  height: 10px;
+  flex: none;
+  background: repeating-linear-gradient(
+    115deg,
+    var(--ink) 0 3px,
+    var(--raised) 3px 6px
+  );
+}
+
+.node__id {
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node__role {
+  margin-left: auto;
+  color: var(--slate-dim);
+}
+
+.node__frame {
+  /* 5:4, not square. Twelve outputs have to be reviewable in place on one
+     screen — that is the whole reason there is no separate review grid. */
+  aspect-ratio: 5 / 4;
+  background: var(--ground);
+  display: grid;
+  place-items: center;
+  border-bottom: 1px solid var(--line);
+}
+
+.node__frame img,
+.node__frame video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.node__empty {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--slate-dim);
+}
+
+.node__prompt {
+  padding: 7px 8px;
+  margin: 0;
+  font-size: 12px;
+  /* Line height in px, and a height that is an exact multiple of it, so the
+     clip always lands on a line boundary. */
+  line-height: 17px;
+  height: 48px;
+  overflow: hidden;
+  color: var(--ink);
+}
+
+/*
+ * Not -webkit-line-clamp. It paints the ellipsis but does not suppress the
+ * overflowing line here — Next's CSS pipeline drops -webkit-box-orient, which
+ * the recipe silently depends on, and a half-height "light" bled under the
+ * footer. A fade is honest about there being more text and cannot break.
+ */
+.node__prompt {
+  mask-image: linear-gradient(to bottom, #000 0 30px, transparent 44px);
+}
+
+/* The lab bill, in the margin of every frame. */
+.node__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--slate);
+}
+
+.node__status[data-status='succeeded'] {
+  color: var(--fixed);
+}
+.node__status[data-status='stale'] {
+  color: var(--safelight);
+}
+.node__status[data-status='failed'] {
+  color: var(--fault);
+}
+
+.node__foot--branch {
+  display: none;
+}
+
+/* Total spend is too coarse when one branch is three video renders — but it is
+   also noise on every card at once, so it appears when you point at a shot. */
+.node:hover .node__foot--branch,
+.node[data-selected='true'] .node__foot--branch {
+  display: flex;
+}
+
+.node__subtree {
+  color: var(--safelight);
+}
+
+/* ---------- inspector ---------- */
+
+.inspector {
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  padding: 16px 14px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field textarea,
+.field input,
+.field select {
+  background: var(--ground);
+  border: 1px solid var(--line-bright);
+  border-radius: 2px;
+  color: var(--ink);
+  padding: 8px;
+  font-family: var(--sans);
+  font-size: 13px;
+  resize: vertical;
+}
+
+.field input,
+.field select {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.inspector__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--slate);
+}
+
+.banner {
+  padding: 10px;
+  border: 1px solid var(--safelight-dim);
+  border-radius: 2px;
+  color: var(--safelight);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.banner--fault {
+  border-color: var(--fault);
+  color: var(--fault);
+}
+
+.empty-canvas {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 6px;
+  text-align: center;
+  pointer-events: none;
+  color: var(--slate-dim);
+}
+
+@media (max-width: 900px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+  .rail {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

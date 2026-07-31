@@ -269,6 +269,18 @@ describe('tick', () => {
     expect(run.attempt).toBe(1)
   })
 
+  test('fills the concurrency budget in one tick', async () => {
+    // One dispatch per tick made `concurrency` decorative: a twelve-node graph
+    // drained at one node every two seconds no matter what the setting said.
+    const { db, flowId } = setup(twoNodeFlow)
+    enqueueRun(db, flowId)
+
+    const adapter = fakeAdapter({ poll: async () => ({ status: 'IN_PROGRESS' }) })
+    await tick(db, { adapter, download: fakeDownload, concurrency: 4 })
+
+    expect(adapter.submitted).toHaveLength(2)
+  })
+
   test('respects the concurrency limit', async () => {
     const { db, flowId } = setup(twoNodeFlow)
     enqueueRun(db, flowId)

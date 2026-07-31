@@ -194,6 +194,42 @@ function liveAdapter(): Adapter {
   }
 }
 
+/**
+ * A test double, not a cache.
+ *
+ * The browser suite builds graphs through the UI, so it cannot know a node's
+ * input hash ahead of time and cannot pre-record a fixture for it. This returns
+ * a 1x1 placeholder for anything asked of it and never opens a socket.
+ *
+ * Deliberately not the default and deliberately named: someone running with
+ * this set gets obviously-fake output on the first render rather than a subtle
+ * quality problem.
+ */
+function stubAdapter(): Adapter {
+  const PLACEHOLDER =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+
+  return {
+    async submit({ model, hash }) {
+      return { requestId: `stub:${model.format}#${hash}` }
+    },
+    async poll(requestId) {
+      const format = requestId.replace(/^stub:/, '').split('#')[0]
+      return {
+        status: 'COMPLETED',
+        outputs: [
+          {
+            url: PLACEHOLDER,
+            mime: format === 'video' ? 'video/mp4' : 'image/png',
+            width: 1024,
+            height: 1024,
+          },
+        ],
+      }
+    },
+  }
+}
+
 export function createAdapter(options: { mode: FalMode; fixtureDir?: string }): Adapter {
   switch (options.mode) {
     case 'off':
@@ -207,6 +243,8 @@ export function createAdapter(options: { mode: FalMode; fixtureDir?: string }): 
       }
     case 'replay':
       return replayAdapter(options.fixtureDir ?? path.resolve('test/fixtures/fal'))
+    case 'stub':
+      return stubAdapter()
     case 'live':
       return liveAdapter()
   }

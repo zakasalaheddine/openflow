@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { topoOrder, CycleError } from './graph'
 import { resolveModel, assertStartFrameSupported, type ModelSpec } from '../models/registry'
 import type { Flow, FlowNode, Edge, NodeId, ModelRole } from './types'
@@ -78,7 +77,11 @@ export function validateWire(
 }
 
 const edgeFor = (from: NodeId, to: NodeId, role: Edge['role']): Edge => ({
-  id: randomUUID(),
+  // Web Crypto, not node:crypto. This module runs in the browser as well as on
+  // the server — the canvas calls applyWire directly — and a `node:crypto`
+  // import made every wiring attempt throw in the browser. The failure was
+  // invisible because it was neither of the two errors onConnect catches.
+  id: globalThis.crypto.randomUUID(),
   from,
   to,
   role,

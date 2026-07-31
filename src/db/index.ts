@@ -105,4 +105,16 @@ function migrate(sqlite: Database.Database) {
   `)
 }
 
+let cached: Db | undefined
+
+/**
+ * One connection per process. Opening a handle per request is wasteful, and
+ * more importantly WAL mode wants a stable writer — the worker and the request
+ * handlers share this.
+ */
+export function getDb(): Db {
+  cached ??= openDb()
+  return cached
+}
+
 export { schema }

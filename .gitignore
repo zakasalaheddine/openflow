@@ -12,4 +12,6 @@ playwright-report/
 next-env.d.ts
 spike/products/
 spike/out/
+.playwright-mcp/
+*.png
 .DS_Store

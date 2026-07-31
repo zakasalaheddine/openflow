@@ -17,9 +17,11 @@ export const exportsDir = () =>
 /**
  * live   — real fal calls, real money. Dev only, never CI.
  * replay — serve recorded fixtures from test/fixtures/fal. Tests, CI, DEMO=1.
+ * stub   — synthesise a placeholder for any request. Browser e2e only, where
+ *          the subject is the canvas and the hashes are not known in advance.
  * off    — throw on any dispatch. Guard for suites that must not spend.
  */
-export type FalMode = 'live' | 'replay' | 'off'
+export type FalMode = 'live' | 'replay' | 'stub' | 'off'
 
 // Defaults to `live` because generating is the product. `replay` is forced by
 // vitest.config.ts, playwright.config.ts and CI — config, not discipline, so
