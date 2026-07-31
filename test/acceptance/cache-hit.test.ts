@@ -6,7 +6,7 @@ import { createAdapter } from '@/models/fal'
 import { nodeRuns, assets, sources } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { tempDb } from '../helpers/db'
-import { tempFixtureDir, recordSuccess } from '../helpers/fixtures'
+import { tempFixtureDir, recordSuccess, seedSourceFiles } from '../helpers/fixtures'
 
 // Phase 1 gate #2: "a second run costs $0".
 
@@ -26,6 +26,8 @@ function prepared() {
   const { db, dir } = tempDb()
   const fixtureDir = tempFixtureDir()
   const { flowId } = importFlowFile(db, spec)
+  // Real bytes: a dispatch inlines every reference so fal can fetch it.
+  seedSourceFiles(path.join(dir, 'assets'), spec.sources?.flatMap((s) => s.files ?? []) ?? [])
   for (const planned of planRun(db, flowId)) recordSuccess(fixtureDir, planned)
   return {
     db,

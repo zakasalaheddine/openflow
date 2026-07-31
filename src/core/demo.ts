@@ -1,3 +1,4 @@
+import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import path from 'node:path'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { readFlowFile, importFlowFile, drain } from './run-flow'
@@ -21,6 +22,19 @@ type Db = BetterSQLite3Database<any>
  */
 export async function seedDemo(db: Db, options: { file?: string } = {}) {
   const spec = readFlowFile(options.file ?? path.join(packageRoot(), 'flows/demo.json'))
+
+  // The reference images ship beside the flow file and are copied into the
+  // store, because a dispatch now reads them: fal fetches its inputs over the
+  // network, so a reference is inlined rather than named. Without this the demo
+  // is a public page whose every node fails on a file that was never there —
+  // the same way it once shipped without its fal fixtures.
+  for (const file of spec.sources?.flatMap((s) => s.files ?? []) ?? []) {
+    const from = path.join(packageRoot(), 'flows', file)
+    const to = path.join(assetsDir(), file)
+    if (!existsSync(from) || existsSync(to)) continue
+    mkdirSync(path.dirname(to), { recursive: true })
+    copyFileSync(from, to)
+  }
 
   // The canvas opens onto the default flow, so the demo has to *be* that flow
   // rather than a second one nobody navigates to.

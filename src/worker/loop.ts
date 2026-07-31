@@ -63,7 +63,50 @@ const projectConcurrency = (db: Db): number => projectSettings(db).concurrency
  * lookup: the graph is the source of truth, and a run whose node has since been
  * deleted must fail rather than dispatch an empty prompt at full price.
  */
-function buildInput(db: Db, run: NodeRun, model: ModelSpec): Record<string, unknown> {
+const MIME_BY_EXT: Record<string, string> = Object.fromEntries(
+  Object.entries(EXT_BY_MIME).map(([mime, ext]) => [ext, mime]),
+)
+
+/** 12 MB of raw bytes, which is ~16 MB of base64 in a single POST body. */
+const MAX_INLINE_BYTES = 12 * 1024 * 1024
+
+/**
+ * Turns something on this machine into something fal can fetch.
+ *
+ * A reference is stored as a key (`uploads/x.png`) and a rendered frame as a
+ * path — fal resolves neither, and says so: `file_download_error`, after the
+ * render was already submitted. A location that is already an http URL is a
+ * hosted asset and passes straight through; anything else is read off disk and
+ * inlined as a data URI, which fal accepts anywhere it takes a URL.
+ *
+ * Through the store rather than `readFileSync`, so the containment check that
+ * guards every other read guards this one too.
+ *
+ * ponytail: base64 is a third more bytes and the whole file sits in memory, so
+ * this refuses above 12 MB rather than hanging on a POST nobody can debug. A
+ * *video* wired in as a reference is the only unbounded path — uploads allow
+ * 200 MB — and hosting those is what the store's `url()` is for.
+ */
+function fetchableUrl(location: string, mime: string | null, storeRoot: string): string {
+  if (/^https?:\/\//.test(location)) return location
+
+  const bytes = localStore(storeRoot).get(location)
+  if (bytes.byteLength > MAX_INLINE_BYTES) {
+    throw new Error(
+      `${location} is ${Math.round(bytes.byteLength / 1024 / 1024)} MB, over the ${MAX_INLINE_BYTES / 1024 / 1024} MB limit for inlining into a fal request. Host it and store its URL instead.`,
+    )
+  }
+  const resolved =
+    mime ?? MIME_BY_EXT[path.extname(location).toLowerCase()] ?? 'application/octet-stream'
+  return `data:${resolved};base64,${bytes.toString('base64')}`
+}
+
+function buildInput(
+  db: Db,
+  run: NodeRun,
+  model: ModelSpec,
+  storeRoot: string,
+): Record<string, unknown> {
   const flow = db.select().from(flows).where(eq(flows.id, run.flowId)).get()
   if (!flow) throw new Error(`Flow ${run.flowId} no longer exists`)
 
@@ -74,7 +117,12 @@ function buildInput(db: Db, run: NodeRun, model: ModelSpec): Record<string, unkn
   const library = new Map(
     db.select().from(sources).where(eq(sources.projectId, flow.projectId)).all().map((r) => [r.id, r]),
   )
-  const anchorRefs = referenceFiles(graph, run.nodeId, library)
+  // Mapped here and nowhere earlier: `referenceFiles` is also called by
+  // planRun, which the canvas re-runs every 1.2s. Encoding every reference
+  // image on every poll would be a base64 pass per node per tick.
+  const anchorRefs = referenceFiles(graph, run.nodeId, library).map((key) =>
+    fetchableUrl(key, null, storeRoot),
+  )
   const prompt = composePrompt(graph, run.nodeId, library)
 
   const frameFor = (role: 'start_frame' | 'end_frame'): AssetRef | undefined => {
@@ -105,7 +153,11 @@ function buildInput(db: Db, run: NodeRun, model: ModelSpec): Record<string, unkn
     // buildModelInput would quietly omit `image_url` and fal would bill a
     // text-to-video render at full price — refusing costs nothing.
     if (!asset) throw new Error(`Upstream ${edge.from} has no rendered ${role} for ${run.nodeId}`)
-    return { id: asset.id, path: asset.path, mime: asset.mime }
+    return {
+      id: asset.id,
+      path: fetchableUrl(asset.path, asset.mime, storeRoot),
+      mime: asset.mime,
+    }
   }
 
   return buildModelInput(node, model, {
@@ -404,10 +456,10 @@ export async function tick(db: Db, options: TickOptions): Promise<void> {
     batch.push(run)
   }
 
-  for (const run of batch) await dispatch(db, run, adapter)
+  for (const run of batch) await dispatch(db, run, adapter, storeRoot)
 }
 
-async function dispatch(db: Db, run: NodeRun, adapter: Adapter) {
+async function dispatch(db: Db, run: NodeRun, adapter: Adapter, storeRoot: string) {
   const model = byId(run.modelId)
   if (!model) {
     fail(db, run, `Unknown model ${run.modelId}`)
@@ -416,7 +468,7 @@ async function dispatch(db: Db, run: NodeRun, adapter: Adapter) {
 
   let input: Record<string, unknown>
   try {
-    input = buildInput(db, run, model)
+    input = buildInput(db, run, model, storeRoot)
   } catch (error) {
     // Refusing beats dispatching a payload we know is wrong: an empty prompt
     // is billed exactly like a real one.

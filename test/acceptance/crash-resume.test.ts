@@ -8,7 +8,7 @@ import { createAdapter, type Adapter } from '@/models/fal'
 import { tick } from '@/worker/loop'
 import { nodeRuns, assets } from '@/db/schema'
 import { tempDb } from '../helpers/db'
-import { tempFixtureDir, recordSuccess } from '../helpers/fixtures'
+import { tempFixtureDir, recordSuccess, seedSourceFiles } from '../helpers/fixtures'
 
 // Phase 1 gate #3: "killing the process mid-run and restarting resumes
 // cleanly". This is the test that will still be earning its keep in month
@@ -31,6 +31,8 @@ function prepared() {
   const { db, dir } = tempDb()
   const fixtureDir = tempFixtureDir()
   const { flowId } = importFlowFile(db, spec)
+  // Real bytes: a dispatch inlines every reference so fal can fetch it.
+  seedSourceFiles(path.join(dir, 'assets'), spec.sources?.flatMap((s) => s.files ?? []) ?? [])
   for (const planned of planRun(db, flowId)) recordSuccess(fixtureDir, planned)
   return { db, dir, fixtureDir, flowId, storeRoot: path.join(dir, 'assets') }
 }

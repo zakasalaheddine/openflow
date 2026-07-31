@@ -1,9 +1,12 @@
 import { describe, test, expect, vi } from 'vitest'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import path from 'node:path'
 import { eq } from 'drizzle-orm'
 import { claimNext, reapStale, tick, MAX_ATTEMPTS, STALE_CLAIM_MS } from '@/worker/loop'
 import { enqueueRun } from '@/core/executor'
 import { nodeRuns, assets, flows } from '@/db/schema'
 import { tempDb, seedProject, seedSource, seedFlow } from '../helpers/db'
+import { seedSourceFiles, PNG_1PX } from '../helpers/fixtures'
 import type { Flow } from '@/core/types'
 import type { Adapter, SubmitRequest } from '@/models/fal'
 
@@ -189,13 +192,19 @@ describe('tick dispatch payload', () => {
       ],
       edges: [{ id: 'r1', from: 'bottle', to: 'img', role: 'reference', position: null }],
     }
-    const { db, flowId } = setup(anchored)
+    const { db, dir, flowId } = setup(anchored)
+    const storeRoot = path.join(dir, 'assets')
+    seedSourceFiles(storeRoot, ['ref-a.png'])
     enqueueRun(db, flowId)
 
     const adapter = fakeAdapter({ poll: async () => ({ status: 'IN_PROGRESS' }) })
-    await tick(db, { adapter, download: fakeDownload })
+    await tick(db, { adapter, download: fakeDownload, storeRoot })
 
-    expect(adapter.requests[0].input.image_urls).toEqual(['ref-a.png'])
+    // Inlined, not named: `ref-a.png` means nothing to fal, which fetches its
+    // inputs over the network and would refuse with `file_download_error`.
+    expect(adapter.requests[0].input.image_urls).toEqual([
+      `data:image/png;base64,${PNG_1PX.split(',')[1]}`,
+    ])
   })
 
   test('sends a wired-in text fragment ahead of the node prompt', async () => {
@@ -286,7 +295,8 @@ describe('tick', () => {
     // succeeded rows. An unordered lookup takes the oldest, so the clip is built
     // from a frame that is no longer on screen — at full price, and reading as
     // the model having ignored its start frame.
-    const { db, flowId } = setup(clipFlow)
+    const { db, dir, flowId } = setup(clipFlow)
+    const storeRoot = path.join(dir, 'assets')
     enqueueRun(db, flowId)
     const clipRun = db.select().from(nodeRuns).where(eq(nodeRuns.nodeId, 'clip')).get()!
 
@@ -297,8 +307,19 @@ describe('tick', () => {
       ['run-first', 'frame-first', '2026-01-01T00:00:00.000Z'],
       ['run-latest', 'frame-latest', '2026-06-01T00:00:00.000Z'],
     ] as const) {
+      // Distinct bytes per frame: both are inlined identically otherwise, and
+      // the test would pass no matter which row won.
+      const file = path.join(storeRoot, 'frames', `${assetId}.png`)
+      mkdirSync(path.dirname(file), { recursive: true })
+      writeFileSync(file, Buffer.from(assetId))
       db.insert(assets)
-        .values({ id: assetId, path: `/frames/${assetId}.png`, mime: 'image/png', sourceRunId: runId, createdAt: when })
+        .values({
+          id: assetId,
+          path: path.join(storeRoot, `frames/${assetId}.png`),
+          mime: 'image/png',
+          sourceRunId: runId,
+          createdAt: when,
+        })
         .run()
       db.insert(nodeRuns)
         .values({
@@ -317,10 +338,12 @@ describe('tick', () => {
     }
 
     const adapter = fakeAdapter()
-    await tick(db, { adapter, download: fakeDownload })
+    await tick(db, { adapter, download: fakeDownload, storeRoot })
 
     const dispatched = adapter.requests.find((r) => r.hash === clipRun.inputHash)!
-    expect(dispatched.input.image_url).toBe('/frames/frame-latest.png')
+    expect(dispatched.input.image_url).toBe(
+      `data:image/png;base64,${Buffer.from('frame-latest').toString('base64')}`,
+    )
   })
 
   test('completes a run, writes an asset row and records the cost', async () => {

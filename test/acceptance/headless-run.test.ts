@@ -7,7 +7,7 @@ import { planRun } from '@/core/executor'
 import { createAdapter } from '@/models/fal'
 import { nodeRuns, assets } from '@/db/schema'
 import { tempDb } from '../helpers/db'
-import { tempFixtureDir, recordSuccess } from '../helpers/fixtures'
+import { tempFixtureDir, recordSuccess, seedSourceFiles, PNG_1PX } from '../helpers/fixtures'
 
 // Phase 1 gate #1: "a JSON graph produces images on disk".
 
@@ -31,6 +31,8 @@ function prepared() {
   const { db, dir } = tempDb()
   const fixtureDir = tempFixtureDir()
   const { flowId } = importFlowFile(db, spec)
+  // Real bytes: a dispatch inlines every reference so fal can fetch it.
+  seedSourceFiles(path.join(dir, 'assets'), spec.sources?.flatMap((s) => s.files ?? []) ?? [])
   for (const planned of planRun(db, flowId)) recordSuccess(fixtureDir, planned)
   return {
     db,
@@ -99,7 +101,10 @@ describe('headless run', () => {
     await runFlow(db, spec, recording)
 
     expect(seen.map((i) => i.prompt).sort()).toEqual(['bottle on marble', 'bottle on slate'])
-    for (const input of seen) expect(input.image_urls).toEqual(['a.png', 'b.png'])
+    // Inlined, not named: fal fetches its inputs over the network, and `a.png`
+    // is a key in a store on this machine.
+    const inlined = `data:image/png;base64,${PNG_1PX.split(',')[1]}`
+    for (const input of seen) expect(input.image_urls).toEqual([inlined, inlined])
   })
 
   test('links every asset back to the run that produced it', async () => {

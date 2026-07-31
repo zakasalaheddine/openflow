@@ -8,8 +8,7 @@
       "id": "src:serum-bottle",
       "kind": "image",
       "files": [
-        "refs/bottle-front.jpg",
-        "refs/bottle-angle.jpg"
+        "refs/bottle-front.jpg"
       ]
     },
     {
