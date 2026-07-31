@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { readFileSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { eq } from 'drizzle-orm'
 import { tick } from '@/worker/loop'
@@ -98,6 +98,25 @@ describe('normalisation on write', () => {
   test('honours a project that asks for a different frame rate', async () => {
     const { asset } = await renderClip(CONFORMING, { fps: 24 })
     expect(asset.fps).toBe(24)
+  })
+
+  test('keeps a paid render when ffmpeg is not installed', async () => {
+    // Throwing here would fail the run, return it to `queued`, and buy the same
+    // clip again on the next tick — three times, then failed, with the bytes on
+    // disk and no row pointing at them. The loud error belongs at export time,
+    // where it costs nothing.
+    const realPath = process.env.PATH
+    process.env.PATH = '/nonexistent'
+    try {
+      const { asset } = await renderClip(STUB_MP4)
+      expect(existsSync(asset.path)).toBe(true)
+      expect(asset.width).toBe(1080)
+      // Unknown rather than guessed: nothing measured them.
+      expect(asset.fps).toBeNull()
+      expect(asset.codec).toBeNull()
+    } finally {
+      process.env.PATH = realPath
+    }
   })
 
   test('leaves a still image untouched and never probes it', async () => {

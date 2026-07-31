@@ -9,7 +9,7 @@ import { buildModelInput } from '../models/input'
 import { localStore } from '../core/assets'
 import { composePrompt, referenceFiles } from '../core/compose'
 import { DEFAULT_SETTINGS, type ProjectSettings } from '../core/settings'
-import { probe, ffmpeg, encoderFor } from '../core/ffmpeg'
+import { probe, ffmpeg, encoderFor, FfmpegMissingError, type Probe } from '../core/ffmpeg'
 import { assetsDir } from '../env'
 import type { Adapter, ParsedOutput } from '../models/fal'
 import type { Flow, AssetRef } from '../core/types'
@@ -181,7 +181,22 @@ async function normalise(
     return { width: output.width, height: output.height, durationMs: output.durationMs }
   }
 
-  const measured = await probe(file)
+  let measured: Probe
+  try {
+    measured = await probe(file)
+  } catch (error) {
+    // A missing ffmpeg must not lose a render that fal has already been paid
+    // for. Throwing here would fail the run, return it to `queued`, and buy the
+    // same clip again on the next tick — three times, then failed, with the
+    // bytes sitting on disk and no row pointing at them. The file is kept with
+    // the model's own claim about it; fps and codec stay null, and the loud
+    // error arrives at export time, where it costs nothing.
+    if (error instanceof FfmpegMissingError) {
+      return { width: output.width, height: output.height, durationMs: output.durationMs }
+    }
+    throw error
+  }
+
   if (measured.fps === settings.fps && measured.codec === settings.codec) {
     // Re-encoding a conforming clip costs time and a generation of quality for
     // a file that is already correct.
