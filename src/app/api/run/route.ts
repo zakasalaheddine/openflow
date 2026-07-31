@@ -3,11 +3,22 @@ import { getDb } from '@/db'
 import { ensureWorkspace } from '@/core/workspace'
 import { enqueueRun, SpendCapExceededError } from '@/core/executor'
 import { UnsupportedCapabilityError } from '@/models/registry'
+import { isDemo } from '@/env'
 import type { ModelRole } from '@/core/types'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
+  // The demo page is public and the graph on it is editable. Without this, one
+  // visitor editing a prompt and pressing Run dispatches a render — and a
+  // hosted demo that bills per visitor is a demo you take down.
+  if (isDemo()) {
+    return NextResponse.json(
+      { error: 'This is a read-only demo. Everything you see is already rendered.' },
+      { status: 403 },
+    )
+  }
+
   const db = getDb()
   const { flowId } = ensureWorkspace(db)
   const body = (await request.json().catch(() => ({}))) as {

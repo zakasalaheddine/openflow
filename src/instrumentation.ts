@@ -13,9 +13,20 @@ export async function register() {
   const { getDb } = await import('./db')
   const { startWorker } = await import('./worker/loop')
   const { createAdapter } = await import('./models/fal')
-  const { falMode } = await import('./env')
+  const { falMode, isDemo } = await import('./env')
 
   const mode = falMode()
-  startWorker(getDb(), { adapter: createAdapter({ mode }) })
+  const db = getDb()
+
+  if (isDemo()) {
+    // Pre-baked before the worker starts, so the first visitor never sees a
+    // half-rendered canvas. Every node comes from a recorded fixture: zero
+    // spend, zero outbound calls.
+    const { seedDemo } = await import('./core/demo')
+    const { rendered } = await seedDemo(db)
+    console.log(`[openflow] DEMO=1 · ${rendered} node(s) pre-baked · live runs refused`)
+  }
+
+  startWorker(db, { adapter: createAdapter({ mode }) })
   console.log(`[openflow] worker started · FAL_MODE=${mode}`)
 }

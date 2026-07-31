@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { z } from 'zod'
 import { flowSchema } from './schema'
+import { packageRoot } from '../env'
 import type { Flow } from './types'
 
 /**
@@ -38,12 +39,12 @@ const templateSchema = z.object({
 })
 
 /**
- * Resolved against this module, not the working directory: templates ship with
- * the package, and `npx openflow-studio` is launched from wherever the user
- * happens to be standing.
+ * Resolved against the package root, not a relative path: templates ship with
+ * the package, and the server runs from a bundle where `import.meta.dirname`
+ * is undefined. See env.ts.
  */
 export const TEMPLATES_DIR =
-  process.env.OPENFLOW_TEMPLATES_DIR ?? path.resolve(import.meta.dirname, '../../flows/templates')
+  process.env.OPENFLOW_TEMPLATES_DIR ?? path.join(packageRoot(), 'flows/templates')
 
 export function loadTemplates(dir = TEMPLATES_DIR): FlowTemplate[] {
   return readdirSync(dir)

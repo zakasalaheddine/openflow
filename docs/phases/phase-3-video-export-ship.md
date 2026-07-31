@@ -17,9 +17,11 @@ The repo goes public at the end of this phase, finished or not.
 - [x] **Spec validation** — safe zones, min resolution, duration limits, text coverage. Text this project places is checked as a declared box; text an image model burned into its own output is invisible here and is not claimed to be checked.
 - [x] `manifest.json` on export
 - [x] brief→flow validation + 4 templates in `/flows/templates/`. **No UI entry point and no brand-profile generation** — both need an LLM provider seam (an `LLM_MODE` mirroring `FAL_MODE`), which this phase did not build.
-- [ ] `npx openflow-studio` launcher; Dockerfile secondary
-- [ ] `DEMO=1` mode — live runs disabled, example flows pre-baked as cache hits
-- [ ] README per the §10 ordering
+- [x] `npx openflow-studio` launcher; Dockerfile secondary
+- [x] `DEMO=1` mode — live runs disabled, example flows pre-baked as cache hits
+- [x] README per the §10 ordering. **No screenshot** — the serum graph shot the
+      ordering calls for does not exist yet, and a broken image link is worse
+      than a stated gap.
 
 **Normalisation covers fps and codec, not dimensions.** There is no project-level
 canvas size to normalise to, and cropping on the way in would throw away framing
@@ -80,7 +82,10 @@ until a provider seam exists; the validation it would exercise is covered by
 - prompt editing changes the hash and marks descendants stale
 - the two are visually distinct — confusing them means re-rolling a bad idea forever
 
-**`e2e/demo-mode.spec.ts`** — *not written; `DEMO=1` is not built.*
+**`e2e/demo-mode.spec.ts`** — replaced by `test/acceptance/demo-mode.test.ts`.
+Playwright runs one server for the whole suite, so a `DEMO=1` browser spec means
+a second build and a second port for an assertion that is stronger at the
+acceptance level anyway: the test spies on `fetch` and asserts no call to a host.
 - `DEMO=1` serves pre-baked flows and **dispatches nothing**. Assert zero outbound calls: this protects your wallet on a public demo, so it is a real test, not a nicety.
 
 ## 4. Ship

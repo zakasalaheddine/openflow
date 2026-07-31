@@ -5,6 +5,18 @@
   "description": "Local-first node editor for directing on-brand ad creative",
   "license": "MIT",
   "type": "module",
+  "bin": {
+    "openflow-studio": "bin/openflow-studio.mjs"
+  },
+  "files": [
+    ".next",
+    "bin",
+    "flows",
+    "scripts",
+    "src",
+    "next.config.ts",
+    "tsconfig.json"
+  ],
   "scripts": {
     "check-node": "node scripts/check-node.mjs",
     "predev": "npm run check-node",
@@ -27,6 +39,7 @@
     "sharp": "$sharp"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
     "@fal-ai/client": "^1.10.1",
     "@xyflow/react": "^12.11.2",
     "better-sqlite3": "^13.0.2",
