@@ -16,17 +16,18 @@ import type { JsonValue } from './hash'
 export function hashableConfig(node: FlowNode): Record<string, JsonValue> {
   switch (node.type) {
     case 'source':
-      return { assets: node.assets as unknown as JsonValue }
+      // The id only. The row's `version` lives in the database, so planRun
+      // folds it in — this function sees a node and nothing else, which is what
+      // keeps it pure and testable without a database.
+      return { sourceId: node.sourceId }
     case 'image':
       return {
         prompt: node.prompt,
-        anchors: node.anchors,
         modelRole: node.modelRole,
       }
     case 'video':
       return {
         prompt: node.prompt,
-        anchors: node.anchors,
         modelRole: node.modelRole,
         durationSec: node.durationSec,
         audio: node.audio,

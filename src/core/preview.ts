@@ -66,17 +66,17 @@ export function previewRun(db: Db, flowId: string, options: { role?: ModelRole }
 export type AffectedNode = PlannedNode & { flowId: string }
 
 /**
- * Everything a new version of this anchor would invalidate — across every flow
+ * Everything a new version of this asset would invalidate — across every flow
  * in the project, not just the one on screen.
  *
  * Scoping this per-flow is the tempting shortcut and it under-quotes the
  * refresh: the demo that sells the tool is eighteen nodes across *two*
  * campaigns greying out at once.
  */
-export function staleForAnchor(
+export function staleForSource(
   db: Db,
   projectId: string,
-  anchorId: string,
+  sourceId: string,
   options: { role?: ModelRole } = {},
 ): AffectedNode[] {
   const projectFlows = db.select().from(flows).where(eq(flows.projectId, projectId)).all()
@@ -85,7 +85,7 @@ export function staleForAnchor(
   for (const flow of projectFlows) {
     const graph = flow.graphJson as Flow
     const holders = graph.nodes
-      .filter((n) => 'anchors' in n && n.anchors.includes(anchorId))
+      .filter((n) => n.type === 'source' && n.sourceId === sourceId)
       .map((n) => n.id)
     if (holders.length === 0) continue
 

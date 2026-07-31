@@ -1,31 +1,38 @@
 import { describe, test, expect } from 'vitest'
 import { eq } from 'drizzle-orm'
-import { previewRun, staleForAnchor } from '@/core/preview'
+import { previewRun, staleForSource } from '@/core/preview'
 import { enqueueRun } from '@/core/executor'
-import { nodeRuns, anchors, flows } from '@/db/schema'
-import { tempDb, seedProject, seedAnchor, seedFlow } from '../helpers/db'
+import { nodeRuns, sources, flows } from '@/db/schema'
+import { tempDb, seedProject, seedSource, seedFlow } from '../helpers/db'
 import type { Flow } from '@/core/types'
 
 const anchored = (id: string, prompt: string): Flow['nodes'][number] => ({
   id,
   type: 'image',
   prompt,
-  anchors: ['anchor-1'],
   modelRole: 'draft',
 })
 
+/** A source node pointing at the seeded library row, plus its reference edge. */
+const bottle = (): Flow['nodes'][number] => ({ id: 'bottle', type: 'source', sourceId: 'source-1' })
+const refEdge = (to: string) => ({ id: `ref-${to}`, from: 'bottle', to, role: 'reference' as const, position: null })
+
 const chain: Flow = {
   nodes: [
+    bottle(),
     anchored('img', 'bottle on marble'),
-    { id: 'clip', type: 'video', prompt: 'push in', anchors: [], durationSec: 5, audio: false, modelRole: 'draft' },
+    { id: 'clip', type: 'video', prompt: 'push in', durationSec: 5, audio: false, modelRole: 'draft' },
   ],
-  edges: [{ id: 'e1', from: 'img', to: 'clip', role: 'start_frame', position: null }],
+  edges: [
+    refEdge('img'),
+    { id: 'e1', from: 'img', to: 'clip', role: 'start_frame', position: null },
+  ],
 }
 
 function setup(graph: Flow = chain) {
   const { db } = tempDb()
   const projectId = seedProject(db)
-  seedAnchor(db, projectId)
+  seedSource(db, projectId)
   const flowId = seedFlow(db, projectId, graph)
   return { db, projectId, flowId }
 }
@@ -81,7 +88,9 @@ describe('previewRun', () => {
 
     const edited: Flow = {
       ...chain,
-      nodes: [{ ...(chain.nodes[0] as { prompt: string }), prompt: 'bottle on slate' } as Flow['nodes'][number], chain.nodes[1]],
+      nodes: chain.nodes.map((n) =>
+        n.id === 'img' ? ({ ...n, prompt: 'bottle on slate' } as Flow['nodes'][number]) : n,
+      ),
     }
     db.update(flows).set({ graphJson: edited }).where(eq(flows.id, flowId)).run()
 
@@ -108,12 +117,14 @@ describe('previewRun', () => {
     // Total spend is too coarse when one branch is three video renders.
     const fan: Flow = {
       nodes: [
+        bottle(),
         anchored('img', 'bottle'),
-        { id: 'c1', type: 'video', prompt: 'a', anchors: [], durationSec: 5, audio: false, modelRole: 'draft' },
-        { id: 'c2', type: 'video', prompt: 'b', anchors: [], durationSec: 5, audio: false, modelRole: 'draft' },
+        { id: 'c1', type: 'video', prompt: 'a', durationSec: 5, audio: false, modelRole: 'draft' },
+        { id: 'c2', type: 'video', prompt: 'b', durationSec: 5, audio: false, modelRole: 'draft' },
         anchored('other', 'unrelated'),
       ],
       edges: [
+        refEdge('img'),
         { id: 'e1', from: 'img', to: 'c1', role: 'start_frame', position: null },
         { id: 'e2', from: 'img', to: 'c2', role: 'start_frame', position: null },
       ],
@@ -128,10 +139,10 @@ describe('previewRun', () => {
   })
 })
 
-describe('staleForAnchor', () => {
+describe('staleForSource', () => {
   test('finds nodes holding the anchor, plus their descendants', () => {
     const { db, projectId } = setup()
-    const affected = staleForAnchor(db, projectId, 'anchor-1')
+    const affected = staleForSource(db, projectId, 'source-1')
     expect(affected.map((a) => a.nodeId).sort()).toEqual(['clip', 'img'])
   })
 
@@ -139,9 +150,17 @@ describe('staleForAnchor', () => {
     // Bumping an anchor greys nodes across two campaigns. A per-flow walk finds
     // only half of them, and the toolbar under-quotes the refresh.
     const { db, projectId } = setup()
-    seedFlow(db, projectId, { nodes: [anchored('other-img', 'second campaign')], edges: [] }, 'flow-2')
+    seedFlow(
+      db,
+      projectId,
+      {
+        nodes: [{ id: 'bottle', type: 'source', sourceId: 'source-1' }, anchored('other-img', 'second campaign')],
+        edges: [{ id: 'r2', from: 'bottle', to: 'other-img', role: 'reference', position: null }],
+      },
+      'flow-2',
+    )
 
-    const affected = staleForAnchor(db, projectId, 'anchor-1')
+    const affected = staleForSource(db, projectId, 'source-1')
     expect(affected.map((a) => a.nodeId).sort()).toEqual(['clip', 'img', 'other-img'])
     expect(new Set(affected.map((a) => a.flowId)).size).toBe(2)
   })
@@ -149,29 +168,29 @@ describe('staleForAnchor', () => {
   test('ignores nodes that do not hold the anchor', () => {
     const { db, projectId, flowId } = setup()
     db.update(flows)
-      .set({ graphJson: { nodes: [{ ...anchored('img', 'x'), anchors: [] }], edges: [] } })
+      .set({ graphJson: { nodes: [anchored('img', 'x')], edges: [] } })
       .where(eq(flows.id, flowId))
       .run()
 
-    expect(staleForAnchor(db, projectId, 'anchor-1')).toHaveLength(0)
+    expect(staleForSource(db, projectId, 'source-1')).toHaveLength(0)
   })
 
   test('prices the refresh', () => {
     const { db, projectId } = setup()
-    const affected = staleForAnchor(db, projectId, 'anchor-1')
+    const affected = staleForSource(db, projectId, 'source-1')
     expect(affected.reduce((sum, a) => sum + a.estimatedCents, 0)).toBeGreaterThan(0)
   })
 
   test('returns nothing for an anchor no node uses', () => {
     const { db, projectId } = setup()
-    seedAnchor(db, projectId, 'unused-anchor')
-    expect(staleForAnchor(db, projectId, 'unused-anchor')).toHaveLength(0)
+    seedSource(db, projectId, 'unused-source')
+    expect(staleForSource(db, projectId, 'unused-source')).toHaveLength(0)
   })
 
   test('does not bump the version itself', () => {
     // Previewing the blast radius must be free of side effects.
     const { db, projectId } = setup()
-    staleForAnchor(db, projectId, 'anchor-1')
-    expect(db.select().from(anchors).where(eq(anchors.id, 'anchor-1')).get()?.version).toBe(1)
+    staleForSource(db, projectId, 'source-1')
+    expect(db.select().from(sources).where(eq(sources.id, 'source-1')).get()?.version).toBe(1)
   })
 })

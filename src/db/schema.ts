@@ -11,15 +11,29 @@ export const projects = sqliteTable('projects', {
   createdAt: text('created_at').notNull().$defaultFn(now),
 })
 
-export const anchors = sqliteTable('anchors', {
+/**
+ * The project's asset library: uploaded images, video and text.
+ *
+ * Project-level rather than per-flow, which is what lets one product be
+ * referenced from several campaigns — replace its files and every shot
+ * downstream of it, in every flow, goes stale at once.
+ *
+ * Deliberately not the `assets` table: a row there is something a model
+ * produced and a run paid for, and mixing authored input into it would corrupt
+ * the cost ledger.
+ */
+export const sources = sqliteTable('sources', {
   id: text('id').primaryKey(),
   projectId: text('project_id')
     .notNull()
     .references(() => projects.id, { onDelete: 'cascade' }),
   kind: text('kind').notNull(),
-  refImages: text('ref_images', { mode: 'json' }).notNull(),
+  /** Stored paths. Empty for text sources. */
+  files: text('files', { mode: 'json' }).notNull(),
+  /** Content for text sources; null for image and video. */
+  text: text('text'),
   notes: text('notes'),
-  // In the input hash. Bumping this is what greys out every downstream node.
+  // Folded into the hash by planRun. Bumping it greys out everything downstream.
   version: integer('version').notNull().default(1),
   createdAt: text('created_at').notNull().$defaultFn(now),
 })
@@ -85,5 +99,6 @@ export const exports = sqliteTable('exports', {
   createdAt: text('created_at').notNull().$defaultFn(now),
 })
 
+export type Source = typeof sources.$inferSelect
 export type NodeRun = typeof nodeRuns.$inferSelect
 export type Asset = typeof assets.$inferSelect

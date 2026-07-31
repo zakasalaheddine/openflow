@@ -18,7 +18,6 @@ const image = (id: string): FlowNode => ({
   id,
   type: 'image',
   prompt: 'bottle',
-  anchors: [],
   modelRole: 'draft',
 })
 
@@ -26,13 +25,12 @@ const video = (id: string, modelRole: 'draft' | 'hero' | 'specialist' = 'special
   id,
   type: 'video',
   prompt: 'push in',
-  anchors: [],
   durationSec: 5,
   audio: false,
   modelRole,
 })
 
-const source = (id: string): FlowNode => ({ id, type: 'source', assets: [] })
+const source = (id: string): FlowNode => ({ id, type: 'source', sourceId: `src:${id}` })
 const exportNode = (id: string): FlowNode => ({ id, type: 'export', formats: [] })
 
 const flowOf = (...nodes: FlowNode[]): Flow => ({ nodes, edges: [] })
@@ -44,8 +42,14 @@ describe('inferRole', () => {
     expect(inferRole(image('a'), video('b'))).toBe('start_frame')
   })
 
-  test('source into image is a plain input', () => {
-    expect(inferRole(source('s'), image('a'))).toBe('input')
+  test('source into image is a reference', () => {
+    // The asset is an input the model must honour — the thing anchors used to
+    // mean, now visible as a wire.
+    expect(inferRole(source('s'), image('a'))).toBe('reference')
+  })
+
+  test('source into video is a reference', () => {
+    expect(inferRole(source('s'), video('v'))).toBe('reference')
   })
 
   test('image into export is a plain input', () => {
@@ -110,6 +114,44 @@ describe('validateWire', () => {
     // A source brings an existing file in; nothing feeds it.
     const flow = flowOf(image('a'), source('s'))
     expect(() => validateWire(flow, 'a', 's')).toThrow(WiringError)
+  })
+})
+
+describe('reference wiring', () => {
+  test('one asset may feed many shots', () => {
+    // Twelve shots on one product is the normal case, not an edge case. Nothing
+    // may cap it — the readability answer is how the edges are drawn.
+    let flow = flowOf(source('bottle'), image('a'), image('b'), image('c'))
+    for (const to of ['a', 'b', 'c']) flow = applyWire(flow, 'bottle', to)
+
+    expect(flow.edges).toHaveLength(3)
+    expect(flow.edges.every((e) => e.role === 'reference')).toBe(true)
+  })
+
+  test('a shot may take several references', () => {
+    // A product plus a brand-tone text fragment, on the same shot.
+    let flow = flowOf(source('bottle'), source('voice'), image('a'))
+    flow = applyWire(flow, 'bottle', 'a')
+    flow = applyWire(flow, 'voice', 'a')
+    expect(flow.edges).toHaveLength(2)
+  })
+
+  test('refuses a reference into a model that cannot honour one', () => {
+    // Recraft (image specialist) has caps.refImages === 0. Silently dropping
+    // the reference produces off-brand output that reads as a model problem.
+    const flow: Flow = {
+      nodes: [source('bottle'), { ...image('a'), modelRole: 'specialist' } as FlowNode],
+      edges: [],
+    }
+    expect(() => validateWire(flow, 'bottle', 'a')).toThrow(UnsupportedCapabilityError)
+  })
+
+  test('refuses more references than the model accepts', () => {
+    const many = Array.from({ length: 8 }, (_, i) => source(`s${i}`))
+    let flow = flowOf(...many, image('a'))
+    // flux-2-pro accepts 4.
+    for (let i = 0; i < 4; i++) flow = applyWire(flow, `s${i}`, 'a')
+    expect(() => validateWire(flow, 's4', 'a')).toThrow(UnsupportedCapabilityError)
   })
 })
 

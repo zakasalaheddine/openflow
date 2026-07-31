@@ -3,19 +3,19 @@ import { eq } from 'drizzle-orm'
 import { claimNext, reapStale, tick, MAX_ATTEMPTS, STALE_CLAIM_MS } from '@/worker/loop'
 import { enqueueRun } from '@/core/executor'
 import { nodeRuns, assets, flows } from '@/db/schema'
-import { tempDb, seedProject, seedAnchor, seedFlow } from '../helpers/db'
+import { tempDb, seedProject, seedSource, seedFlow } from '../helpers/db'
 import type { Flow } from '@/core/types'
 import type { Adapter, SubmitRequest } from '@/models/fal'
 
 const flow: Flow = {
-  nodes: [{ id: 'img', type: 'image', prompt: 'bottle', anchors: [], modelRole: 'draft', seed: 1 }],
+  nodes: [{ id: 'img', type: 'image', prompt: 'bottle', modelRole: 'draft', seed: 1 }],
   edges: [],
 }
 
 const twoNodeFlow: Flow = {
   nodes: [
-    { id: 'a', type: 'image', prompt: 'one', anchors: [], modelRole: 'draft', seed: 1 },
-    { id: 'b', type: 'image', prompt: 'two', anchors: [], modelRole: 'draft', seed: 2 },
+    { id: 'a', type: 'image', prompt: 'one', modelRole: 'draft', seed: 1 },
+    { id: 'b', type: 'image', prompt: 'two', modelRole: 'draft', seed: 2 },
   ],
   edges: [],
 }
@@ -23,7 +23,7 @@ const twoNodeFlow: Flow = {
 function setup(graph: Flow = flow) {
   const { db, dir } = tempDb()
   const projectId = seedProject(db)
-  seedAnchor(db, projectId)
+  seedSource(db, projectId)
   const flowId = seedFlow(db, projectId, graph)
   return { db, dir, flowId }
 }
@@ -143,14 +143,15 @@ describe('tick dispatch payload', () => {
     expect(adapter.requests[0].input.seed).toBe(1)
   })
 
-  test('sends the anchor reference images', async () => {
-    // An anchor that never reaches the model is the entire product failing
+  test('sends the files of every source wired in as a reference', async () => {
+    // A reference that never reaches the model is the entire product failing
     // silently: output looks off-brand and reads as a model quality problem.
     const anchored: Flow = {
       nodes: [
-        { id: 'img', type: 'image', prompt: 'bottle', anchors: ['anchor-1'], modelRole: 'draft', seed: 1 },
+        { id: 'bottle', type: 'source', sourceId: 'source-1' },
+        { id: 'img', type: 'image', prompt: 'bottle', modelRole: 'draft', seed: 1 },
       ],
-      edges: [],
+      edges: [{ id: 'r1', from: 'bottle', to: 'img', role: 'reference', position: null }],
     }
     const { db, flowId } = setup(anchored)
     enqueueRun(db, flowId)
@@ -159,6 +160,30 @@ describe('tick dispatch payload', () => {
     await tick(db, { adapter, download: fakeDownload })
 
     expect(adapter.requests[0].input.image_urls).toEqual(['ref-a.png'])
+  })
+
+  test('sends a wired-in text fragment ahead of the node prompt', async () => {
+    // End to end through the worker, not just the composer: brand tone wired
+    // into a shot has to actually reach fal, or the feature is decorative.
+    const { db, dir } = tempDb()
+    const projectId = seedProject(db)
+    seedSource(db, projectId, 'voice-1', { kind: 'text', files: [], text: 'warm, unfussy' })
+    const flowId = seedFlow(db, projectId, {
+      nodes: [
+        { id: 'voice', type: 'source', sourceId: 'voice-1' },
+        { id: 'img', type: 'image', prompt: 'bottle', modelRole: 'draft', seed: 1 },
+      ],
+      edges: [{ id: 'r1', from: 'voice', to: 'img', role: 'reference', position: null }],
+    })
+    void dir
+    enqueueRun(db, flowId)
+
+    const adapter = fakeAdapter({ poll: async () => ({ status: 'IN_PROGRESS' }) })
+    await tick(db, { adapter, download: fakeDownload })
+
+    expect(adapter.requests[0].input.prompt).toBe('warm, unfussy\n\nbottle')
+    // A text source contributes words, never files.
+    expect(adapter.requests[0].input.image_urls).toBeUndefined()
   })
 
   test('sends the correct prompt when several nodes are queued', async () => {

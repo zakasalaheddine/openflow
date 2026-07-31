@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import { eq, and, inArray } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
-import { projects, flows, anchors, nodeRuns } from '../db/schema'
+import { projects, flows, sources, nodeRuns } from '../db/schema'
 import { inputHash } from './hash'
 import { hashableConfig } from './hashable'
 import { topoOrder } from './graph'
 import { previewRun } from './preview'
 import { DEFAULT_SETTINGS, type ProjectSettings } from './settings'
+import { referencesOf } from './wiring'
+import { composePrompt } from './compose'
 import type { Flow, FlowNode, ModelRole, NodeId } from './types'
 import { resolveModel, assertAnchorsSupported, estimateCostCents } from '../models/registry'
 
@@ -49,16 +51,16 @@ function loadContext(db: Db, flowId: string) {
   const project = db.select().from(projects).where(eq(projects.id, flow.projectId)).get()
   const settings: ProjectSettings = { ...DEFAULT_SETTINGS, ...(project?.settings as ProjectSettings) }
 
-  const anchorVersions = new Map(
+  const library = new Map(
     db
       .select()
-      .from(anchors)
-      .where(eq(anchors.projectId, flow.projectId))
+      .from(sources)
+      .where(eq(sources.projectId, flow.projectId))
       .all()
-      .map((a) => [a.id, a.version] as const),
+      .map((row) => [row.id, row] as const),
   )
 
-  return { graph: flow.graphJson as Flow, settings, anchorVersions }
+  return { graph: flow.graphJson as Flow, settings, library }
 }
 
 /**
@@ -74,7 +76,7 @@ export function planRun(
   flowId: string,
   options: { role?: ModelRole } = {},
 ): PlannedNode[] {
-  const { graph, anchorVersions } = loadContext(db, flowId)
+  const { graph, library } = loadContext(db, flowId)
   const byId = new Map(graph.nodes.map((n) => [n.id, n]))
   const order = topoOrder({ nodeIds: graph.nodes.map((n) => n.id), edges: graph.edges })
 
@@ -90,24 +92,22 @@ export function planRun(
       .map((e) => hashes.get(e.from))
       .filter((h): h is string => h !== undefined)
 
-    const nodeAnchors = 'anchors' in node ? node.anchors : []
-    const versions = nodeAnchors.map((id) => anchorVersions.get(id) ?? 0)
-
     // Whitelisted, never `{ id, type, ...rest }`: the canvas stores `position`
     // on every node and a blacklist would make dragging a node re-bill its
     // whole subtree. See core/hashable.ts.
     const config = hashableConfig(node)
 
     if (!isRunnable(node)) {
-      // Still hashed: an export node's config feeds nothing downstream today,
-      // but a source node's assets must invalidate the images built from them.
+      // A source node folds in its row's version, which is the one place a hash
+      // depends on something outside graph_json. That is what makes replacing a
+      // product's files invalidate every shot built from it.
+      const version = node.type === 'source' ? (library.get(node.sourceId)?.version ?? 0) : 0
       hashes.set(
         nodeId,
         inputHash({
           nodeType: node.type,
-          config,
+          config: { ...config, ...(node.type === 'source' ? { version } : {}) },
           upstreamHashes,
-          anchorVersions: versions,
           modelId: '',
         }),
       )
@@ -115,13 +115,15 @@ export function planRun(
     }
 
     const model = resolveModel(node.type === 'image' ? 'image' : 'video', options.role ?? node.modelRole)
-    assertAnchorsSupported(model, nodeAnchors)
+    // References arrive as wires now, so the count comes from the graph.
+    assertAnchorsSupported(model, referencesOf(graph, nodeId))
 
     const hash = inputHash({
       nodeType: node.type,
-      config,
+      // The composed prompt is what is actually sent, so it is what is hashed —
+      // editing a wired-in text fragment must invalidate every shot using it.
+      config: { ...config, prompt: composePrompt(graph, nodeId, library) },
       upstreamHashes,
-      anchorVersions: versions,
       modelId: model.id,
       ...(node.seed === undefined ? {} : { seed: node.seed }),
     })

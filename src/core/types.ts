@@ -1,5 +1,5 @@
 export type NodeId = string
-export type AnchorId = string
+export type SourceId = string
 
 /** Scarce by design. Four in v1; a fifth requires a written case. */
 export type NodeType = 'source' | 'image' | 'video' | 'export'
@@ -41,15 +41,20 @@ type NodeBase = {
   label?: string
 }
 
+/**
+ * A reference to a row in the project's `sources` table — not the file itself.
+ *
+ * The indirection is what keeps one product usable across several campaigns:
+ * replace its files, and every shot downstream of it, in every flow, goes stale.
+ */
 export type SourceNode = NodeBase & {
   type: 'source'
-  assets: AssetRef[]
+  sourceId: string
 }
 
 export type ImageNode = NodeBase & {
   type: 'image'
   prompt: string
-  anchors: AnchorId[]
   modelRole: ModelRole
   seed?: number
 }
@@ -57,7 +62,6 @@ export type ImageNode = NodeBase & {
 export type VideoNode = NodeBase & {
   type: 'video'
   prompt: string
-  anchors: AnchorId[]
   durationSec: number
   audio: boolean
   modelRole: ModelRole
@@ -83,7 +87,7 @@ export type Edge = {
   id: string
   from: NodeId
   to: NodeId
-  role: 'start_frame' | 'end_frame' | 'input'
+  role: 'reference' | 'start_frame' | 'end_frame' | 'input'
   /** Reserved for v2 sequence ordering. Always null in v1. */
   position: number | null
 }

@@ -3,7 +3,7 @@ import path from 'node:path'
 import { importFlowFile, runFlow, type FlowFile } from '@/core/run-flow'
 import { planRun } from '@/core/executor'
 import { createAdapter } from '@/models/fal'
-import { nodeRuns, assets, anchors } from '@/db/schema'
+import { nodeRuns, assets, sources } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { tempDb } from '../helpers/db'
 import { tempFixtureDir, recordSuccess } from '../helpers/fixtures'
@@ -12,12 +12,13 @@ import { tempFixtureDir, recordSuccess } from '../helpers/fixtures'
 
 const spec: FlowFile = {
   project: 'serum',
-  anchors: [{ id: 'bottle', kind: 'product', refImages: ['a.png'] }],
+  sources: [{ id: 'src:bottle', kind: 'image', files: ['a.png', 'b.png'] }],
   flow: {
     nodes: [
-      { id: 'marble', type: 'image', prompt: 'bottle on marble', anchors: ['bottle'], modelRole: 'draft', seed: 1 },
+      { id: 'bottle', type: 'source', sourceId: 'src:bottle' },
+      { id: 'marble', type: 'image', prompt: 'bottle on marble', modelRole: 'draft', seed: 1 },
     ],
-    edges: [],
+    edges: [{ id: 'e1', from: 'bottle', to: 'marble', role: 'reference', position: null }],
   },
 }
 
@@ -71,13 +72,13 @@ describe('cache hit', () => {
     expect(run.outputRefs).toHaveLength(1)
   })
 
-  test('bumping an anchor version invalidates the cache and costs money again', async () => {
+  test('replacing an asset invalidates the cache and costs money again', async () => {
     // The demo that closes it: new product photos, everything downstream goes
     // stale. Asserted end to end, not just against the hash function.
     const { db, fixtureDir, flowId, options } = prepared()
     await runFlow(db, spec, options)
 
-    db.update(anchors).set({ version: 2 }).where(eq(anchors.id, 'bottle')).run()
+    db.update(sources).set({ version: 2 }).where(eq(sources.id, 'src:bottle')).run()
     for (const planned of planRun(db, flowId)) recordSuccess(fixtureDir, planned)
 
     const second = await runFlow(db, spec, options)
@@ -94,7 +95,9 @@ describe('cache hit', () => {
       ...spec,
       flow: {
         ...spec.flow,
-        nodes: [{ ...spec.flow.nodes[0], prompt: 'bottle on slate' } as (typeof spec.flow.nodes)[0]],
+        nodes: spec.flow.nodes.map((n) =>
+          n.id === 'marble' ? ({ ...n, prompt: 'bottle on slate' } as (typeof spec.flow.nodes)[0]) : n,
+        ),
       },
     }
     importFlowFile(db, edited)

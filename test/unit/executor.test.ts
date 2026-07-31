@@ -1,23 +1,24 @@
 import { describe, test, expect } from 'vitest'
 import { planRun, enqueueRun, SpendCapExceededError } from '@/core/executor'
 import { UnsupportedCapabilityError } from '@/models/registry'
-import { nodeRuns, anchors, projects, flows } from '@/db/schema'
+import { nodeRuns, sources, projects, flows } from '@/db/schema'
 import { eq } from 'drizzle-orm'
-import { tempDb, seedProject, seedAnchor, seedFlow } from '../helpers/db'
+import { tempDb, seedProject, seedSource, seedFlow } from '../helpers/db'
 import type { Flow } from '@/core/types'
 import { DEFAULT_SETTINGS } from '@/core/settings'
 
 const imageFlow: Flow = {
   nodes: [
-    { id: 'img', type: 'image', prompt: 'bottle on marble', anchors: ['anchor-1'], modelRole: 'draft', seed: 1 },
+    { id: 'bottle', type: 'source', sourceId: 'source-1' },
+    { id: 'img', type: 'image', prompt: 'bottle on marble', modelRole: 'draft', seed: 1 },
   ],
-  edges: [],
+  edges: [{ id: 'e1', from: 'bottle', to: 'img', role: 'reference', position: null }],
 }
 
 const twoImageFlow: Flow = {
   nodes: [
-    { id: 'a', type: 'image', prompt: 'one', anchors: [], modelRole: 'draft', seed: 1 },
-    { id: 'b', type: 'image', prompt: 'two', anchors: [], modelRole: 'draft', seed: 2 },
+    { id: 'a', type: 'image', prompt: 'one', modelRole: 'draft', seed: 1 },
+    { id: 'b', type: 'image', prompt: 'two', modelRole: 'draft', seed: 2 },
   ],
   edges: [],
 }
@@ -25,7 +26,7 @@ const twoImageFlow: Flow = {
 function setup(graph: Flow, settings = {}) {
   const { db } = tempDb()
   const projectId = seedProject(db, settings)
-  seedAnchor(db, projectId)
+  seedSource(db, projectId)
   const flowId = seedFlow(db, projectId, graph)
   return { db, projectId, flowId }
 }
@@ -41,7 +42,7 @@ describe('planRun', () => {
     expect(planRun(db, flowId)[0].inputHash).toBe(planRun(db, flowId)[0].inputHash)
   })
 
-  test('bumping an anchor version changes the planned hash', () => {
+  test('bumping a source version changes the planned hash of everything downstream', () => {
     // The stale-propagation feature, asserted through the real code path
     // rather than only against hash.ts in isolation.
     const before = (() => {
@@ -50,7 +51,7 @@ describe('planRun', () => {
     })()
 
     const { db, flowId } = setup(imageFlow)
-    db.update(anchors).set({ version: 2 }).where(eq(anchors.id, 'anchor-1')).run()
+    db.update(sources).set({ version: 2 }).where(eq(sources.id, 'source-1')).run()
     expect(planRun(db, flowId)[0].inputHash).not.toBe(before)
   })
 
@@ -62,7 +63,9 @@ describe('planRun', () => {
 
     const moved: Flow = {
       ...imageFlow,
-      nodes: [{ ...imageFlow.nodes[0], position: { x: 640, y: 480 }, label: 'Hero' }],
+      nodes: imageFlow.nodes.map((n) =>
+        n.id === 'img' ? { ...n, position: { x: 640, y: 480 }, label: 'Hero' } : n,
+      ),
     }
     db.update(flows).set({ graphJson: moved }).where(eq(flows.id, flowId)).run()
 
@@ -77,10 +80,11 @@ describe('planRun', () => {
   test('refuses an anchor on a model that cannot honour it', () => {
     const graph: Flow = {
       nodes: [
+        { id: 'bottle', type: 'source', sourceId: 'source-1' },
         // specialist image row is Recraft, caps.refImages === 0
-        { id: 'x', type: 'image', prompt: 'headline', anchors: ['anchor-1'], modelRole: 'specialist' },
+        { id: 'x', type: 'image', prompt: 'headline', modelRole: 'specialist' },
       ],
-      edges: [],
+      edges: [{ id: 'e1', from: 'bottle', to: 'x', role: 'reference', position: null }],
     }
     const { db, flowId } = setup(graph)
     expect(() => planRun(db, flowId)).toThrow(UnsupportedCapabilityError)

@@ -1,5 +1,10 @@
 import { topoOrder, CycleError } from './graph'
-import { resolveModel, assertStartFrameSupported, type ModelSpec } from '../models/registry'
+import {
+  resolveModel,
+  assertStartFrameSupported,
+  assertAnchorsSupported,
+  type ModelSpec,
+} from '../models/registry'
 import type { Flow, FlowNode, Edge, NodeId, ModelRole } from './types'
 
 export class WiringError extends Error {
@@ -27,9 +32,16 @@ export type WireOptions = { role?: ModelRole; resolve?: ResolveModel }
  * image being frame zero of the clip; nothing else it could reasonably be.
  */
 export function inferRole(from: FlowNode, to: FlowNode): Edge['role'] {
+  // An asset feeding a generator is a reference the model must honour — what
+  // anchors used to mean, now visible as a wire instead of hidden in a chip.
+  if (from.type === 'source' && (to.type === 'image' || to.type === 'video')) return 'reference'
   if (from.type === 'image' && to.type === 'video') return 'start_frame'
   return 'input'
 }
+
+/** Sources already wired into a node as references. */
+export const referencesOf = (flow: Flow, nodeId: NodeId): NodeId[] =>
+  flow.edges.filter((e) => e.to === nodeId && e.role === 'reference').map((e) => e.from)
 
 export function validateWire(
   flow: Flow,
@@ -52,6 +64,17 @@ export function validateWire(
   }
 
   const role = inferRole(from, to)
+
+  if (role === 'reference') {
+    // Refused here, not silently dropped at render time: an ignored reference
+    // produces off-brand output that reads as a model quality problem, and
+    // nobody ever learns the asset was never sent.
+    const model = resolve(
+      to.type === 'image' ? 'image' : 'video',
+      options.role ?? (to as { modelRole: ModelRole }).modelRole,
+    )
+    assertAnchorsSupported(model, [...referencesOf(flow, toId), fromId])
+  }
 
   if (role === 'start_frame') {
     // Exactly one frame zero. Two start frames would silently pick one, and the

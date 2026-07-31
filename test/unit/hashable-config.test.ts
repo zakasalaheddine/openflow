@@ -6,7 +6,6 @@ const imageNode: FlowNode = {
   id: 'img',
   type: 'image',
   prompt: 'bottle on marble',
-  anchors: ['a1'],
   modelRole: 'draft',
   seed: 7,
   position: { x: 10, y: 20 },
@@ -16,7 +15,6 @@ const videoNode: FlowNode = {
   id: 'clip',
   type: 'video',
   prompt: 'slow push in',
-  anchors: ['a1'],
   durationSec: 5,
   audio: true,
   modelRole: 'hero',
@@ -43,7 +41,6 @@ describe('hashableConfig', () => {
   test('keeps the fields that change the output', () => {
     expect(hashableConfig(imageNode)).toEqual({
       prompt: 'bottle on marble',
-      anchors: ['a1'],
       modelRole: 'draft',
     })
   })
@@ -51,21 +48,22 @@ describe('hashableConfig', () => {
   test('keeps duration and audio on a video node', () => {
     expect(hashableConfig(videoNode)).toEqual({
       prompt: 'slow push in',
-      anchors: ['a1'],
       modelRole: 'hero',
       durationSec: 5,
       audio: true,
     })
   })
 
-  test('keeps assets on a source node', () => {
+  test('keeps the source id on a source node', () => {
+    // Only the id. The row's `version` lives in the database, and planRun folds
+    // it in — hashableConfig sees a node and nothing else.
     const source: FlowNode = {
       id: 's',
       type: 'source',
-      assets: [{ id: 'a', path: '/tmp/a.png', mime: 'image/png' }],
+      sourceId: 'source:bottle',
       position: { x: 1, y: 2 },
     }
-    expect(hashableConfig(source)).toEqual({ assets: source.assets })
+    expect(hashableConfig(source)).toEqual({ sourceId: 'source:bottle' })
   })
 
   test('keeps formats, fps and codec on an export node', () => {
@@ -88,8 +86,8 @@ describe('hashableConfig', () => {
     expect(hashableConfig(edited)).not.toEqual(hashableConfig(imageNode))
   })
 
-  test('an anchor chip toggle still changes the config', () => {
-    const edited = { ...imageNode, anchors: ['a1', 'a2'] } as FlowNode
+  test('a model role change still changes the config', () => {
+    const edited = { ...imageNode, modelRole: 'hero' } as FlowNode
     expect(hashableConfig(edited)).not.toEqual(hashableConfig(imageNode))
   })
 })

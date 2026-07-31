@@ -18,7 +18,6 @@ test('an anchor chip attaches to many nodes without creating a single edge', asy
         type: 'image',
         position: { x: 60 + i * 220, y: 80 },
         prompt: `shot ${i}`,
-        anchors: [],
         modelRole: 'draft',
         seed: i,
       })),
@@ -47,8 +46,8 @@ test('bumping an anchor prices the blast radius before committing to it', async 
   await request.patch('/api/flow', {
     data: {
       nodes: [
-        { id: 'img', type: 'image', position: { x: 60, y: 80 }, prompt: 'bottle', anchors: [anchorId], modelRole: 'draft', seed: 1 },
-        { id: 'clip', type: 'video', position: { x: 320, y: 80 }, prompt: 'push in', anchors: [], durationSec: 5, audio: false, modelRole: 'draft', seed: 1 },
+        { id: 'img', type: 'image', position: { x: 60, y: 80 }, prompt: 'bottle', modelRole: 'draft', seed: 1 },
+        { id: 'clip', type: 'video', position: { x: 320, y: 80 }, prompt: 'push in', durationSec: 5, audio: false, modelRole: 'draft', seed: 1 },
       ],
       edges: [{ id: 'e1', from: 'img', to: 'clip', role: 'start_frame', position: null }],
     },
@@ -80,8 +79,8 @@ test('editing a prompt marks the node and its descendants stale, and does not ru
   await request.patch('/api/flow', {
     data: {
       nodes: [
-        { id: 'img', type: 'image', position: { x: 60, y: 80 }, prompt: 'bottle', anchors: [], modelRole: 'draft', seed: 1 },
-        { id: 'clip', type: 'video', position: { x: 320, y: 80 }, prompt: 'push in', anchors: [], durationSec: 5, audio: false, modelRole: 'draft', seed: 1 },
+        { id: 'img', type: 'image', position: { x: 60, y: 80 }, prompt: 'bottle', modelRole: 'draft', seed: 1 },
+        { id: 'clip', type: 'video', position: { x: 320, y: 80 }, prompt: 'push in', durationSec: 5, audio: false, modelRole: 'draft', seed: 1 },
       ],
       edges: [{ id: 'e1', from: 'img', to: 'clip', role: 'start_frame', position: null }],
     },
@@ -119,9 +118,9 @@ test('refuses a second start frame into one clip, and stores no edge', async ({ 
   await request.patch('/api/flow', {
     data: {
       nodes: [
-        { id: 'a', type: 'image', position: { x: 60, y: 60 }, prompt: 'one', anchors: [], modelRole: 'draft', seed: 1 },
-        { id: 'b', type: 'image', position: { x: 60, y: 380 }, prompt: 'two', anchors: [], modelRole: 'draft', seed: 2 },
-        { id: 'clip', type: 'video', position: { x: 420, y: 200 }, prompt: 'push in', anchors: [], durationSec: 5, audio: false, modelRole: 'draft', seed: 1 },
+        { id: 'a', type: 'image', position: { x: 60, y: 60 }, prompt: 'one', modelRole: 'draft', seed: 1 },
+        { id: 'b', type: 'image', position: { x: 60, y: 380 }, prompt: 'two', modelRole: 'draft', seed: 2 },
+        { id: 'clip', type: 'video', position: { x: 420, y: 200 }, prompt: 'push in', durationSec: 5, audio: false, modelRole: 'draft', seed: 1 },
       ],
       edges: [],
     },
@@ -149,7 +148,7 @@ test('the draft and hero toggle changes the quoted price without touching a node
   await request.patch('/api/flow', {
     data: {
       nodes: [
-        { id: 'img', type: 'image', position: { x: 60, y: 80 }, prompt: 'bottle', anchors: [], modelRole: 'draft', seed: 1 },
+        { id: 'img', type: 'image', position: { x: 60, y: 80 }, prompt: 'bottle', modelRole: 'draft', seed: 1 },
       ],
       edges: [],
     },
@@ -174,7 +173,7 @@ test('dragging a node persists its position and costs nothing', async ({ page, r
   await request.patch('/api/flow', {
     data: {
       nodes: [
-        { id: 'img', type: 'image', position: { x: 100, y: 100 }, prompt: 'bottle', anchors: [], modelRole: 'draft', seed: 1 },
+        { id: 'img', type: 'image', position: { x: 100, y: 100 }, prompt: 'bottle', modelRole: 'draft', seed: 1 },
       ],
       edges: [],
     },

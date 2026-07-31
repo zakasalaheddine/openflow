@@ -13,7 +13,6 @@ export type HashInput = {
   nodeType: string
   config: Record<string, JsonValue>
   upstreamHashes: string[]
-  anchorVersions: number[]
   modelId: string
   seed?: number
 }
@@ -52,7 +51,6 @@ export function inputHash(input: HashInput): string {
     nodeType: input.nodeType,
     config: input.config,
     upstreamHashes: input.upstreamHashes,
-    anchorVersions: input.anchorVersions,
     modelId: input.modelId,
     ...(input.seed === undefined ? {} : { seed: input.seed }),
   })

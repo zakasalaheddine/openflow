@@ -13,13 +13,17 @@ import { tempFixtureDir, recordSuccess } from '../helpers/fixtures'
 
 const spec: FlowFile = {
   project: 'serum',
-  anchors: [{ id: 'bottle', kind: 'product', refImages: ['a.png', 'b.png'] }],
+  sources: [{ id: 'src:bottle', kind: 'image', files: ['a.png', 'b.png'] }],
   flow: {
     nodes: [
-      { id: 'marble', type: 'image', prompt: 'bottle on marble', anchors: ['bottle'], modelRole: 'draft', seed: 1 },
-      { id: 'slate', type: 'image', prompt: 'bottle on slate', anchors: ['bottle'], modelRole: 'draft', seed: 2 },
+      { id: 'bottle', type: 'source', sourceId: 'src:bottle' },
+      { id: 'marble', type: 'image', prompt: 'bottle on marble', modelRole: 'draft', seed: 1 },
+      { id: 'slate', type: 'image', prompt: 'bottle on slate', modelRole: 'draft', seed: 2 },
     ],
-    edges: [],
+    edges: [
+      { id: 'e1', from: 'bottle', to: 'marble', role: 'reference', position: null },
+      { id: 'e2', from: 'bottle', to: 'slate', role: 'reference', position: null },
+    ],
   },
 }
 

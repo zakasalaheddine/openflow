@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
-import { projects, flows, anchors } from '../db/schema'
+import { projects, flows, sources } from '../db/schema'
 import { DEFAULT_SETTINGS } from './settings'
 import type { Flow } from './types'
 
@@ -53,20 +53,21 @@ export function saveGraph(db: Db, flowId: string, graph: Flow) {
     .run()
 }
 
-export function createAnchor(
+export type SourceKind = 'image' | 'video' | 'text'
+
+export function createSource(
   db: Db,
   projectId: string,
-  input: { kind: string; refImages: string[]; notes?: string; name?: string },
+  input: { kind: SourceKind; files?: string[]; text?: string; notes?: string },
 ) {
-  const id = `anchor:${randomUUID().slice(0, 8)}`
-  db.insert(anchors)
+  const id = `source:${randomUUID().slice(0, 8)}`
+  db.insert(sources)
     .values({
       id,
       projectId,
-      // `kind` doubles as the display name. Three products all reading
-      // "product v1" in the rail is indistinguishable at a glance.
-      kind: input.name ?? input.kind,
-      refImages: input.refImages,
+      kind: input.kind,
+      files: input.files ?? [],
+      text: input.text ?? null,
       notes: input.notes ?? null,
       version: 1,
       createdAt: new Date().toISOString(),
@@ -76,33 +77,35 @@ export function createAnchor(
 }
 
 /**
- * New photos for the same product. Bumping the version is what greys out every
- * downstream node — the version is in the input hash, so nothing else has to
- * know this happened.
+ * New files, or new text, for the same asset. Bumping the version is what greys
+ * out every downstream node — planRun folds it into the source node's hash, so
+ * nothing else has to know this happened.
  */
-export function bumpAnchor(db: Db, anchorId: string, refImages?: string[]) {
-  const anchor = db.select().from(anchors).where(eq(anchors.id, anchorId)).get()
-  if (!anchor) throw new Error(`No anchor ${anchorId}`)
+export function bumpSource(db: Db, sourceId: string, next: { files?: string[]; text?: string }) {
+  const source = db.select().from(sources).where(eq(sources.id, sourceId)).get()
+  if (!source) throw new Error(`No source ${sourceId}`)
 
-  db.update(anchors)
+  db.update(sources)
     .set({
-      version: anchor.version + 1,
-      ...(refImages ? { refImages } : {}),
+      version: source.version + 1,
+      ...(next.files ? { files: next.files } : {}),
+      ...(next.text !== undefined ? { text: next.text } : {}),
     })
-    .where(eq(anchors.id, anchorId))
+    .where(eq(sources.id, sourceId))
     .run()
 
-  return anchor.version + 1
+  return source.version + 1
 }
 
-export const listAnchors = (db: Db, projectId: string) =>
-  db.select().from(anchors).where(eq(anchors.projectId, projectId)).all()
+export const listSources = (db: Db, projectId: string) =>
+  db.select().from(sources).where(eq(sources.projectId, projectId)).all()
 
 /**
- * Removing an anchor leaves its chip on any node still holding it. Those nodes
- * hash against a version of 0 from then on, which is correct: the product they
- * were anchored to no longer exists, so they are legitimately stale.
+ * Removing an asset leaves any source node still pointing at it. Those nodes
+ * hash against a version of 0 from then on, which is correct: the file they
+ * referenced no longer exists, so everything built from it is legitimately
+ * stale rather than quietly served from cache.
  */
-export function deleteAnchor(db: Db, anchorId: string) {
-  db.delete(anchors).where(eq(anchors.id, anchorId)).run()
+export function deleteSource(db: Db, sourceId: string) {
+  db.delete(sources).where(eq(sources.id, sourceId)).run()
 }

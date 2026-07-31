@@ -42,11 +42,12 @@ function migrate(sqlite: Database.Database) {
       created_at TEXT NOT NULL
     );
 
-    CREATE TABLE IF NOT EXISTS anchors (
+    CREATE TABLE IF NOT EXISTS sources (
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
       kind TEXT NOT NULL,
-      ref_images TEXT NOT NULL,
+      files TEXT NOT NULL,
+      text TEXT,
       notes TEXT,
       version INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL

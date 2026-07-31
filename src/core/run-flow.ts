@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { eq, inArray } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
-import { projects, anchors, flows, nodeRuns } from '../db/schema'
+import { projects, sources, flows, nodeRuns } from '../db/schema'
 import { enqueueRun } from './executor'
 import { DEFAULT_SETTINGS, type ProjectSettings } from './settings'
 import { tick, type TickOptions } from '../worker/loop'
@@ -11,11 +11,11 @@ import type { Flow, ModelRole } from './types'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = BetterSQLite3Database<any>
 
-/** A flow file is a project, its anchors and one graph — enough to run headless. */
+/** A flow file is a project, its assets and one graph — enough to run headless. */
 export type FlowFile = {
   project: string
   settings?: Partial<ProjectSettings>
-  anchors?: { id: string; kind: string; refImages: string[]; version?: number }[]
+  sources?: { id: string; kind: 'image' | 'video' | 'text'; files?: string[]; text?: string; version?: number }[]
   flow: Flow
 }
 
@@ -40,28 +40,30 @@ export function importFlowFile(db: Db, spec: FlowFile, key = spec.project) {
     db.insert(projects).values({ id: projectId, name: spec.project, settings, createdAt: now }).run()
   }
 
-  for (const anchor of spec.anchors ?? []) {
-    const found = db.select().from(anchors).where(eq(anchors.id, anchor.id)).get()
+  for (const source of spec.sources ?? []) {
+    const found = db.select().from(sources).where(eq(sources.id, source.id)).get()
     if (found) {
       // A file that does not state a version must not reset one bumped in the
       // UI. Silently reverting a bump would un-stale every downstream node and
       // serve the old product back from cache.
-      db.update(anchors)
+      db.update(sources)
         .set({
-          kind: anchor.kind,
-          refImages: anchor.refImages,
-          ...(anchor.version === undefined ? {} : { version: anchor.version }),
+          kind: source.kind,
+          files: source.files ?? [],
+          text: source.text ?? null,
+          ...(source.version === undefined ? {} : { version: source.version }),
         })
-        .where(eq(anchors.id, anchor.id))
+        .where(eq(sources.id, source.id))
         .run()
     } else {
-      db.insert(anchors)
+      db.insert(sources)
         .values({
-          id: anchor.id,
+          id: source.id,
           projectId,
-          kind: anchor.kind,
-          refImages: anchor.refImages,
-          version: anchor.version ?? 1,
+          kind: source.kind,
+          files: source.files ?? [],
+          text: source.text ?? null,
+          version: source.version ?? 1,
           createdAt: now,
         })
         .run()

@@ -14,8 +14,10 @@ import type { ModelSpec } from './registry'
  * per endpoint, when Phase 0 records real responses.
  */
 export type BuildContext = {
-  /** Resolved reference images for every anchor attached to the node. */
+  /** Files from every image/video source wired in as a reference. */
   anchorRefs: string[]
+  /** The composed prompt: wired-in text fragments, then the node's own. */
+  prompt?: string
   /** Outputs of upstream nodes, by edge role. */
   startFrame?: AssetRef
   endFrame?: AssetRef
@@ -29,7 +31,7 @@ export function buildModelInput(
   switch (node.type) {
     case 'image': {
       return {
-        prompt: node.prompt,
+        prompt: context.prompt ?? node.prompt,
         ...(node.seed === undefined ? {} : { seed: node.seed }),
         // Only sent to a model that can honour them. planRun already refuses
         // the combination, so reaching here with refs the model ignores would
@@ -41,7 +43,7 @@ export function buildModelInput(
     }
     case 'video': {
       return {
-        prompt: node.prompt,
+        prompt: context.prompt ?? node.prompt,
         duration: node.durationSec,
         ...(node.seed === undefined ? {} : { seed: node.seed }),
         ...(model.caps.nativeAudio ? { audio: node.audio } : {}),

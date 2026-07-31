@@ -3,9 +3,8 @@ import { inputHash, canonicalJson, type HashInput } from '@/core/hash'
 
 const base: HashInput = {
   nodeType: 'image',
-  config: { prompt: 'a bottle on marble', anchors: ['anchor-1'] },
+  config: { prompt: 'a bottle on marble' },
   upstreamHashes: [],
-  anchorVersions: [1],
   modelId: 'fal-ai/flux-2/pro',
   seed: 42,
 }
@@ -44,9 +43,11 @@ describe('inputHash', () => {
   test('ignores key order inside config', () => {
     const reordered: HashInput = {
       ...base,
-      config: { anchors: ['anchor-1'], prompt: 'a bottle on marble' },
+      config: { modelRole: 'draft', prompt: 'a bottle on marble' },
     }
-    expect(inputHash(reordered)).toBe(inputHash(base))
+    expect(inputHash({ ...base, config: { prompt: 'a bottle on marble', modelRole: 'draft' } })).toBe(
+      inputHash(reordered),
+    )
   })
 
   test('changes when the prompt changes', () => {
@@ -62,12 +63,6 @@ describe('inputHash', () => {
     expect(inputHash(a)).not.toBe(inputHash(base))
   })
 
-  test('changes when an anchor version is bumped', () => {
-    // The whole "upload new product photos, eighteen nodes grey out" feature
-    // is this one assertion. If it regresses, stale propagation silently dies.
-    const bumped: HashInput = { ...base, anchorVersions: [2] }
-    expect(inputHash(bumped)).not.toBe(inputHash(base))
-  })
 
   test('changes when the model changes', () => {
     const other: HashInput = { ...base, modelId: 'fal-ai/nano-banana-pro' }

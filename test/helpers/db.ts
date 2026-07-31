@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach } from 'vitest'
 import { openDb, type Db } from '@/db'
-import { projects, flows, anchors } from '@/db/schema'
+import { projects, flows, sources } from '@/db/schema'
 import type { Flow } from '@/core/types'
 import type { ProjectSettings } from '@/core/settings'
 import { DEFAULT_SETTINGS } from '@/core/settings'
@@ -35,14 +35,20 @@ export function seedProject(db: Db, settings: Partial<ProjectSettings> = {}) {
   return id
 }
 
-export function seedAnchor(db: Db, projectId: string, id = 'anchor-1', version = 1) {
-  db.insert(anchors)
+export function seedSource(
+  db: Db,
+  projectId: string,
+  id = 'source-1',
+  over: { kind?: 'image' | 'video' | 'text'; files?: string[]; text?: string; version?: number } = {},
+) {
+  db.insert(sources)
     .values({
       id,
       projectId,
-      kind: 'product',
-      refImages: ['ref-a.png'],
-      version,
+      kind: over.kind ?? 'image',
+      files: over.files ?? ['ref-a.png'],
+      text: over.text ?? null,
+      version: over.version ?? 1,
       createdAt: new Date().toISOString(),
     })
     .run()

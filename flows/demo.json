@@ -3,40 +3,104 @@
   "settings": {
     "spendCapPerRun": 500
   },
-  "anchors": [
+  "sources": [
     {
-      "id": "serum-bottle",
-      "kind": "product",
-      "refImages": ["refs/bottle-front.jpg", "refs/bottle-angle.jpg"]
+      "id": "src:serum-bottle",
+      "kind": "image",
+      "files": [
+        "refs/bottle-front.jpg",
+        "refs/bottle-angle.jpg"
+      ]
+    },
+    {
+      "id": "src:brand-voice",
+      "kind": "text",
+      "text": "warm, unfussy, no hard sell"
     }
   ],
   "flow": {
     "nodes": [
       {
+        "id": "bottle",
+        "type": "source",
+        "sourceId": "src:serum-bottle",
+        "position": {
+          "x": 40,
+          "y": 30
+        }
+      },
+      {
+        "id": "voice",
+        "type": "source",
+        "sourceId": "src:brand-voice",
+        "position": {
+          "x": 40,
+          "y": 300
+        }
+      },
+      {
         "id": "marble",
         "type": "image",
-        "prompt": "the serum bottle on a marble counter, soft morning window light, shallow depth of field",
-        "anchors": ["serum-bottle"],
+        "prompt": "the serum bottle on a marble counter, soft morning window light",
         "modelRole": "draft",
-        "seed": 1
+        "seed": 1,
+        "position": {
+          "x": 340,
+          "y": 30
+        }
       },
       {
         "id": "slate",
         "type": "image",
-        "prompt": "the serum bottle on wet slate, hard directional light, deep shadows",
-        "anchors": ["serum-bottle"],
+        "prompt": "the serum bottle on wet slate, hard directional light",
         "modelRole": "draft",
-        "seed": 2
+        "seed": 2,
+        "position": {
+          "x": 340,
+          "y": 300
+        }
       },
       {
         "id": "linen",
         "type": "image",
-        "prompt": "the serum bottle on crumpled linen, diffuse overcast light, muted palette",
-        "anchors": ["serum-bottle"],
+        "prompt": "the serum bottle on crumpled linen, diffuse overcast light",
         "modelRole": "draft",
-        "seed": 3
+        "seed": 3,
+        "position": {
+          "x": 340,
+          "y": 570
+        }
       }
     ],
-    "edges": []
+    "edges": [
+      {
+        "id": "r1",
+        "from": "bottle",
+        "to": "marble",
+        "role": "reference",
+        "position": null
+      },
+      {
+        "id": "r2",
+        "from": "bottle",
+        "to": "slate",
+        "role": "reference",
+        "position": null
+      },
+      {
+        "id": "r3",
+        "from": "bottle",
+        "to": "linen",
+        "role": "reference",
+        "position": null
+      },
+      {
+        "id": "r4",
+        "from": "voice",
+        "to": "marble",
+        "role": "reference",
+        "position": null
+      }
+    ]
   }
 }

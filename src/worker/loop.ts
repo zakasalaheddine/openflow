@@ -2,10 +2,11 @@ import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { eq, and, inArray, sql } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
-import { nodeRuns, assets, flows, anchors, projects, type NodeRun } from '../db/schema'
+import { nodeRuns, assets, flows, sources, projects, type NodeRun } from '../db/schema'
 import { byId, estimateCostCents, type ModelSpec } from '../models/registry'
 import { buildModelInput } from '../models/input'
 import { localStore } from '../core/assets'
+import { composePrompt, referenceFiles } from '../core/compose'
 import { DEFAULT_SETTINGS, type ProjectSettings } from '../core/settings'
 import { assetsDir } from '../env'
 import type { Adapter, ParsedOutput } from '../models/fal'
@@ -66,11 +67,11 @@ function buildInput(db: Db, run: NodeRun, model: ModelSpec): Record<string, unkn
   const node = graph.nodes.find((n) => n.id === run.nodeId)
   if (!node) throw new Error(`Node ${run.nodeId} no longer exists in the graph`)
 
-  const anchorIds = 'anchors' in node ? node.anchors : []
-  const anchorRefs = anchorIds.flatMap((id) => {
-    const anchor = db.select().from(anchors).where(eq(anchors.id, id)).get()
-    return (anchor?.refImages as string[] | undefined) ?? []
-  })
+  const library = new Map(
+    db.select().from(sources).where(eq(sources.projectId, flow.projectId)).all().map((r) => [r.id, r]),
+  )
+  const anchorRefs = referenceFiles(graph, run.nodeId, library)
+  const prompt = composePrompt(graph, run.nodeId, library)
 
   const frameFor = (role: 'start_frame' | 'end_frame'): AssetRef | undefined => {
     const edge = graph.edges.find((e) => e.to === run.nodeId && e.role === role)
@@ -88,6 +89,7 @@ function buildInput(db: Db, run: NodeRun, model: ModelSpec): Record<string, unkn
 
   return buildModelInput(node, model, {
     anchorRefs,
+    prompt,
     startFrame: frameFor('start_frame'),
     endFrame: frameFor('end_frame'),
   })
