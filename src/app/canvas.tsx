@@ -18,6 +18,7 @@ import { UnsupportedCapabilityError } from '@/models/registry'
 import type { Flow, FlowNode, ModelRole, NodeId } from '@/core/types'
 import { NodeCard } from './node-card'
 import { Inspector } from './inspector'
+import { COLUMN, ROW, freeSlot, slotFor } from './slots'
 import {
   fetchFlow,
   saveGraph,
@@ -37,15 +38,6 @@ import {
 } from './state'
 
 const nodeTypes = { card: NodeCard }
-
-const COLUMN = 250
-const ROW = 265
-const COLUMNS = 4
-
-const slotFor = (index: number) => ({
-  x: 40 + (index % COLUMNS) * COLUMN,
-  y: 30 + Math.floor(index / COLUMNS) * ROW,
-})
 
 const BLANK: NodeState = {
   status: 'stale',
@@ -159,32 +151,46 @@ function CanvasInner() {
     [setRfEdges, setRfNodes],
   )
 
-  useEffect(() => {
-    let alive = true
-    const pull = async () => {
-      if (interactingRef.current) return
-      try {
-        const next = await fetchFlow(role)
-        if (alive) absorb(next)
-      } catch (error) {
-        if (alive) setNotice(error instanceof Error ? error.message : 'Could not load the flow')
+  /**
+   * Reads the flow, and applies it only if it is still the newest read issued.
+   *
+   * The poll and every mutation fetch the whole state, so the last request wins
+   * — but only by request order, never by arrival order. A poll fired just before
+   * a delete resolves just after it, and without this it replays the pre-delete
+   * graph into `graphRef`. The card comes back on screen, and the next edit is
+   * built on that stale graph and *saves* the node you deleted. "It keeps coming
+   * back" is one HTTP response arriving out of order.
+   *
+   * `interactingRef` is re-checked here, not only before issuing: a drag that
+   * starts mid-flight would otherwise be overwritten by the response.
+   */
+  const readRef = useRef(0)
+  const load = useCallback(async () => {
+    const read = ++readRef.current
+    try {
+      const next = await fetchFlow(role)
+      if (read !== readRef.current || interactingRef.current) return
+      absorb(next)
+    } catch (error) {
+      if (read === readRef.current) {
+        setNotice(error instanceof Error ? error.message : 'Could not load the flow')
       }
     }
-    void pull()
+  }, [role, absorb])
+
+  useEffect(() => {
+    let alive = true
+    const pull = () => {
+      if (interactingRef.current || !alive) return
+      void load()
+    }
+    pull()
     const id = setInterval(pull, 1200)
     return () => {
       alive = false
       clearInterval(id)
     }
-  }, [role, absorb])
-
-  const load = useCallback(async () => {
-    try {
-      absorb(await fetchFlow(role))
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Could not load the flow')
-    }
-  }, [role, absorb])
+  }, [load])
 
   const commit = useCallback(
     (update: (current: Flow) => Flow) => {
@@ -329,7 +335,7 @@ function CanvasInner() {
 
   function addNode(type: 'image' | 'video' | 'export') {
     const id = newId(type)
-    const position = slotFor(graphRef.current.nodes.length)
+    const position = freeSlot(graphRef.current.nodes)
     const node =
       type === 'image'
         ? { id, type, position, prompt: '', modelRole: 'draft' as const, seed: 1 }
