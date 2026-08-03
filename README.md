@@ -9,20 +9,24 @@ Upload a product once and it becomes a node on the canvas. Wire it into as many 
 ## Install
 
 ```bash
-npx openflow-studio
+git clone https://github.com/zakasalaheddine/openflow.git
+cd openflow
+nvm use          # reads .nvmrc — do this first
+npm install
+npm run studio
 ```
 
-Boots the server, creates the database, opens a browser, and asks for a fal key. An empty answer is a valid answer — the canvas opens and Run asks again when you need it.
+`npm run studio` boots the server, builds on first run, creates the database, opens a browser, and asks for a fal key. An empty answer is a valid answer — the canvas opens and Run asks again when you need it.
+
+**There is no `npx openflow-studio`, and this README used to claim otherwise.** A Next app cannot be built from inside a `node_modules` directory, which is all `npx` is; the details, and the two other ways it fails, are in [`docs/phases/phase-3-video-export-ship.md`](./docs/phases/phase-3-video-export-ship.md). Cloning is the path this project actually tests.
 
 **Node 22.16.0 or newer is required** (`.nvmrc` pins it). Older 22.x patch releases ship a `better-sqlite3` prebuild that segfaults on macOS arm64: you get exit code 139 and no error message, so the launcher refuses to start on one.
 
 **ffmpeg** is needed for video and for exporting clips (`brew install ffmpeg` / `apt install ffmpeg`). Image-only flows work without it.
 
-From a clone:
+Without the canvas:
 
 ```bash
-nvm use          # reads .nvmrc — do this first
-npm install
 npm test         # typecheck, lint, unit, browser — one command
 
 # Run the demo graph against recorded fixtures. No fal key, no spend.
@@ -32,7 +36,7 @@ FAL_MODE=replay npm run -- run flows/demo.json
 FAL_KEY=... FAL_MODE=live npm run -- run flows/demo.json
 ```
 
-Copy [`.env.example`](./.env.example) to `.env` and edit it — `next dev`, `next start`, `npx openflow-studio` and the headless runner all read it, so nothing has to be exported by hand. An exported variable still wins over the file, which is what keeps `FAL_MODE=off npm run …` honest.
+Copy [`.env.example`](./.env.example) to `.env` and edit it — `next dev`, `next start`, `npm run studio` and the headless runner all read it, so nothing has to be exported by hand. An exported variable still wins over the file, which is what keeps `FAL_MODE=off npm run …` honest.
 
 Assets live on your machine. Set `CLOUDINARY_URL` and uploads and rendered frames are pushed to Cloudinary as well, and fal is handed a URL instead of the file inlined into its request — the difference between a reference that works and one refused for being over 12 MB. Local copies are kept regardless: `ffmpeg` and `sharp` read files, so export never depends on the network.
 

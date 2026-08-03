@@ -1,4 +1,4 @@
-# Secondary to `npx openflow-studio`. Here for the hosted demo and for anyone
+# Secondary to `npm run studio`. Here for the hosted demo and for anyone
 # who would rather not install Node — not the recommended path for local use,
 # because the whole point is that your assets and your fal key stay on your
 # machine, and a container makes that a mount you have to remember.

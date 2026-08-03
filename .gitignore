@@ -18,3 +18,4 @@ spike/out/
 .playwright-mcp/
 /canvas-*.png
 .DS_Store
+.shot-data/

@@ -21,7 +21,8 @@ The repo goes public at the end of this phase, finished or not.
       the default, so a canvas without a second API key degrades rather than
       erroring oddly). The profile is stored on the project and confirmed by a
       person — the model is never asked to write one and save it unseen.
-- [x] `npx openflow-studio` launcher; Dockerfile secondary
+- [x] Launcher (`npm run studio`); Dockerfile secondary. Written as `npx
+      openflow-studio`, which the cold-boot test later proved could never work — §4.
 - [x] `DEMO=1` mode — live runs disabled, example flows pre-baked as cache hits
 - [x] README per the §10 ordering. **No screenshot** — the serum graph shot the
       ordering calls for does not exist yet, and a broken image link is worse
@@ -94,10 +95,63 @@ acceptance level anyway: the test spies on `fetch` and asserts no call to a host
 
 ## 4. Ship
 
-- [ ] Confirm `npx openflow-studio` boots, creates the DB, opens the browser, prompts for a fal key — on a machine that has never run it
+- [x] ~~Confirm `npx openflow-studio` boots…~~ **Run, and it fails — see below.** Replaced by
+      `npm run studio` from a clone, which boots, builds on first run, creates the DB, opens
+      the browser and prompts for a key. CI now boots the launcher and asserts it serves, so
+      the clean-checkout case is covered by a test rather than by someone remembering to try it.
 - [ ] README: one-line what-it-is → serum graph screenshot with costs → install → **Non-Goals above the fold** → registry table → architecture → contributing
-- [ ] MIT license
-- [ ] Repo public
+- [x] MIT license
+- [x] Repo public
+
+### Cold-boot result
+
+Run properly for the first time: `npm pack`, install the tarball to a temp prefix,
+run the binary from a directory outside the repo with a scrubbed environment.
+It does not boot. A Next app cannot be **built** from inside `node_modules`, and
+`npx` is nothing but a `node_modules` directory.
+
+Shipping a prebuilt `.next` does not rescue it, because Turbopack satisfies native
+externals with symlinks — `.next/node_modules/better-sqlite3-<hash> →
+../../node_modules/better-sqlite3` — and `npm pack` strips every nested
+`node_modules`. Next then prints `✓ Ready` and dies on the first request with
+`Cannot find module 'better-sqlite3-90e2652d1716b047'`: the same silent-death
+shape `scripts/check-node.mjs` exists to prevent, arriving by another door.
+Building on arrival instead fails from the other side — Turbopack treats anything
+under `node_modules` as opaque and panics on `InstrumentationEndpoint::entry_module`;
+`--webpack` gets as far as handing `src/core/demo.ts` to a parser with its types
+still on, because swc-loader is excluded from `node_modules` too.
+
+The same tarball builds and serves correctly one directory *outside* `node_modules`.
+The contents are fine; the location is not. Serving from inside it does work once
+the two symlinks are put back by hand — `✓ Ready`, worker started, `HTTP 200` —
+so the npx path is recoverable, at the price of depending on a Turbopack
+implementation detail that carries no compatibility promise.
+
+Three things this also surfaced:
+
+- **`npx openflow-studio` 404s regardless.** The package is `private: true` at
+  `0.0.0` and unpublished. The README has been telling people to run a command
+  that does not exist.
+- **The database lands in the npx cache.** `dataDir()` resolves `./data` against
+  cwd and the launcher pins cwd to the package root, so `app.db` and every
+  paid-for asset are written inside a content-hashed cache directory and vanish
+  with the next version or prune. The user's own directory stays empty. Moot
+  under the clone-only resolution below — there `root` *is* the repo, so `./data`
+  is exactly right, and `OPENFLOW_DATA_DIR` covers anyone who wants it elsewhere.
+  Recorded because it comes back the moment anyone revives the npx path.
+- **Nothing tested the entry point.** CI ran `next build && next start` under
+  Playwright, which proves the app runs and never touches `bin/openflow-studio.mjs`.
+  Now fixed: CI boots the launcher against its own data dir and fails if it does
+  not serve.
+
+**Resolution: npx is dropped.** The README installs from a clone, `npm run studio`
+replaces `npx openflow-studio`, and `bin`/`files` are gone from `package.json` —
+publishing config for a package that cannot be published is an invitation to
+repeat this. The npx path is recoverable (a `prepack` build plus a launcher that
+recreates the shim symlinks from `require.resolve`), but it would rest on a
+Turbopack implementation detail with no compatibility promise: a Next upgrade
+could break distribution without breaking a single test. Not worth it for an
+install that `git clone` already covers.
 
 ## Gate
 

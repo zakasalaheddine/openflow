@@ -5,22 +5,9 @@
   "description": "Local-first node editor for directing on-brand ad creative",
   "license": "MIT",
   "type": "module",
-  "bin": {
-    "openflow-studio": "bin/openflow-studio.mjs"
-  },
-  "files": [
-    ".next",
-    "bin",
-    "flows",
-    "scripts",
-    "src",
-    "test/fixtures/fal",
-    "next.config.ts",
-    "tsconfig.json",
-    ".env.example"
-  ],
   "scripts": {
     "check-node": "node scripts/check-node.mjs",
+    "studio": "node bin/openflow-studio.mjs",
     "predev": "npm run check-node",
     "prestart": "npm run check-node",
     "pretest": "npm run check-node",

@@ -1,13 +1,19 @@
 #!/usr/bin/env node
 /**
- * `npx openflow-studio` — the whole install.
+ * `npm run studio` — the whole install, from a clone.
  *
  * Boots the server, creates the database on first request, opens a browser, and
  * asks for a fal key if there isn't one. Everything it can do without asking, it
  * does; the one question it asks is the one nobody else can answer.
  *
- * Plain ESM, no TypeScript and no dependencies beyond Node itself: this runs
- * from a published tarball where devDependencies are not installed.
+ * It was `npx openflow-studio` until the cold-boot test was actually run. A Next
+ * app cannot be built from inside a `node_modules` directory, and shipping a
+ * prebuilt `.next` does not save it either — Turbopack satisfies native externals
+ * with symlinks under `.next/node_modules/`, and `npm pack` strips those. See
+ * `docs/phases/phase-3-video-export-ship.md`. Hence no `bin`, no `files`, and a
+ * clone-only README.
+ *
+ * Plain ESM, no TypeScript and no dependencies beyond Node itself.
  */
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -86,8 +92,8 @@ function openBrowser(target) {
 
 const env = await askForKey()
 
-// A published tarball ships `.next`; a clone does not. Build once rather than
-// failing with a stack trace about a missing production build.
+// A fresh clone has no `.next`. Build once rather than failing with a stack
+// trace about a missing production build.
 if (!existsSync(path.join(root, '.next'))) {
   console.log('First run — building. This happens once.\n')
   await run('npx', ['next', 'build'])

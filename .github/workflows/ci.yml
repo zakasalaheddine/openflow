@@ -38,6 +38,34 @@ jobs:
 
       - run: npx playwright install --with-deps chromium
 
+      # The install path a user actually follows. `npm test` builds and starts the
+      # server itself, so it proves the app runs — it never proves the launcher
+      # does. That gap is how a README shipped telling people to run
+      # `npx openflow-studio`, which could never have worked.
+      #
+      # Before `npm test`, deliberately: a fresh clone has no `.next`, and the
+      # branch that builds one is the branch the README's "builds on first run"
+      # promise rests on. Run this after the suite and Playwright has already
+      # warmed `.next`, leaving that promise untested. Playwright rebuilds anyway.
+      #
+      # Its own data dir: the e2e suite deletes `.playwright-data` at boot, and a
+      # second process holding a deleted SQLite inode is a queue nothing claims.
+      - name: The launcher boots and serves
+        env:
+          OPENFLOW_DATA_DIR: ${{ runner.temp }}/launcher-data
+          PORT: 3210
+        run: |
+          node bin/openflow-studio.mjs & launcher=$!
+          # Generous: a cold production build runs before the first byte is served.
+          for _ in $(seq 1 60); do
+            curl -sf -o /dev/null "http://localhost:$PORT/" && served=1 && break
+            kill -0 $launcher 2>/dev/null || break
+            sleep 5
+          done
+          kill $launcher 2>/dev/null || true
+          pkill -f 'next start' || true
+          [ "$served" = 1 ] || { echo "the launcher never served a request" >&2; exit 1; }
+
       - run: npm test
 
       - uses: actions/upload-artifact@v4

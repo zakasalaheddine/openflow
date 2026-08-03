@@ -39,8 +39,8 @@ export const dataDir = () =>
  * `process.cwd()`, not `import.meta.dirname`: the server runs from a Turbopack
  * bundle where `import.meta.dirname` is undefined, and resolving against it
  * crashes the instrumentation hook before the first request. `bin/openflow-studio.mjs`
- * spawns the server with its cwd pinned to the package root, so this holds for
- * `npx openflow-studio` as well as for a clone.
+ * spawns the server with its cwd pinned to the package root, which is the repo —
+ * install is clone-only, see `docs/phases/phase-3-video-export-ship.md`.
  */
 export const packageRoot = () => process.env.OPENFLOW_ROOT ?? process.cwd()
 
