@@ -77,7 +77,13 @@ function CanvasInner() {
   const [confirming, setConfirming] = useState<{ message: string; nodeId?: NodeId } | null>(null)
   const [showRefs, setShowRefs] = useState(true)
   const [hovered, setHovered] = useState<NodeId | null>(null)
-  const [replacing, setReplacing] = useState<{ id: string; radius: BlastRadius } | null>(null)
+  // `text` set means the replacement is already in hand — a rewritten note —
+  // and the panel confirms it rather than asking for a file.
+  const [replacing, setReplacing] = useState<{
+    id: string
+    radius: BlastRadius
+    text?: string
+  } | null>(null)
   const [dropping, setDropping] = useState(false)
   const [exported, setExported] = useState<{ written: number; refusals: string[] } | null>(null)
   const [brief, setBrief] = useState<{ text: string; profile: string } | null>(null)
@@ -282,6 +288,36 @@ function CanvasInner() {
   }, [])
 
   /**
+   * Rewrites a text asset in place.
+   *
+   * Brand voice is the one asset you rewrite rather than re-upload, and it
+   * composes ahead of every prompt it feeds — so a rewrite is a replacement, and
+   * goes through the same gate: `bumpSource` versions it and every shot
+   * downstream goes stale. §5.3 says never silently re-run, and one note can
+   * invalidate two campaigns.
+   *
+   * Priced first, and confirmed only when there is something to price. A note
+   * feeding nothing stales nothing and costs nothing, and a dialog saying so is
+   * a dialog in the way of editing a sentence.
+   */
+  const onEditText = useCallback(
+    async (sourceId: string, text: string) => {
+      try {
+        const radius = await previewReplace(sourceId)
+        if (radius.nodeCount > 0) {
+          setReplacing({ id: sourceId, radius, text })
+          return
+        }
+        await replaceSource(sourceId, text)
+        await load()
+      } catch (error) {
+        setNotice(error instanceof Error ? error.message : 'Could not save that note')
+      }
+    },
+    [load],
+  )
+
+  /**
    * One Run, two scopes. Without `nodeId` it is the toolbar's whole-flow run;
    * with one it is a single card's, and the executor pulls in whatever upstream
    * that card still needs rather than dispatching it unanchored.
@@ -325,10 +361,11 @@ function CanvasInner() {
             onReplace,
             onRun,
             onPreview: setPreview,
+            onEditText,
           },
         }
       }),
-    [rfNodes, selectedId, sourcesById, hovered, litUp, onPrompt, onReplace, onRun],
+    [rfNodes, selectedId, sourcesById, hovered, litUp, onPrompt, onReplace, onRun, onEditText],
   )
 
   const visibleEdges = useMemo(
@@ -776,10 +813,19 @@ function CanvasInner() {
               <div className="banner__actions">
                 <button
                   className="chip"
-                  onClick={() => replaceInputRef.current?.click()}
                   data-testid="confirm-replace"
+                  onClick={async () => {
+                    if (replacing.text === undefined) return replaceInputRef.current?.click()
+                    try {
+                      await replaceSource(replacing.id, replacing.text)
+                    } catch (error) {
+                      setNotice(error instanceof Error ? error.message : 'Could not save that note')
+                    }
+                    setReplacing(null)
+                    await load()
+                  }}
                 >
-                  Choose a file
+                  {replacing.text === undefined ? 'Choose a file' : 'Save the note'}
                 </button>
                 <button className="chip" onClick={() => setReplacing(null)}>
                   Cancel

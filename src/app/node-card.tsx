@@ -15,6 +15,7 @@ export type CardData = {
   onReplace: (sourceId: string) => void
   onRun: (nodeId: string) => void
   onPreview: (item: Preview) => void
+  onEditText: (sourceId: string, text: string) => void
 }
 
 /**
@@ -65,7 +66,7 @@ const STATUS_LABEL: Record<NodeState['status'], string> = {
  * up surprising someone with an invoice.
  */
 export function NodeCard({ data }: NodeProps) {
-  const { node, state, selected, source, onPrompt, onReplace, onRun, onPreview } =
+  const { node, state, selected, source, onPrompt, onReplace, onRun, onPreview, onEditText } =
     data as unknown as CardData
 
   if (node.type === 'source') {
@@ -76,6 +77,7 @@ export function NodeCard({ data }: NodeProps) {
         selected={selected}
         onReplace={onReplace}
         onPreview={onPreview}
+        onEditText={onEditText}
       />
     )
   }
@@ -167,8 +169,24 @@ export function NodeCard({ data }: NodeProps) {
  *
  * An always-live textarea on every card makes twelve shots unscannable, and
  * §6.1 says reviewing twelve at once is the point of the canvas.
+ *
+ * Shared by a shot's direction and by a text asset's contents. They are the same
+ * gesture on the same kind of thing — prose the model reads — and differ only in
+ * what committing one costs, which is the caller's problem, not this one's.
  */
-function EditablePrompt({ value, onCommit }: { value: string; onCommit: (next: string) => void }) {
+function EditablePrompt({
+  value,
+  onCommit,
+  className = 'node__prompt',
+  testId = 'node-prompt',
+  placeholder = 'Double-click to describe the shot',
+}: {
+  value: string
+  onCommit: (next: string) => void
+  className?: string
+  testId?: string
+  placeholder?: string
+}) {
   // `draft` is null when not editing, so there is no copy of the prompt to keep
   // in sync with the server — the value on screen is always the real one.
   const [draft, setDraft] = useState<string | null>(null)
@@ -182,12 +200,12 @@ function EditablePrompt({ value, onCommit }: { value: string; onCommit: (next: s
   if (draft === null) {
     return (
       <p
-        className="node__prompt"
+        className={className}
         onDoubleClick={() => setDraft(value)}
         title="Double-click to edit"
-        data-testid="node-prompt-text"
+        data-testid={`${testId}-text`}
       >
-        {value || 'Double-click to describe the shot'}
+        {value || placeholder}
       </p>
     )
   }
@@ -201,9 +219,9 @@ function EditablePrompt({ value, onCommit }: { value: string; onCommit: (next: s
   return (
     <textarea
       ref={ref}
-      className="node__prompt node__prompt--editing nodrag"
+      className={`${className} node__prompt--editing nodrag`}
       value={draft}
-      data-testid="node-prompt-input"
+      data-testid={`${testId}-input`}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
@@ -221,12 +239,14 @@ function SourceCard({
   selected,
   onReplace,
   onPreview,
+  onEditText,
 }: {
   node: FlowNode
   source?: SourceRow
   selected: boolean
   onReplace: (sourceId: string) => void
   onPreview: (item: Preview) => void
+  onEditText: (sourceId: string, text: string) => void
 }) {
   const sourceId = node.type === 'source' ? node.sourceId : ''
   const kind = source?.kind ?? 'image'
@@ -255,8 +275,16 @@ function SourceCard({
         {!source ? (
           <span className="node__empty">missing</span>
         ) : kind === 'text' ? (
-          // Nothing to enlarge: the card already shows the whole fragment.
-          <p className="node__text">{source.text}</p>
+          // Nothing to enlarge: the card already shows the whole fragment. It is
+          // edited in place instead, because brand voice is the one asset you
+          // rewrite rather than re-upload.
+          <EditablePrompt
+            value={source.text ?? ''}
+            className="node__text"
+            testId={`node-text-${node.id}`}
+            placeholder="Double-click to write the note"
+            onCommit={(next) => onEditText(sourceId, next)}
+          />
         ) : (
           <>
             {kind === 'video' ? (
