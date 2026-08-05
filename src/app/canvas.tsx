@@ -470,10 +470,16 @@ function CanvasInner() {
     reveal(node.position!, sizeOf(node))
   }
 
-  /** Adds a source node for an already-uploaded asset, optionally wiring it in. */
+  /**
+   * Adds a source node for an already-uploaded asset, optionally wiring it in.
+   *
+   * Does not `reveal`. A dropped file lands where the pointer let go, which is
+   * on screen by definition, and panning to it would move every other card for
+   * no reason — the same thing the fitView on every add used to do. Only the
+   * callers that place a card at a `freeSlot` it cannot see need that.
+   */
   function addSourceNode(sourceId: string, position: { x: number; y: number }, wireTo?: string) {
     const id = newId('asset')
-    reveal(position, sizeOf({ id, type: 'source', sourceId, position }))
     void commit((current) => {
       const withNode: Flow = {
         ...current,
@@ -495,7 +501,9 @@ function CanvasInner() {
     try {
       for (const file of files) {
         const { id } = await uploadFile(file)
-        addSourceNode(id, freeSlot(graphRef.current.nodes, CARD_SOURCE))
+        const slot = freeSlot(graphRef.current.nodes, CARD_SOURCE)
+        addSourceNode(id, slot)
+        reveal(slot, CARD_SOURCE)
         // `commit` is queued, so the next slot is only free once this one has
         // actually landed in the graph.
         await queueRef.current
@@ -508,7 +516,9 @@ function CanvasInner() {
   async function addNote(text: string) {
     try {
       const { id } = await createTextSource(text)
-      addSourceNode(id, freeSlot(graphRef.current.nodes, CARD_SOURCE))
+      const slot = freeSlot(graphRef.current.nodes, CARD_SOURCE)
+      addSourceNode(id, slot)
+      reveal(slot, CARD_SOURCE)
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Could not save that note')
     }
@@ -523,7 +533,9 @@ function CanvasInner() {
    * graph should not force a wire across the whole thing.
    */
   function addExistingSource(sourceId: string) {
-    addSourceNode(sourceId, freeSlot(graphRef.current.nodes, CARD_SOURCE))
+    const slot = freeSlot(graphRef.current.nodes, CARD_SOURCE)
+    addSourceNode(sourceId, slot)
+    reveal(slot, CARD_SOURCE)
   }
 
   async function handleDrop(event: React.DragEvent) {

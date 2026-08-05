@@ -231,6 +231,63 @@ test('a name is saved once, when you leave the field', async ({ page, request })
     .toBe('hero shot')
 })
 
+test('the branch line never covers the direction you are writing', async ({ page, request }) => {
+  // A shot feeding a clip, which is the shape of the work — so every image node
+  // has a subtree and a branch line. The graph used to verify the rest of this
+  // file had none, which is exactly how this got missed the first time.
+  await request.patch('/api/flow', {
+    data: {
+      nodes: [
+        {
+          id: 'marble',
+          type: 'image',
+          position: { x: 60, y: 60 },
+          prompt: 'bottle on marble',
+          modelRole: 'draft',
+          seed: 1,
+        },
+        {
+          id: 'clip',
+          type: 'video',
+          position: { x: 400, y: 60 },
+          prompt: 'pan across',
+          durationSec: 5,
+          audio: false,
+          modelRole: 'draft',
+          seed: 2,
+        },
+      ],
+      edges: [{ id: 'e1', from: 'marble', to: 'clip', role: 'start_frame', position: null }],
+    },
+  })
+  await page.goto('/')
+  await waitForLedger(page)
+  await page.waitForTimeout(500)
+
+  const card = page.getByTestId('node-marble')
+  await card.hover()
+  await expect(page.getByTestId('subtree-marble')).toBeVisible()
+
+  await card.getByTestId('node-prompt-text').dblclick()
+  const input = page.getByTestId('node-prompt-input')
+  await expect(input).toBeVisible()
+
+  // It floats above the bill rather than sitting below it, so it hangs over the
+  // last lines of the prompt. Typing through a strip you cannot see under is
+  // worse than not being told what the branch costs while you write.
+  const strip = card.locator('.node__foot--branch')
+  expect(await strip.evaluate((el) => getComputedStyle(el).opacity)).toBe('0')
+
+  await page.keyboard.press('Escape')
+  await card.hover()
+  await expect(page.getByTestId('subtree-marble')).toBeVisible()
+
+  // And it is never over the price, whether or not anyone is typing.
+  const bill = (await card.getByTestId('price-marble').boundingBox())!
+  const branch = (await strip.boundingBox())!
+  expect(branch.y + branch.height).toBeLessThanOrEqual(bill.y + 1)
+})
+
 test('a note keeps the height of its card while it is being rewritten', async ({
   page,
   request,

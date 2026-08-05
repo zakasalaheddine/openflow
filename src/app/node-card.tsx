@@ -10,10 +10,12 @@ import type { Preview } from './lightbox'
 /**
  * The corner grip, drawn only on the card you are looking at.
  *
- * Width and height mean different things and that is the point: wider shows the
- * shot bigger, because the frame keeps its 5:4; taller shows more of the
- * direction, because the prompt takes whatever height is left. A card is a thing
- * you size to the question you are asking of it.
+ * Width and height mean different things and that is the point. Height past what
+ * the frame wants goes to the direction, so a taller card is more of the prompt
+ * to read. Width is the frame's, which holds 5:4 — but only while the card is
+ * tall enough to allow it, so widening alone crops harder rather than enlarging.
+ * Both have to move to see a shot bigger. A card is a thing you size to the
+ * question you are asking of it.
  *
  * Hidden until selected. Twelve cards each wearing eight handles is a canvas of
  * handles, and the frames are what you came to look at.

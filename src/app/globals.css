@@ -240,9 +240,9 @@ button {
 
 /*
  * The card fills whatever box the node was resized to — React Flow writes the
- * width and height onto the wrapper, and the graph remembers them. A column, so
- * the frame keeps its 5:4 and the direction takes the height that is left:
- * wider means see the shot bigger, taller means read more of the direction.
+ * width and height onto the wrapper, and the graph remembers them. A column: the
+ * frame asks for 5:4 of the width, the direction takes whatever height is left,
+ * and when there is not enough for both the frame is the one that gives.
  */
 .node {
   width: 100%;
@@ -463,8 +463,13 @@ button {
   transition: opacity 120ms ease;
 }
 
-.node:hover .node__foot--branch,
-.node[data-selected='true'] .node__foot--branch {
+/*
+ * Pointing at a card, and only that. Selection used to reveal it too, which was
+ * harmless while this was a row of its own and is not now that it floats: it
+ * sits over the last lines of the direction, and the card you have selected is
+ * the card you are about to write on. Never while that writing is happening.
+ */
+.node:hover:not(:has(.node__prompt--editing)) .node__foot--branch {
   opacity: 1;
 }
 
