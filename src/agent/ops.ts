@@ -72,13 +72,21 @@ export type UpdateNodeInput = z.infer<typeof updateNodeInput>
  * Ids are not hashed — hashableConfig is a whitelist that excludes id and
  * position — so the format only has to be unique and readable in a chat
  * reply. Deterministic, not random: one more than the highest existing
- * `type-N` in this graph, the same counter shape the canvas uses. A tool
- * call's result rides into the next model prompt, and LLM_MODE=replay's
- * fixture key hashes the whole prompt — a random id made every fixture
- * after the first tool call unrecordable. Scoped to the current graph, so
- * a deleted node's number is free to be reused once its edges are gone
- * with it (removeNode strips them), but never collides with a node still
- * on the canvas.
+ * `type-N` in this graph. A tool call's result rides into the next model
+ * prompt, and LLM_MODE=replay's fixture key hashes the whole prompt — a
+ * random id made every fixture after the first tool call unrecordable.
+ * Scoped to the current graph, so a deleted node's number is free to be
+ * reused once its edges are gone with it (removeNode strips them), but
+ * never collides with a node still on the canvas.
+ *
+ * Never collides with a canvas-built id either, though the two are not the
+ * same shape: the canvas mints `${type}-${++counter}-${random 4 chars}`
+ * (app/canvas.tsx's newId). The reduce below only ever looks at what comes
+ * after the last `-`, and `Number('1-a4f2')` is `NaN` — so a canvas id is
+ * silently skipped rather than counted, and this scheme's counter never
+ * catches up to one. That skip is load-bearing, not incidental: it is the
+ * whole reason an agent-built graph and a canvas-built graph can be merged
+ * without a collision.
  */
 const newId = (graph: Flow, type: string) => {
   const prefix = `${type}-`
