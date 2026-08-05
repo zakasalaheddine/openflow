@@ -22,6 +22,7 @@ import { Inspector } from './inspector'
 import { CARD_SOURCE, COLUMN, MIN_CARD, ROW, freeSlot, sizeOf, slotFor } from './slots'
 import { Lightbox, type Preview } from './lightbox'
 import { AssetMenu } from './asset-menu'
+import { ChatPanel } from './chat-panel'
 import {
   fetchFlow,
   saveGraph,
@@ -705,6 +706,7 @@ function CanvasInner() {
         </button>
       </header>
 
+      <div className="canvas-row">
       <main className="canvas" data-dropping={dropping}>
         <ReactFlow
           nodes={decorated}
@@ -946,6 +948,9 @@ function CanvasInner() {
           </div>
         )}
       </main>
+
+      <ChatPanel />
+      </div>
 
       <Lightbox item={preview} onClose={() => setPreview(null)} />
 

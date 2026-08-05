@@ -180,8 +180,20 @@ button {
 
 /* ---------- canvas ---------- */
 
+/*
+ * The row `.canvas` and `.chat` share. It — not `.canvas` — is the grid item
+ * `.shell` lays out, so the grid stretches it to the full cell and the flex
+ * row inside splits that space between the two without disturbing the
+ * inspector's own column.
+ */
+.canvas-row {
+  display: flex;
+  min-width: 0;
+}
+
 .canvas {
   position: relative;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -919,4 +931,90 @@ button {
   color: var(--ink);
   font-family: var(--sans);
   font-size: 12px;
+}
+
+/* ---------- chat panel ---------- */
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  width: 22rem;
+  min-width: 16rem;
+  max-width: 40vw;
+  overflow: auto;
+  border-left: 1px solid var(--line);
+  background: var(--panel);
+}
+
+/*
+ * Yields rather than crushing the canvas. `fitView` frames the graph once, at
+ * mount, before any node is selected and before the inspector's column exists
+ * — so opening the inspector always costs the canvas `--inspector` of width
+ * that the fit never knew to leave room for. Before this panel that slack was
+ * incidental (the graph is drawn on the fit-time width) and wide enough that
+ * a card's resize handle stayed on screen; add a fixed-width chat and it is
+ * not, at any width in this panel's own sensible range — the two costs stack
+ * on the one dimension `fitView` already spent. The inspector is the one that
+ * has to be current to be useful, so it is the chat that steps aside.
+ */
+.shell[data-inspector='open'] .chat {
+  display: none;
+}
+.chat__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+.chat__log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.chat__empty {
+  opacity: 0.6;
+  font-size: 0.85rem;
+  color: var(--slate);
+}
+.chat__line {
+  white-space: pre-wrap;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.chat__line--user {
+  opacity: 0.7;
+}
+/* The house's error colour is `--fault` — `.chip--danger` uses the same
+   token — so chat errors match every other fault-coloured line. */
+.chat__error {
+  padding: 0 0.75rem;
+  color: var(--fault);
+  font-size: 0.85rem;
+}
+.chat__compose {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+.chat__compose textarea {
+  resize: vertical;
+  width: 100%;
+  background: var(--ground);
+  border: 1px solid var(--line-bright);
+  border-radius: 2px;
+  color: var(--ink);
+  padding: 8px;
+  font-family: var(--sans);
+  font-size: 13px;
+}
+.chat__compose textarea:disabled {
+  opacity: 0.5;
 }
