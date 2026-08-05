@@ -47,27 +47,33 @@ export async function GET(request: Request) {
     sources: listSources(db, projectId),
     nodes: Object.fromEntries(
       graph.nodes.map((node) => {
-        const run = latest.get(node.id)
         const planned = [...preview.stale, ...preview.cached, ...preview.inFlight].find(
           (p) => p.nodeId === node.id,
         )
+        // Matched on inputHash, never just nodeId — the same rule exporter.ts's
+        // currentRun follows. Node ids are deterministic now (agent/ops.ts's
+        // newId recycles a freed suffix), so a stale run for a deleted node can
+        // otherwise resurface under the next node built with that same id: its
+        // render, its cost and its error, on a card that never rendered.
+        const run = latest.get(node.id)
+        const currentRun = run && run.inputHash === planned?.inputHash ? run : undefined
         return [
           node.id,
           {
             status: preview.cached.some((c) => c.nodeId === node.id)
               ? 'succeeded'
               : preview.inFlight.some((f) => f.nodeId === node.id)
-                ? (run?.status ?? 'queued')
-                : (run?.status === 'failed' ? 'failed' : 'stale'),
-            error: run?.error ?? null,
-            costCents: run?.costCents ?? 0,
+                ? (currentRun?.status ?? 'queued')
+                : (currentRun?.status === 'failed' ? 'failed' : 'stale'),
+            error: currentRun?.error ?? null,
+            costCents: currentRun?.costCents ?? 0,
             estimatedCents: Math.round(planned?.estimatedCents ?? 0),
             modelId: planned?.modelId ?? null,
             subtree: (() => {
               const s = preview.subtreeCents(node.id)
               return { nodeCount: s.nodeCount, cents: Math.round(s.cents) }
             })(),
-            outputs: ((run?.outputRefs as string[] | null) ?? [])
+            outputs: ((currentRun?.outputRefs as string[] | null) ?? [])
               .map((id) => assetById.get(id))
               .filter(Boolean)
               .map((a) => ({ id: a!.id, url: `/assets/${a!.id}`, mime: a!.mime })),
