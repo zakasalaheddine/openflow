@@ -19,6 +19,7 @@ import type { Flow, FlowNode, ModelRole, NodeId } from '@/core/types'
 import { NodeCard } from './node-card'
 import { Inspector } from './inspector'
 import { COLUMN, ROW, freeSlot, slotFor } from './slots'
+import { Lightbox, type Preview } from './lightbox'
 import {
   fetchFlow,
   saveGraph,
@@ -80,6 +81,7 @@ function CanvasInner() {
   const [exported, setExported] = useState<{ written: number; refusals: string[] } | null>(null)
   const [brief, setBrief] = useState<{ text: string; profile: string } | null>(null)
   const [briefing, setBriefing] = useState(false)
+  const [preview, setPreview] = useState<Preview | null>(null)
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<RfNode>([])
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<RfEdge>([])
@@ -321,6 +323,7 @@ function CanvasInner() {
             onPrompt,
             onReplace,
             onRun,
+            onPreview: setPreview,
           },
         }
       }),
@@ -752,6 +755,8 @@ function CanvasInner() {
           </div>
         )}
       </main>
+
+      <Lightbox item={preview} onClose={() => setPreview(null)} />
 
       {selected && (
         <Inspector

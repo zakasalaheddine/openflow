@@ -319,6 +319,8 @@ button {
   display: grid;
   place-items: center;
   border-bottom: 1px solid var(--line);
+  /* Anchors the preview control in the corner of the frame. */
+  position: relative;
 }
 
 .node__frame img,
@@ -327,6 +329,33 @@ button {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+/* A corner control, not the whole frame: the middle of the card belongs to
+   selection and to the alt-click that fans out a sibling. Quiet until the card
+   is under the pointer, loud enough to find. */
+.node__peek {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 2px;
+  border: 1px solid var(--line-bright);
+  background: rgb(20 22 28 / 0.78);
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  cursor: zoom-in;
+}
+
+.node:hover .node__peek,
+.node__peek:focus-visible {
+  opacity: 1;
 }
 
 .node__empty {
@@ -631,4 +660,55 @@ button {
   text-transform: uppercase;
   color: var(--fixed);
   pointer-events: none;
+}
+
+/* ---------- lightbox ---------- */
+
+/*
+ * The card crops to 5:4 so twelve shots fit on one screen. That is the wrong
+ * shape for judging one of them, so the frame opens at its own aspect ratio,
+ * contained rather than cropped — what is on screen here is the file.
+ */
+.lightbox {
+  border: none;
+  padding: 0;
+  background: transparent;
+  max-width: 92vw;
+  max-height: 92vh;
+  overflow: visible;
+}
+
+.lightbox::backdrop {
+  background: rgb(10 11 14 / 0.86);
+}
+
+.lightbox img,
+.lightbox video {
+  display: block;
+  max-width: 92vw;
+  max-height: 92vh;
+  object-fit: contain;
+  border: 1px solid var(--line-bright);
+  background: var(--ground);
+}
+
+.lightbox__close {
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--line-bright);
+  background: var(--raised);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.lightbox__close:hover {
+  border-color: var(--safelight);
+  color: var(--safelight);
 }

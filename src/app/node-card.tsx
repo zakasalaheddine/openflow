@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { FlowNode } from '@/core/types'
 import { money, type NodeState, type SourceRow } from './state'
+import type { Preview } from './lightbox'
 
 export type CardData = {
   node: FlowNode
@@ -13,6 +14,37 @@ export type CardData = {
   onPrompt: (nodeId: string, prompt: string) => void
   onReplace: (sourceId: string) => void
   onRun: (nodeId: string) => void
+  onPreview: (item: Preview) => void
+}
+
+/**
+ * Opens the frame at full size.
+ *
+ * A corner control, not the whole frame. Making the frame itself the button was
+ * tried and reverted: it sits in the middle of the card, so it swallowed the
+ * click that selects a node and the alt-click that fans out a sibling — the
+ * inspector stopped opening and branching stopped working. A preview is worth
+ * far less than either.
+ *
+ * A real button so it is keyboard-reachable like every other control on the
+ * card. `nodrag` and the stopped propagation keep it off React Flow's drag
+ * handler and off the alt-click.
+ */
+function Peek({ item, onPreview }: { item: Preview; onPreview: (item: Preview) => void }) {
+  return (
+    <button
+      className="node__peek nodrag"
+      data-testid={`preview-${item.label}`}
+      title="See it full size"
+      aria-label={`Preview ${item.label}`}
+      onClick={(event) => {
+        event.stopPropagation()
+        onPreview(item)
+      }}
+    >
+      ⤢
+    </button>
+  )
 }
 
 const STATUS_LABEL: Record<NodeState['status'], string> = {
@@ -33,10 +65,19 @@ const STATUS_LABEL: Record<NodeState['status'], string> = {
  * up surprising someone with an invoice.
  */
 export function NodeCard({ data }: NodeProps) {
-  const { node, state, selected, source, onPrompt, onReplace, onRun } = data as unknown as CardData
+  const { node, state, selected, source, onPrompt, onReplace, onRun, onPreview } =
+    data as unknown as CardData
 
   if (node.type === 'source') {
-    return <SourceCard node={node} source={source} selected={selected} onReplace={onReplace} />
+    return (
+      <SourceCard
+        node={node}
+        source={source}
+        selected={selected}
+        onReplace={onReplace}
+        onPreview={onPreview}
+      />
+    )
   }
 
   const output = state.outputs[0]
@@ -54,22 +95,25 @@ export function NodeCard({ data }: NodeProps) {
 
       <div className="node__frame">
         {output ? (
-          output.mime.startsWith('video/') ? (
-            <video
-              src={output.url}
-              muted
-              loop
-              playsInline
-              onMouseEnter={(e) => void e.currentTarget.play().catch(() => undefined)}
-              onMouseLeave={(e) => e.currentTarget.pause()}
-            />
-          ) : (
-            // Plain <img>: these are locally generated files served off disk by
-            // this same process. next/image would put an optimiser in front of
-            // assets that are already exactly the bytes we produced.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={output.url} alt={`Output of ${node.id}`} />
-          )
+          <>
+            {output.mime.startsWith('video/') ? (
+              <video
+                src={output.url}
+                muted
+                loop
+                playsInline
+                onMouseEnter={(e) => void e.currentTarget.play().catch(() => undefined)}
+                onMouseLeave={(e) => e.currentTarget.pause()}
+              />
+            ) : (
+              // Plain <img>: these are locally generated files served off disk by
+              // this same process. next/image would put an optimiser in front of
+              // assets that are already exactly the bytes we produced.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={output.url} alt={`Output of ${node.id}`} />
+            )}
+            <Peek item={{ url: output.url, mime: output.mime, label: node.id }} onPreview={onPreview} />
+          </>
         ) : (
           <span className="node__empty">{state.status === 'failed' ? 'no frame' : 'unexposed'}</span>
         )}
@@ -176,11 +220,13 @@ function SourceCard({
   source,
   selected,
   onReplace,
+  onPreview,
 }: {
   node: FlowNode
   source?: SourceRow
   selected: boolean
   onReplace: (sourceId: string) => void
+  onPreview: (item: Preview) => void
 }) {
   const sourceId = node.type === 'source' ? node.sourceId : ''
   const kind = source?.kind ?? 'image'
@@ -209,12 +255,21 @@ function SourceCard({
         {!source ? (
           <span className="node__empty">missing</span>
         ) : kind === 'text' ? (
+          // Nothing to enlarge: the card already shows the whole fragment.
           <p className="node__text">{source.text}</p>
-        ) : kind === 'video' ? (
-          <video src={file} muted loop playsInline />
         ) : (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={file} alt={node.label ?? 'Reference'} />
+          <>
+            {kind === 'video' ? (
+              <video src={file} muted loop playsInline />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={file} alt={node.label ?? 'Reference'} />
+            )}
+            <Peek
+              item={{ url: file, mime: kind === 'video' ? 'video/mp4' : 'image/*', label: node.id }}
+              onPreview={onPreview}
+            />
+          </>
         )}
       </div>
 
