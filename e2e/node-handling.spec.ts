@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { graphOf, resetWorkspace, setGraph, uploadText, waitForLedger } from './helpers'
+import { closeChat, graphOf, resetWorkspace, setGraph, uploadText, waitForLedger } from './helpers'
 
 /**
  * The gestures you make on a card, and what each of them must not disturb.
@@ -36,6 +36,7 @@ test('editing a prompt leaves the canvas exactly where it was', async ({ page, r
   await seed(request)
   await page.goto('/')
   await waitForLedger(page)
+  await closeChat(page)
   await page.waitForTimeout(400)
 
   const before = await viewport(page)
@@ -54,6 +55,7 @@ test('entering and leaving an edit does not change the size of the card', async 
   await seed(request)
   await page.goto('/')
   await waitForLedger(page)
+  await closeChat(page)
   await page.waitForTimeout(400)
 
   const card = page.getByTestId('node-marble')
@@ -98,6 +100,7 @@ test('a card can be resized, and the size survives a reload', async ({ page, req
   await seed(request)
   await page.goto('/')
   await waitForLedger(page)
+  await closeChat(page)
   await page.waitForTimeout(400)
 
   await page.getByTestId('node-marble').click()
@@ -256,6 +259,7 @@ test('the branch line never covers the direction you are writing', async ({ page
     })
   await page.goto('/')
   await waitForLedger(page)
+  await closeChat(page)
   await page.waitForTimeout(500)
 
   const card = page.getByTestId('node-marble')
@@ -270,7 +274,9 @@ test('the branch line never covers the direction you are writing', async ({ page
   // last lines of the prompt. Typing through a strip you cannot see under is
   // worse than not being told what the branch costs while you write.
   const strip = card.locator('.node__foot--branch')
-  expect(await strip.evaluate((el) => getComputedStyle(el).opacity)).toBe('0')
+  // The branch line's opacity is CSS-transitioned (120ms), not toggled
+  // outright, so it can still be mid-fade the instant editing starts.
+  await expect.poll(() => strip.evaluate((el) => getComputedStyle(el).opacity)).toBe('0')
 
   await page.keyboard.press('Escape')
   await card.hover()
@@ -293,6 +299,7 @@ test('a note keeps the height of its card while it is being rewritten', async ({
     })
   await page.goto('/')
   await waitForLedger(page)
+  await closeChat(page)
   await page.waitForTimeout(400)
 
   const card = page.getByTestId('node-voice')

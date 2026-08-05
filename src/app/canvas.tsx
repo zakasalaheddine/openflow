@@ -73,6 +73,9 @@ function CanvasInner() {
   const [role, setRole] = useState<ModelRole>('draft')
   const [state, setState] = useState<FlowState | null>(null)
   const [selectedId, setSelectedId] = useState<NodeId | null>(null)
+  // Open on load — chat is the primary way in, not a drawer someone has to
+  // find first. Closing it reclaims the canvas the panel overlays.
+  const [chatOpen, setChatOpen] = useState(true)
   const [notice, setNotice] = useState<string | null>(null)
   // Carries the node so "Render anyway" repeats the click that was refused,
   // rather than silently widening one shot into the whole flow.
@@ -701,6 +704,15 @@ function CanvasInner() {
           Export
         </button>
 
+        <button
+          className="chip"
+          aria-pressed={chatOpen}
+          onClick={() => setChatOpen((open) => !open)}
+          data-testid="chat-toggle"
+        >
+          Chat
+        </button>
+
         <button className="run" onClick={() => void run()} data-testid="run">
           Run all
         </button>
@@ -949,7 +961,7 @@ function CanvasInner() {
         )}
       </main>
 
-      <ChatPanel />
+      {chatOpen && <ChatPanel />}
       </div>
 
       <Lightbox item={preview} onClose={() => setPreview(null)} />

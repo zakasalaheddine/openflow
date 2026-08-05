@@ -24,6 +24,20 @@ export async function setGraph(request: APIRequestContext, graph: unknown) {
 }
 
 /**
+ * The chat panel is open by default and overlays the right edge of the
+ * canvas — it and the inspector don't both fit at the viewport this suite
+ * runs at. Specs that need that strip clear (a resize handle, a card's own
+ * text) close it as setup, the same way they seed the graph as setup; the
+ * assertions those specs make are unchanged by this.
+ */
+export async function closeChat(page: Page) {
+  const toggle = page.getByTestId('chat-toggle')
+  if ((await toggle.getAttribute('aria-pressed')) === 'true') {
+    await toggle.click()
+  }
+}
+
+/**
  * One server serves every spec, so each starts from a known slate rather than
  * inheriting what the last one left. Uses the same public endpoints the UI
  * does — a test-only reset hatch would be a path nobody else exercises.

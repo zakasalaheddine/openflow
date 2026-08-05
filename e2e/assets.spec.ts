@@ -1,5 +1,15 @@
 import { test, expect } from '@playwright/test'
-import { resetWorkspace, setGraph, waitForLedger, uploadSource, uploadText, wire, graphOf, PNG } from './helpers'
+import {
+  closeChat,
+  resetWorkspace,
+  setGraph,
+  waitForLedger,
+  uploadSource,
+  uploadText,
+  wire,
+  graphOf,
+  PNG,
+} from './helpers'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -165,6 +175,7 @@ test('double-clicking a prompt edits it in place and stales the shot', async ({ 
 
   await page.goto('/')
   await waitForLedger(page)
+  await closeChat(page)
   await page.getByTestId('run').click()
   const confirm = page.getByTestId('confirm-spend')
   if (await confirm.isVisible().catch(() => false)) await confirm.click()
