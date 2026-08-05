@@ -1,10 +1,34 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Handle, Position, type NodeProps } from '@xyflow/react'
+import { Handle, NodeResizer, Position, type NodeProps } from '@xyflow/react'
 import type { FlowNode } from '@/core/types'
+import { MIN_CARD } from './slots'
 import { money, type NodeState, type SourceRow } from './state'
 import type { Preview } from './lightbox'
+
+/**
+ * The corner grip, drawn only on the card you are looking at.
+ *
+ * Width and height mean different things and that is the point: wider shows the
+ * shot bigger, because the frame keeps its 5:4; taller shows more of the
+ * direction, because the prompt takes whatever height is left. A card is a thing
+ * you size to the question you are asking of it.
+ *
+ * Hidden until selected. Twelve cards each wearing eight handles is a canvas of
+ * handles, and the frames are what you came to look at.
+ */
+function Grip({ visible }: { visible: boolean }) {
+  return (
+    <NodeResizer
+      isVisible={visible}
+      minWidth={MIN_CARD.w}
+      minHeight={MIN_CARD.h}
+      lineClassName="node__resize-line"
+      handleClassName="node__resize-handle"
+    />
+  )
+}
 
 export type CardData = {
   node: FlowNode
@@ -86,6 +110,7 @@ export function NodeCard({ data }: NodeProps) {
 
   return (
     <div className="node" data-status={state.status} data-selected={selected} data-testid={`node-${node.id}`}>
+      <Grip visible={selected} />
       <Handle type="target" position={Position.Left} />
       {node.type !== 'export' && <Handle type="source" position={Position.Right} />}
 
@@ -150,16 +175,22 @@ export function NodeCard({ data }: NodeProps) {
             {state.status === 'failed' ? 'Retry' : 'Run'}
           </button>
         )}
-      </footer>
 
-      {state.subtree.nodeCount > 0 && (
-        <footer className="node__foot node__foot--branch">
-          <span className="slate">branch</span>
-          <span className="node__subtree" data-testid={`subtree-${node.id}`}>
-            {state.subtree.nodeCount} · {money(state.subtree.cents)}
+        {/* Total spend is too coarse when one branch is three video renders, but
+            it is also noise on every card at once — so it rides above the bill
+            on hover. Lifted out of the layout on purpose: as its own row it
+            changed the card's height under the pointer, and twelve cards that
+            twitch as you read across them is worse than the number is useful.
+            Never over the price: cost stays on screen at all times. */}
+        {state.subtree.nodeCount > 0 && (
+          <span className="node__foot--branch">
+            <span className="slate">branch</span>
+            <span className="node__subtree" data-testid={`subtree-${node.id}`}>
+              {state.subtree.nodeCount} · {money(state.subtree.cents)}
+            </span>
           </span>
-        </footer>
-      )}
+        )}
+      </footer>
     </div>
   )
 }
@@ -262,6 +293,7 @@ function SourceCard({
       data-selected={selected}
       data-testid={`node-${node.id}`}
     >
+      <Grip visible={selected} />
       <Handle type="source" position={Position.Right} />
 
       <header className="node__slate">

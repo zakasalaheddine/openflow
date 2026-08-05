@@ -238,8 +238,17 @@ button {
 
 /* ---------- node: a strip of production paperwork ---------- */
 
+/*
+ * The card fills whatever box the node was resized to — React Flow writes the
+ * width and height onto the wrapper, and the graph remembers them. A column, so
+ * the frame keeps its 5:4 and the direction takes the height that is left:
+ * wider means see the shot bigger, taller means read more of the direction.
+ */
 .node {
-  width: 200px;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--line-bright);
   border-radius: 3px;
   background: var(--panel);
@@ -313,12 +322,20 @@ button {
 
 .node__frame {
   /* 5:4, not square. Twelve outputs have to be reviewable in place on one
-     screen — that is the whole reason there is no separate review grid. */
+     screen — that is the whole reason there is no separate review grid. Held
+     against the card's width as it is resized, so the shape of a shot is the
+     one thing dragging a corner cannot distort. */
   aspect-ratio: 5 / 4;
+  /* Its ratio is a preference, not a floor. Shrink a card to the minimum and
+     the 5:4 wants more height than the card has left, so the frame gives way
+     rather than pushing the direction and the bill out through the bottom. */
+  flex: 0 1 auto;
+  min-height: 44px;
   background: var(--ground);
   display: grid;
   place-items: center;
   border-bottom: 1px solid var(--line);
+  overflow: hidden;
   /* Anchors the preview control in the corner of the frame. */
   position: relative;
 }
@@ -366,14 +383,19 @@ button {
   color: var(--slate-dim);
 }
 
+/*
+ * Takes the height the frame does not, so a card dragged taller is a card that
+ * shows more of its direction.
+ */
 .node__prompt {
+  flex: 1;
   padding: 7px 8px;
   margin: 0;
   font-size: 12px;
-  /* Line height in px, and a height that is an exact multiple of it, so the
+  /* Line height in px, and a minimum that is an exact multiple of it, so the
      clip always lands on a line boundary. */
   line-height: 17px;
-  height: 48px;
+  min-height: 48px;
   overflow: hidden;
   color: var(--ink);
 }
@@ -383,13 +405,18 @@ button {
  * overflowing line here — Next's CSS pipeline drops -webkit-box-orient, which
  * the recipe silently depends on, and a half-height "light" bled under the
  * footer. A fade is honest about there being more text and cannot break.
+ *
+ * Measured from the bottom, not the top: the box grows with the card now, and
+ * a fade fixed at 30px would have sat in the middle of a tall one.
  */
 .node__prompt {
-  mask-image: linear-gradient(to bottom, #000 0 30px, transparent 44px);
+  mask-image: linear-gradient(to bottom, #000 0 calc(100% - 16px), transparent);
 }
 
 /* The lab bill, in the margin of every frame. */
 .node__foot {
+  position: relative;
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -411,15 +438,34 @@ button {
   color: var(--fault);
 }
 
+/*
+ * Total spend is too coarse when one branch is three video renders — but it is
+ * also noise on every card at once, so it appears when you point at a shot.
+ *
+ * Lifted out of the flow and floated above the bill rather than added below it.
+ * As a real row it changed the card's height on hover, so pointing at a card
+ * moved it under the cursor and reading across twelve of them made the whole
+ * canvas twitch. Above, never over: the price stays on screen at all times.
+ */
 .node__foot--branch {
-  display: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  background: rgb(25 28 36 / 0.94);
+  border-top: 1px solid var(--line);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
 }
 
-/* Total spend is too coarse when one branch is three video renders — but it is
-   also noise on every card at once, so it appears when you point at a shot. */
 .node:hover .node__foot--branch,
 .node[data-selected='true'] .node__foot--branch {
-  display: flex;
+  opacity: 1;
 }
 
 .node__subtree {
@@ -436,6 +482,21 @@ button {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+/*
+ * Which node you are looking at, and the one control that destroys it, on one
+ * line. Both were declared in the markup and never written here, so the header
+ * stacked as two block elements and Delete read as one more chip among the
+ * chips — the least reversible button on screen, styled like the rest.
+ */
+.rail__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
 }
 
 .field {
@@ -533,6 +594,23 @@ button {
   color: var(--ink);
 }
 
+/*
+ * The one control on screen you cannot undo. It was declared in the markup and
+ * never written here, so Delete read as one more chip among the chips.
+ *
+ * Below `.chip` rather than beside `.field`, where it was first written and lost
+ * to `.chip`'s own colour on source order alone.
+ */
+.chip--danger {
+  border-color: var(--fault);
+  color: var(--fault);
+}
+
+.chip--danger:hover {
+  background: var(--fault);
+  color: var(--ground);
+}
+
 .banner__actions {
   display: flex;
   gap: 6px;
@@ -576,7 +654,6 @@ button {
 /* ---------- source node: the asset itself ---------- */
 
 .node--source {
-  width: 168px;
   border-style: dashed;
   border-color: var(--slate-dim);
   opacity: 1;
@@ -586,14 +663,19 @@ button {
   background: transparent;
 }
 
+/* An asset has no direction to read, so here the frame is what takes the height:
+   a note dragged taller shows more of the note. */
 .node__frame--source {
-  aspect-ratio: 1;
+  aspect-ratio: auto;
+  flex: 1;
+  min-height: 60px;
   align-items: stretch;
 }
 
 .node__text {
   margin: 0;
   padding: 8px;
+  height: 100%;
   font-size: 11px;
   line-height: 1.45;
   color: var(--slate);
@@ -621,17 +703,51 @@ button {
   cursor: default;
 }
 
+/*
+ * Exactly the box the text was just sitting in.
+ *
+ * It used to be 72px against the paragraph's 48, so double-clicking to edit
+ * resized the card under the cursor and leaving the field resized it back. The
+ * text you are writing must not move because you started writing it — the box
+ * scrolls instead, and a card dragged taller is how you get more room.
+ */
 .node__prompt--editing {
   display: block;
   width: 100%;
-  height: 72px;
+  height: auto;
   resize: none;
+  overflow-y: auto;
   border: none;
   border-top: 1px solid var(--safelight-dim);
   background: var(--ground);
   color: var(--ink);
   font-family: var(--sans);
   mask-image: none;
+}
+
+/* ---------- the corner grip ---------- */
+
+/*
+ * Quiet: an outline on the selected card and four corners, in the same ink as
+ * the selected border. Nothing on the eleven cards you are not resizing.
+ *
+ * Both classes named on purpose. React Flow's own rules are `.resize-control` +
+ * `.line`, so a single class here loses on specificity and the grip came out in
+ * the library's default blue — the one colour in this interface that belongs to
+ * nothing.
+ */
+.react-flow__resize-control.line.node__resize-line {
+  border-color: var(--ink);
+  border-width: 1px;
+  opacity: 0.55;
+}
+
+.react-flow__resize-control.handle.node__resize-handle {
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+  background: var(--ink);
+  border: 1px solid var(--ground);
 }
 
 /* ---------- drop target ---------- */

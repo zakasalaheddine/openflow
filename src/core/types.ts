@@ -65,6 +65,13 @@ export type TextOverlay = {
  */
 export type NodePosition = { x: number; y: number }
 
+/**
+ * How large the card is drawn. Canvas coordinates like `position`, and excluded
+ * from the input hash by the same whitelist — dragging a corner to see a shot
+ * bigger must never invalidate it and re-bill everything downstream.
+ */
+export type NodeSize = { w: number; h: number }
+
 type NodeBase = {
   id: NodeId
   /**
@@ -73,6 +80,8 @@ type NodeBase = {
    * and falls back to an auto-layout when it is missing.
    */
   position?: NodePosition
+  /** Optional for the same reason as `position`. The canvas has a default. */
+  size?: NodeSize
   /** View-only. Never hashed. */
   label?: string
 }

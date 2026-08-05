@@ -77,6 +77,10 @@ test('moving the headline out of the safe zone lets the same export through', as
 
   await page.getByTestId('node-out').click()
   await page.getByTestId('overlay-y').fill('55')
+  // The field holds its own text and commits when you leave it, so that a poll
+  // landing between two keystrokes cannot put the old value back under the
+  // cursor. Typing is not saving; blurring is.
+  await page.getByTestId('overlay-y').blur()
 
   // Wait on the stored graph, not on the field: the commit is fire-and-forget
   // and the 1200ms poll re-seeds the node from the server, so an export fired

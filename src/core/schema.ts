@@ -7,6 +7,12 @@ import { z } from 'zod'
  */
 const position = z.object({ x: z.number(), y: z.number() }).optional()
 
+/**
+ * Floored rather than merely positive: a card small enough to be invisible is a
+ * node you can neither read nor grab back, and it arrives over HTTP.
+ */
+const size = z.object({ w: z.number().min(80), h: z.number().min(80) }).optional()
+
 const modelRole = z.enum(['draft', 'hero', 'specialist'])
 
 /** Fractions of the frame, so 0..1 rather than pixels. */
@@ -37,6 +43,7 @@ const nodeSchema = z.discriminatedUnion('type', [
     id: z.string().min(1),
     type: z.literal('source'),
     position,
+    size,
     label: z.string().optional(),
     sourceId: z.string().min(1),
   }),
@@ -44,6 +51,7 @@ const nodeSchema = z.discriminatedUnion('type', [
     id: z.string().min(1),
     type: z.literal('image'),
     position,
+    size,
     label: z.string().optional(),
     prompt: z.string(),
     modelRole,
@@ -53,6 +61,7 @@ const nodeSchema = z.discriminatedUnion('type', [
     id: z.string().min(1),
     type: z.literal('video'),
     position,
+    size,
     label: z.string().optional(),
     prompt: z.string(),
     // Bounded: duration is priced per second, and an unbounded value from a
@@ -66,6 +75,7 @@ const nodeSchema = z.discriminatedUnion('type', [
     id: z.string().min(1),
     type: z.literal('export'),
     position,
+    size,
     label: z.string().optional(),
     formats: z.array(
       z.object({ name: z.string(), w: z.number(), h: z.number(), spec: formatSpec }),

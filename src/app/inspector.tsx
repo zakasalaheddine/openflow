@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import type { FlowNode, ModelRole } from '@/core/types'
 import { DEFAULT_TEXT_BOX } from '@/core/spec'
 import { money, type NodeState } from './state'
@@ -10,6 +11,56 @@ type Props = {
   onChange: (next: FlowNode) => void
   onDelete: () => void
   onReroll: () => void
+}
+
+/**
+ * Text you are still typing belongs to the field, not to the server.
+ *
+ * Every keystroke used to save the whole graph and read it back, and the 1.2s
+ * poll answered with whatever the server last knew — so a reply that landed
+ * between two keystrokes put the old value back under the cursor and ate what
+ * you had just typed. Nine characters into a name is not nine decisions; it is
+ * one, and it is made when you leave the field.
+ *
+ * Escape puts the stored value back. Enter commits by blurring, so there is one
+ * commit path rather than two that can disagree.
+ */
+function Field({
+  label,
+  value,
+  testId,
+  onCommit,
+  ...rest
+}: {
+  label: string
+  value: string
+  testId?: string
+  onCommit: (next: string) => void
+} & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'onBlur'>) {
+  const [draft, setDraft] = useState<string | null>(null)
+
+  return (
+    <label className="field">
+      <span className="slate">{label}</span>
+      <input
+        {...rest}
+        value={draft ?? value}
+        data-testid={testId}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => {
+          if (draft !== null && draft !== value) onCommit(draft)
+          setDraft(null)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') setDraft(null)
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            event.currentTarget.blur()
+          }
+        }}
+      />
+    </label>
+  )
 }
 
 /**
@@ -34,32 +85,32 @@ export function Inspector({ node, state, onChange, onDelete, onReroll }: Props) 
         </p>
       )}
 
-      <label className="field">
-        <span className="slate">Name</span>
-        <input
-          value={node.label ?? ''}
-          placeholder={node.id}
-          data-testid="node-label"
-          onChange={(e) => onChange({ ...node, label: e.target.value })}
-        />
-      </label>
+      <Field
+        label="Name"
+        value={node.label ?? ''}
+        placeholder={node.id}
+        testId="node-label"
+        onCommit={(label) => onChange({ ...node, label })}
+      />
 
       <p className="hint">Double-click the prompt on the card to edit the direction.</p>
 
 
       {node.type === 'video' && (
         <>
-          <label className="field">
-            <span className="slate">Duration (seconds)</span>
-            <input
-              type="number"
-              min={1}
-              max={60}
-              value={node.durationSec}
-              data-testid="node-duration"
-              onChange={(e) => onChange({ ...node, durationSec: Number(e.target.value) || 1 })}
-            />
-          </label>
+          <Field
+            label="Duration (seconds)"
+            type="number"
+            min={1}
+            max={60}
+            value={String(node.durationSec)}
+            testId="node-duration"
+            // Clamped here rather than while typing: bounded on the way in used
+            // to mean clearing the field snapped it to 1 under the cursor.
+            onCommit={(next) =>
+              onChange({ ...node, durationSec: Math.min(60, Math.max(1, Number(next) || 1)) })
+            }
+          />
           <label className="field">
             <span className="slate">Audio</span>
             <select
@@ -77,43 +128,39 @@ export function Inspector({ node, state, onChange, onDelete, onReroll }: Props) 
         <>
           {/* Placed here, not asked of the model: a declared box is what makes
               the safe-zone check arithmetic instead of OCR. */}
-          <label className="field">
-            <span className="slate">Headline</span>
-            <input
-              value={node.overlay?.headline ?? ''}
-              data-testid="overlay-headline"
-              onChange={(e) =>
-                onChange({ ...node, overlay: { ...node.overlay, headline: e.target.value } })
-              }
-            />
-          </label>
-          <label className="field">
-            <span className="slate">Call to action</span>
-            <input
-              value={node.overlay?.cta ?? ''}
-              data-testid="overlay-cta"
-              onChange={(e) => onChange({ ...node, overlay: { ...node.overlay, cta: e.target.value } })}
-            />
-          </label>
-          <label className="field">
-            <span className="slate">Text position (top edge, % of frame)</span>
-            <input
-              type="number"
-              min={0}
-              max={100}
-              value={Math.round((node.overlay?.box ?? DEFAULT_TEXT_BOX).y * 100)}
-              data-testid="overlay-y"
-              onChange={(e) =>
-                onChange({
-                  ...node,
-                  overlay: {
-                    ...node.overlay,
-                    box: { ...(node.overlay?.box ?? DEFAULT_TEXT_BOX), y: Number(e.target.value) / 100 },
+          <Field
+            label="Headline"
+            value={node.overlay?.headline ?? ''}
+            testId="overlay-headline"
+            onCommit={(headline) => onChange({ ...node, overlay: { ...node.overlay, headline } })}
+          />
+          <Field
+            label="Call to action"
+            value={node.overlay?.cta ?? ''}
+            testId="overlay-cta"
+            onCommit={(cta) => onChange({ ...node, overlay: { ...node.overlay, cta } })}
+          />
+          <Field
+            label="Text position (top edge, % of frame)"
+            type="number"
+            min={0}
+            max={100}
+            value={String(Math.round((node.overlay?.box ?? DEFAULT_TEXT_BOX).y * 100))}
+            testId="overlay-y"
+            onCommit={(next) =>
+              onChange({
+                ...node,
+                overlay: {
+                  ...node.overlay,
+                  box: {
+                    ...(node.overlay?.box ?? DEFAULT_TEXT_BOX),
+                    // A fraction of the frame, so it cannot leave the frame.
+                    y: Math.min(100, Math.max(0, Number(next) || 0)) / 100,
                   },
-                })
-              }
-            />
-          </label>
+                },
+              })
+            }
+          />
           <span className="hint">
             Formats come from project settings unless this node names its own.
           </span>

@@ -18,7 +18,7 @@ import { UnsupportedCapabilityError } from '@/models/registry'
 import type { Flow, FlowNode, ModelRole, NodeId } from '@/core/types'
 import { NodeCard } from './node-card'
 import { Inspector } from './inspector'
-import { COLUMN, ROW, freeSlot, slotFor } from './slots'
+import { CARD_SOURCE, COLUMN, MIN_CARD, ROW, freeSlot, sizeOf, slotFor } from './slots'
 import { Lightbox, type Preview } from './lightbox'
 import { AssetMenu } from './asset-menu'
 import {
@@ -66,7 +66,7 @@ export function Canvas() {
 }
 
 function CanvasInner() {
-  const { fitView, screenToFlowPosition } = useReactFlow()
+  const { fitView, screenToFlowPosition, setCenter, getZoom, getNode } = useReactFlow()
 
   const [role, setRole] = useState<ModelRole>('draft')
   const [state, setState] = useState<FlowState | null>(null)
@@ -129,12 +129,20 @@ function CanvasInner() {
       if (nodeShape !== nodeShapeRef.current) {
         nodeShapeRef.current = nodeShape
         setRfNodes(
-          next.graph.nodes.map((node, index) => ({
-            id: node.id,
-            type: 'card',
-            position: node.position ?? slotFor(index),
-            data: { node, state: next.nodes[node.id] ?? BLANK },
-          })),
+          next.graph.nodes.map((node, index) => {
+            const size = sizeOf(node)
+            return {
+              id: node.id,
+              type: 'card',
+              position: node.position ?? slotFor(index),
+              // Width and height, not `style`: React Flow reads these when it
+              // measures, so the resizer drags from the size actually stored
+              // rather than from whatever the first paint happened to be.
+              width: size.w,
+              height: size.h,
+              data: { node, state: next.nodes[node.id] ?? BLANK },
+            }
+          }),
         )
         return
       }
@@ -231,15 +239,49 @@ function CanvasInner() {
     [load],
   )
 
+  /**
+   * Framed once, when the flow first arrives.
+   *
+   * This used to run on every change to the node count, which meant adding a
+   * card teleported the whole canvas: you pressed "+ image" and everything you
+   * had arranged jumped to a new zoom and offset. Deleting one did it too. The
+   * view is yours once you have touched it — a new card comes to you instead,
+   * via `reveal` below.
+   */
   const nodeCount = state?.graph.nodes.length ?? 0
+  const framedRef = useRef(false)
   useEffect(() => {
-    if (nodeCount === 0) return
+    if (nodeCount === 0 || framedRef.current) return
+    framedRef.current = true
     const id = setTimeout(() => void fitViewRef.current({ padding: 0.15, duration: 0 }), 80)
     return () => clearTimeout(id)
   }, [nodeCount])
 
+  /**
+   * Brings a just-created card into view without moving anything else.
+   *
+   * `freeSlot` counts from the top-left of the graph, so on a canvas you have
+   * panned away from, a new node lands off screen and the button reads as dead.
+   * Panned to, not fitted: the zoom you chose survives.
+   */
+  const reveal = useCallback(
+    (position: { x: number; y: number }, size: { w: number; h: number }) => {
+      setTimeout(() => {
+        void setCenter(position.x + size.w / 2, position.y + size.h / 2, {
+          zoom: getZoom(),
+          duration: 220,
+        })
+      }, 60)
+    },
+    [setCenter, getZoom],
+  )
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      // Never while someone is typing. Escape used to close the inspector out
+      // from under a half-written name, and ⌥R fired inside a prompt.
+      const target = event.target as HTMLElement | null
+      if (target?.closest('input, textarea, [contenteditable="true"]')) return
       if (event.key === 'Escape') setSelectedId(null)
       // ⌥R. The generation graph — shots and clips — is what you review; the
       // references are what make it correct, and they need not always be on
@@ -386,6 +428,7 @@ function CanvasInner() {
 
     void commit((current) => ({ ...current, nodes: [...current.nodes, node as FlowNode] }))
     setSelectedId(id)
+    reveal(position, sizeOf(node as FlowNode))
   }
 
   /**
@@ -424,11 +467,13 @@ function CanvasInner() {
 
     void commit((graph) => applyWire({ ...graph, nodes: [...graph.nodes, node] }, fromId, id, { role }))
     setSelectedId(id)
+    reveal(node.position!, sizeOf(node))
   }
 
   /** Adds a source node for an already-uploaded asset, optionally wiring it in. */
   function addSourceNode(sourceId: string, position: { x: number; y: number }, wireTo?: string) {
     const id = newId('asset')
+    reveal(position, sizeOf({ id, type: 'source', sourceId, position }))
     void commit((current) => {
       const withNode: Flow = {
         ...current,
@@ -450,7 +495,7 @@ function CanvasInner() {
     try {
       for (const file of files) {
         const { id } = await uploadFile(file)
-        addSourceNode(id, freeSlot(graphRef.current.nodes))
+        addSourceNode(id, freeSlot(graphRef.current.nodes, CARD_SOURCE))
         // `commit` is queued, so the next slot is only free once this one has
         // actually landed in the graph.
         await queueRef.current
@@ -463,7 +508,7 @@ function CanvasInner() {
   async function addNote(text: string) {
     try {
       const { id } = await createTextSource(text)
-      addSourceNode(id, freeSlot(graphRef.current.nodes))
+      addSourceNode(id, freeSlot(graphRef.current.nodes, CARD_SOURCE))
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Could not save that note')
     }
@@ -478,7 +523,7 @@ function CanvasInner() {
    * graph should not force a wire across the whole thing.
    */
   function addExistingSource(sourceId: string) {
-    addSourceNode(sourceId, freeSlot(graphRef.current.nodes))
+    addSourceNode(sourceId, freeSlot(graphRef.current.nodes, CARD_SOURCE))
   }
 
   async function handleDrop(event: React.DragEvent) {
@@ -652,30 +697,81 @@ function CanvasInner() {
           onNodesChange={(changes) => {
             onNodesChange(changes)
 
-            if (changes.some((c) => c.type === 'position' && c.dragging === true)) {
+            if (
+              changes.some(
+                (c) =>
+                  (c.type === 'position' && c.dragging === true) ||
+                  (c.type === 'dimensions' && c.resizing === true),
+              )
+            ) {
               interactingRef.current = true
               draggingRef.current = true
             }
 
+            // A resize can move the node too — the top and left handles grow the
+            // card backwards — so both are read off the node React Flow has
+            // already updated rather than reassembled from the change list.
             const ended = changes.flatMap((c) =>
-              c.type === 'position' && c.dragging === false && c.position
-                ? [{ id: c.id, position: c.position }]
+              (c.type === 'position' && c.dragging === false && c.position) ||
+              (c.type === 'dimensions' && c.resizing === false)
+                ? [c.id]
                 : [],
             )
-            // Only a drag the user actually started may be persisted: React Flow
-            // emits the same change shape when nodes are re-seeded.
+            // Only a gesture the user actually started may be persisted: React
+            // Flow emits the same change shape when nodes are re-seeded.
             if (ended.length === 0 || !draggingRef.current) return
             draggingRef.current = false
             interactingRef.current = false
 
-            const moved = new Map(ended.map((c) => [c.id, c.position]))
+            const laid = new Map(
+              ended.flatMap((id) => {
+                const rf = getNode(id)
+                if (!rf) return []
+                const measured = rf.measured
+                return [
+                  [
+                    id,
+                    {
+                      position: rf.position,
+                      size: {
+                        w: Math.round(rf.width ?? measured?.width ?? MIN_CARD.w),
+                        h: Math.round(rf.height ?? measured?.height ?? MIN_CARD.h),
+                      },
+                    },
+                  ] as const,
+                ]
+              }),
+            )
+            if (laid.size === 0) return
+
             void commit((current) => ({
               ...current,
               nodes: current.nodes.map((node) =>
-                moved.has(node.id) ? { ...node, position: moved.get(node.id)! } : node,
+                laid.has(node.id) ? { ...node, ...laid.get(node.id)! } : node,
               ),
             }))
           }}
+          /**
+           * A node deleted with the keyboard has to leave the graph, not just the
+           * screen. React Flow's Backspace handler only removes it from its own
+           * store, so the card vanished while the node stayed in `graph_json` —
+           * it came back on the next reload, and in the meantime Run still
+           * dispatched and billed a shot nobody could see.
+           */
+          deleteKeyCode={['Backspace', 'Delete']}
+          onNodesDelete={(deleted) => {
+            setSelectedId(null)
+            void commit((current) =>
+              deleted.reduce((graph, node) => removeNode(graph, node.id), current),
+            )
+          }}
+          /**
+           * Double-click belongs to the text on a card. It is how you edit a shot's
+           * direction and how you rewrite a note, and d3's dblclick zoom sits on
+           * the pane underneath every node — so every edit began by zooming the
+           * canvas in on itself. The Controls and the scroll wheel still zoom.
+           */
+          zoomOnDoubleClick={false}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onConnectStart={() => {
@@ -857,6 +953,9 @@ function CanvasInner() {
 
       {selected && (
         <Inspector
+          // Remounted per node, so a half-typed name never follows you to the
+          // next card you select.
+          key={selected.id}
           node={selected}
           state={state?.nodes[selected.id]}
           onChange={(next) =>
