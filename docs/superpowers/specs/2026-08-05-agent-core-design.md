@@ -94,8 +94,8 @@ Same rule, one more front door.
 
 | Tool | Wraps |
 |---|---|
-| `list_graph` | the read half of `/api/flow` GET — nodes, edges, sources, per-node estimate |
-| `add_node` | `nodeSchema` validation + `freeSlot` from `src/app/slots.ts` |
+| `list_graph` | `graph_json` + `listSources` + `previewRun` estimates |
+| `add_node` | `nodeSchema` validation + `freeSlot` from `src/app/slots.ts`; returns the new node's id |
 | `update_node` | patch `prompt` / `label` / `modelRole` / `durationSec` / `formats` |
 | `delete_node` | `removeNode` |
 | `wire` | **`applyWire`** |
@@ -110,6 +110,14 @@ surfaces would disagree about what is legal.
 
 `src/app/slots.ts` imports only a type from `/core`, so `freeSlot` is safe to
 call server-side. No new placement logic.
+
+`list_graph` is deliberately narrower than `/api/flow` GET. That route also
+folds in the latest `node_runs` row per node and joins the produced assets —
+logic that lives inline in the handler, not in `/core`. The agent is authoring,
+not reviewing output, so it does not need run status or asset URLs, and scoping
+the tool to graph + sources + estimates means nothing has to be extracted and
+nothing is duplicated. `add_node` returns the id it generated, because the next
+thing the agent does with a new node is wire it.
 
 From the Phase 4 list, `run_flow` is deliberately absent (see above),
 `create_flow` is unnecessary (one workspace, one flow), and `set_anchor` is
@@ -151,6 +159,32 @@ obsolete — anchors became wires in the canvas work.
 
 `graph_json` stays the single source of truth. Chat is a third writer alongside
 the canvas and `/api/flow` PATCH — same `saveGraph`, no second path.
+
+### Two writers, one row
+
+Sharing `saveGraph` buys shared validation, not concurrency safety. `saveGraph`
+is a blind full-row overwrite, and the canvas PATCHes the **entire** graph from
+its local `graphRef.current` whenever you finish dragging a card.
+
+So: the agent adds a node; before the panel's `fetchFlow()` lands, you let go of
+a card you were dragging; the canvas PATCHes a graph built from pre-agent state
+and the new node is silently gone. This is not hypothetical — `e4ff80d`,
+`08339ff` and `e2dc570` are all graph-desync fixes, and until now every writer
+was synchronous with the person doing the writing. Chat is the first that isn't.
+
+`flows.updatedAt` already exists and is already bumped by every `saveGraph`.
+Make it the token:
+
+- `/api/flow` GET returns `updatedAt` alongside the graph.
+- `/api/flow` PATCH carries the `updatedAt` the client last read, and returns
+  **409** if it no longer matches.
+- On 409 the canvas refetches and reapplies its one pending change — a drag is a
+  position edit on one node, so replaying it onto fresh state is exact.
+- Agent tools go through the same `saveGraph`, so they bump the token like any
+  other write.
+
+The failure becomes a visible retry instead of vanished work. One unit test: a
+PATCH carrying a stale `updatedAt` is rejected.
 
 ## The fixture seam
 
@@ -222,9 +256,11 @@ What refuses hard:
 - **Missing fixture** — loud in replay. Never a silent wrong answer.
 - **Step cap** — `stopWhen: stepCountIs(12)`. The panel says it stopped after 12
   steps and the graph keeps whatever was written. No runaway loop.
-- **Stream dies mid-turn** — completed tool calls are already persisted; the
-  partial assistant message is not saved. A retry replays the same request, so
-  the fixture key is stable.
+- **Stream dies mid-turn** — the assistant message is persisted **with the tool
+  calls that already ran**, before the text is complete. Otherwise a retry
+  replays a request whose history has no record of the `add_node` that already
+  landed, and the model adds the node twice. Persisting the partial turn means
+  the retry sees what happened and continues from there.
 
 No rollback. Each tool is one small mutation and the canvas already has undo.
 
@@ -241,6 +277,9 @@ No rollback. Each tool is one small mutation and the canvas already has undo.
 - two different message histories produce different keys
 - an added system-prompt line changes the key
 
+**`test/unit/flow-conflict.test.ts`**
+- a PATCH carrying a stale `updatedAt` is rejected with 409
+
 **`test/acceptance/chat-authoring.test.ts`**
 - a fixture-replayed conversation builds a flow whose `input_hash` values are
   identical to the canvas-built equivalent
@@ -248,6 +287,13 @@ No rollback. Each tool is one small mutation and the canvas already has undo.
 That last one is Phase 4's own gate, and it is the check that matters: same
 core, two front doors. If the hashes differ, logic has leaked into the agent
 layer.
+
+The criterion holds as written because `hashableConfig` is a whitelist: node
+`id` and `position` are deliberately excluded, so the test does not have to pin
+id generation or placement across the two surfaces. `seed` **is** hashed, and
+`canvas.tsx` sets `seed: 1` on every new image and video node — so `add_node`
+must default it the same way, or every hash differs for a reason that has
+nothing to do with the agent.
 
 **`e2e/chat.spec.ts`**
 - under `LLM_MODE=replay`: send a message, nodes appear on the canvas, the brief
