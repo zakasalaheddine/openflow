@@ -275,8 +275,13 @@ test('the branch line never covers the direction you are writing', async ({ page
   // worse than not being told what the branch costs while you write.
   const strip = card.locator('.node__foot--branch')
   // The branch line's opacity is CSS-transitioned (120ms), not toggled
-  // outright, so it can still be mid-fade the instant editing starts.
-  await expect.poll(() => strip.evaluate((el) => getComputedStyle(el).opacity)).toBe('0')
+  // outright, so it can still be mid-fade the instant editing starts. Bounded
+  // at 500ms — roughly 4x the transition — so a loaded CI box doesn't flake,
+  // but a real regression (the fade slowing down, or the strip staying up
+  // for a beat while you type) still fails instead of hiding inside the wait.
+  await expect
+    .poll(() => strip.evaluate((el) => getComputedStyle(el).opacity), { timeout: 500 })
+    .toBe('0')
 
   await page.keyboard.press('Escape')
   await card.hover()
