@@ -41,6 +41,15 @@ export async function closeChat(page: Page) {
  * One server serves every spec, so each starts from a known slate rather than
  * inheriting what the last one left. Uses the same public endpoints the UI
  * does — a test-only reset hatch would be a path nobody else exercises.
+ *
+ * Clears the chat thread too, not just sources and the graph. A longer
+ * thread means a longer prompt means a different fixtureKey — left in place,
+ * a flaking spec's CI retry (playwright.config.ts sets retries: 1) starts
+ * with the previous attempt's messages still on the thread and fails on
+ * MissingLlmFixtureError, deterministically, turning a transient flake into
+ * a hard break. Belongs here rather than in chat.spec.ts's own beforeEach:
+ * this is the one helper every spec already calls to start clean, and the
+ * next spec that touches chat would otherwise inherit the same trap.
  */
 export async function resetWorkspace(request: APIRequestContext) {
   const { sources } = await (await request.get('/api/sources')).json()
@@ -48,6 +57,7 @@ export async function resetWorkspace(request: APIRequestContext) {
     await request.delete(`/api/sources?id=${encodeURIComponent(source.id)}`)
   }
   await setGraph(request, { nodes: [], edges: [] })
+  await request.delete('/api/chat')
 }
 
 export async function uploadSource(request: APIRequestContext, name = 'bottle.png') {
