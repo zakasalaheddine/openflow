@@ -97,6 +97,11 @@ describe('chat and canvas agree', () => {
         .map((planned) => planned.inputHash)
         .sort()
 
+    // Without this, an empty planRun on both sides — say, because the agent
+    // added nothing — would still pass: expect([]).toEqual([]) is true. The
+    // length pins the test to the graph actually having the one runnable node
+    // it expects.
+    expect(hashes(chatFlow)).toHaveLength(1)
     expect(hashes(chatFlow)).toEqual(hashes(canvasFlow))
   })
 
