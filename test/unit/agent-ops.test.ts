@@ -38,6 +38,29 @@ describe('add_node', () => {
     expect(node).toMatchObject({ durationSec: 5, audio: false, modelRole: 'draft', seed: 1 })
   })
 
+  test('the id is deterministic from the graph, not random, so a replayed conversation gets the same id twice', () => {
+    const { ops: o } = ops()
+    const { id: first } = o.addNode({ type: 'image', prompt: 'a' })
+    const { ops: replay } = ops()
+    const { id: second } = replay.addNode({ type: 'image', prompt: 'a' })
+    expect(first).toBe(second)
+  })
+
+  test('deleting the lower-numbered of two nodes does not hand the next node an id already on the canvas', () => {
+    // A count-based id ("one more than how many image nodes exist") would
+    // regenerate image-2 here, colliding with the survivor. The id has to be
+    // one more than the highest number ever assigned in this graph, not a
+    // count of what is currently on it.
+    const { ops: o } = ops()
+    const { id: first } = o.addNode({ type: 'image', prompt: 'first' }) // image-1
+    const { id: second } = o.addNode({ type: 'image', prompt: 'second' }) // image-2
+    o.deleteNode({ id: first })
+
+    const { id: third } = o.addNode({ type: 'image', prompt: 'third' })
+    expect(third).not.toBe(second)
+    expect(new Set(o.listGraph().nodes.map((n) => n.id)).size).toBe(o.listGraph().nodes.length)
+  })
+
   test('places each node somewhere free, so two never land on top of each other', () => {
     const { ops: o } = ops()
     o.addNode({ type: 'image', prompt: 'a' })

@@ -7,9 +7,6 @@
       "toolName": "add_node",
       "input": "{\"type\":\"image\",\"prompt\":\"a hero shot of the serum on marble\"}"
     },
-    { "type": "text-start", "id": "t" },
-    { "type": "text-delta", "id": "t", "delta": "One shot on the canvas. Press Run when you want it." },
-    { "type": "text-end", "id": "t" },
-    { "type": "finish", "finishReason": "stop", "usage": { "inputTokens": 1, "outputTokens": 1, "totalTokens": 2 } }
+    { "type": "finish", "finishReason": "tool-calls", "usage": { "inputTokens": 1, "outputTokens": 1, "totalTokens": 2 } }
   ]
 }

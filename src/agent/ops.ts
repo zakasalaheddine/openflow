@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import type { Db } from '@/db'
@@ -71,9 +70,25 @@ export type UpdateNodeInput = z.infer<typeof updateNodeInput>
 
 /**
  * Ids are not hashed — hashableConfig is a whitelist that excludes id and
- * position — so the format only has to be unique and readable in a chat reply.
+ * position — so the format only has to be unique and readable in a chat
+ * reply. Deterministic, not random: one more than the highest existing
+ * `type-N` in this graph, the same counter shape the canvas uses. A tool
+ * call's result rides into the next model prompt, and LLM_MODE=replay's
+ * fixture key hashes the whole prompt — a random id made every fixture
+ * after the first tool call unrecordable. Scoped to the current graph, so
+ * a deleted node's number is free to be reused once its edges are gone
+ * with it (removeNode strips them), but never collides with a node still
+ * on the canvas.
  */
-const newId = (type: string) => `${type}-${randomUUID().slice(0, 8)}`
+const newId = (graph: Flow, type: string) => {
+  const prefix = `${type}-`
+  const last = graph.nodes.reduce((max, node) => {
+    if (!node.id.startsWith(prefix)) return max
+    const n = Number(node.id.slice(prefix.length))
+    return Number.isInteger(n) && n > max ? n : max
+  }, 0)
+  return `${prefix}${last + 1}`
+}
 
 export type Ops = ReturnType<typeof createOps>
 
@@ -141,7 +156,7 @@ export function createOps(db: Db, ids: { projectId: string; flowId: string }) {
 
     addNode(input: AddNodeInput) {
       const graph = read()
-      const id = newId(input.type)
+      const id = newId(graph, input.type)
       // freeSlot, not a fixed point: two nodes added in one turn must not land
       // on each other. Same helper the canvas toolbar uses.
       const position = freeSlot(graph.nodes)
