@@ -22,6 +22,7 @@ export type SourceRow = {
 export type FlowState = {
   projectId: string
   flowId: string
+  updatedAt: string
   graph: Flow
   sources: SourceRow[]
   nodes: Record<string, NodeState>
@@ -41,12 +42,23 @@ export async function fetchFlow(role: ModelRole): Promise<FlowState> {
   return response.json()
 }
 
-export async function saveGraph(graph: Flow) {
+export class StaleGraphError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'StaleGraphError'
+  }
+}
+
+/** `updatedAt` is the read this write was built on. A 409 means re-read and re-apply. */
+export async function saveGraph(graph: Flow, updatedAt: string) {
   const response = await fetch('/api/flow', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(graph),
+    body: JSON.stringify({ graph, updatedAt }),
   })
+  if (response.status === 409) {
+    throw new StaleGraphError(((await response.json()) as { error?: string }).error ?? 'Stale')
+  }
   if (!response.ok) {
     throw new Error(((await response.json()) as { error?: string }).error ?? 'Could not save')
   }

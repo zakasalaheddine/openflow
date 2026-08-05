@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { graphOf, resetWorkspace, uploadText, waitForLedger } from './helpers'
+import { graphOf, resetWorkspace, setGraph, uploadText, waitForLedger } from './helpers'
 
 /**
  * The gestures you make on a card, and what each of them must not disturb.
@@ -14,8 +14,7 @@ test.beforeEach(async ({ request }) => {
 })
 
 const seed = async (request: Parameters<typeof graphOf>[0]) => {
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [
         {
           id: 'marble',
@@ -27,8 +26,7 @@ const seed = async (request: Parameters<typeof graphOf>[0]) => {
         },
       ],
       edges: [],
-    },
-  })
+    })
 }
 
 const viewport = (page: import('@playwright/test').Page) =>
@@ -163,8 +161,7 @@ test('a new card does not land on a card that has been dragged somewhere', async
   // check could not see: it only knew a slot was taken if some card's origin
   // matched it to the pixel, so anything you had moved became invisible to it
   // and the next card landed squarely on top.
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [
         {
           id: 'moved',
@@ -176,8 +173,7 @@ test('a new card does not land on a card that has been dragged somewhere', async
         },
       ],
       edges: [],
-    },
-  })
+    })
   await page.goto('/')
   await waitForLedger(page)
 
@@ -235,8 +231,7 @@ test('the branch line never covers the direction you are writing', async ({ page
   // A shot feeding a clip, which is the shape of the work — so every image node
   // has a subtree and a branch line. The graph used to verify the rest of this
   // file had none, which is exactly how this got missed the first time.
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [
         {
           id: 'marble',
@@ -258,8 +253,7 @@ test('the branch line never covers the direction you are writing', async ({ page
         },
       ],
       edges: [{ id: 'e1', from: 'marble', to: 'clip', role: 'start_frame', position: null }],
-    },
-  })
+    })
   await page.goto('/')
   await waitForLedger(page)
   await page.waitForTimeout(500)
@@ -293,12 +287,10 @@ test('a note keeps the height of its card while it is being rewritten', async ({
   request,
 }) => {
   const sourceId = await uploadText(request, 'warm, unfussy, no hard sell')
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [{ id: 'voice', type: 'source', position: { x: 60, y: 60 }, sourceId }],
       edges: [],
-    },
-  })
+    })
   await page.goto('/')
   await waitForLedger(page)
   await page.waitForTimeout(400)

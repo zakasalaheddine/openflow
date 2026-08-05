@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { eq, inArray } from 'drizzle-orm'
 import { getDb } from '@/db'
 import { flows, nodeRuns, assets } from '@/db/schema'
-import { ensureWorkspace, saveGraph, listSources } from '@/core/workspace'
+import { ensureWorkspace, saveGraphIfCurrent, StaleGraphError, listSources } from '@/core/workspace'
 import { previewRun } from '@/core/preview'
 import { flowSchema } from '@/core/schema'
 import type { Flow, ModelRole } from '@/core/types'
@@ -42,6 +42,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     projectId,
     flowId,
+    updatedAt: flow.updatedAt,
     graph,
     sources: listSources(db, projectId),
     nodes: Object.fromEntries(
@@ -92,15 +93,28 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   const db = getDb()
   const { flowId } = ensureWorkspace(db)
+  const body = (await request.json().catch(() => ({}))) as { graph?: unknown; updatedAt?: string }
 
   // Validated, not trusted. graph_json is the source of truth for what gets
   // dispatched and billed, so a malformed graph must be rejected at the door
   // rather than blowing up inside the worker.
-  const parsed = flowSchema.safeParse(await request.json())
+  const parsed = flowSchema.safeParse(body.graph)
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid graph' }, { status: 400 })
   }
+  if (typeof body.updatedAt !== 'string') {
+    return NextResponse.json({ error: 'Missing the read this write was built on' }, { status: 400 })
+  }
 
-  saveGraph(db, flowId, parsed.data as Flow)
-  return NextResponse.json({ ok: true })
+  try {
+    const updatedAt = saveGraphIfCurrent(db, flowId, parsed.data as Flow, body.updatedAt)
+    return NextResponse.json({ updatedAt })
+  } catch (error) {
+    // 409, not 400: the client's graph was well formed, it is just no longer
+    // built on the newest state. Re-read and re-apply is the whole recovery.
+    if (error instanceof StaleGraphError) {
+      return NextResponse.json({ error: error.message }, { status: 409 })
+    }
+    throw error
+  }
 }

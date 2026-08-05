@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { resetWorkspace, waitForLedger, graphOf } from './helpers'
+import { resetWorkspace, setGraph, waitForLedger, graphOf } from './helpers'
 
 // A deleted node coming back is not a delete that failed. It is one GET
 // arriving out of order: the canvas polls the whole flow every 1.2s, and a poll
@@ -20,7 +20,7 @@ const CARDS = [
 
 test('a slow poll cannot resurrect a deleted node', async ({ page, request }) => {
   await resetWorkspace(request)
-  await request.patch('/api/flow', { data: { nodes: CARDS, edges: [] } })
+  await setGraph(request, { nodes: CARDS, edges: [] })
 
   // Armed only after the canvas has loaded, so what gets held is a *poll* —
   // issued while all three cards still existed, resolving after one is gone.
@@ -60,7 +60,7 @@ test('a slow poll cannot resurrect a deleted node', async ({ page, request }) =>
 
 test('a new card never lands on a slot a surviving card is already using', async ({ page, request }) => {
   await resetWorkspace(request)
-  await request.patch('/api/flow', { data: { nodes: CARDS, edges: [] } })
+  await setGraph(request, { nodes: CARDS, edges: [] })
 
   await page.goto('/')
   await waitForLedger(page)

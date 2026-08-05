@@ -1,5 +1,5 @@
 import { test, expect, type APIRequestContext } from '@playwright/test'
-import { resetWorkspace, waitForLedger, uploadText } from './helpers'
+import { resetWorkspace, setGraph, waitForLedger, uploadText } from './helpers'
 
 // Brand voice is the one asset you rewrite rather than re-upload, and it
 // composes ahead of every prompt it feeds. So a rewrite is a replacement: the
@@ -16,12 +16,10 @@ const sourceOf = async (request: APIRequestContext) =>
 
 async function noteOnCanvas(request: APIRequestContext, text: string) {
   const sourceId = await uploadText(request, text)
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [{ id: 'voice', type: 'source', sourceId, position: { x: 60, y: 80 } }],
       edges: [],
-    },
-  })
+    })
   return sourceId
 }
 
@@ -51,8 +49,7 @@ test('a note feeding nothing is rewritten in place, with no dialog in the way', 
 
 test('rewriting a note that feeds shots is priced before it commits', async ({ page, request }) => {
   const sourceId = await noteOnCanvas(request, 'warm, unfussy, no hard sell')
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [
         { id: 'voice', type: 'source', sourceId, position: { x: 40, y: 30 } },
         {
@@ -65,8 +62,7 @@ test('rewriting a note that feeds shots is priced before it commits', async ({ p
         },
       ],
       edges: [{ id: 'r1', from: 'voice', to: 'marble', role: 'reference', position: null }],
-    },
-  })
+    })
 
   await page.goto('/')
   await waitForLedger(page)
@@ -89,8 +85,7 @@ test('rewriting a note that feeds shots is priced before it commits', async ({ p
 
 test('cancelling the price leaves the note as it was', async ({ page, request }) => {
   const sourceId = await noteOnCanvas(request, 'warm, unfussy, no hard sell')
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [
         { id: 'voice', type: 'source', sourceId, position: { x: 40, y: 30 } },
         {
@@ -103,8 +98,7 @@ test('cancelling the price leaves the note as it was', async ({ page, request })
         },
       ],
       edges: [{ id: 'r1', from: 'voice', to: 'marble', role: 'reference', position: null }],
-    },
-  })
+    })
 
   await page.goto('/')
   await waitForLedger(page)
@@ -136,8 +130,7 @@ test('Escape abandons the edit and writes nothing', async ({ page, request }) =>
 
 test('a rewritten note stales the shots it feeds', async ({ page, request }) => {
   const sourceId = await noteOnCanvas(request, 'warm, unfussy, no hard sell')
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [
         { id: 'voice', type: 'source', sourceId, position: { x: 40, y: 30 } },
         {
@@ -150,8 +143,7 @@ test('a rewritten note stales the shots it feeds', async ({ page, request }) => 
         },
       ],
       edges: [{ id: 'r1', from: 'voice', to: 'marble', role: 'reference', position: null }],
-    },
-  })
+    })
 
   await page.goto('/')
   await waitForLedger(page)
@@ -171,8 +163,7 @@ test('a rewritten note stales the shots it feeds', async ({ page, request }) => 
 test('editing a note does not disturb prompt editing on a shot', async ({ page, request }) => {
   // Both use the same component now. They must not share state through it.
   const sourceId = await noteOnCanvas(request, 'warm, unfussy, no hard sell')
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [
         { id: 'voice', type: 'source', sourceId, position: { x: 40, y: 30 } },
         {
@@ -185,8 +176,7 @@ test('editing a note does not disturb prompt editing on a shot', async ({ page, 
         },
       ],
       edges: [],
-    },
-  })
+    })
 
   await page.goto('/')
   await waitForLedger(page)

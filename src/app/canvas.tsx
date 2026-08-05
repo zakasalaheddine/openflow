@@ -24,6 +24,7 @@ import { AssetMenu } from './asset-menu'
 import {
   fetchFlow,
   saveGraph,
+  StaleGraphError,
   startRun,
   startExport,
   fetchBrief,
@@ -94,6 +95,7 @@ function CanvasInner() {
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<RfEdge>([])
 
   const graphRef = useRef<Flow>({ nodes: [], edges: [] })
+  const stampRef = useRef<string>('')
   const nodeShapeRef = useRef<string>('')
   const edgeShapeRef = useRef<string>('')
   const queueRef = useRef<Promise<void>>(Promise.resolve())
@@ -110,6 +112,7 @@ function CanvasInner() {
     (next: FlowState) => {
       setState(next)
       graphRef.current = next.graph
+      stampRef.current = next.updatedAt
 
       const edgeShape = edgeShapeOf(next.graph)
       if (edgeShape !== edgeShapeRef.current) {
@@ -213,9 +216,15 @@ function CanvasInner() {
     (update: (current: Flow) => Flow) => {
       queueRef.current = queueRef.current
         .then(async () => {
+          const apply = () => {
+            const next = update(graphRef.current)
+            graphRef.current = next
+            return next
+          }
+
           let next: Flow
           try {
-            next = update(graphRef.current)
+            next = apply()
           } catch (error) {
             setNotice(
               error instanceof WiringError || error instanceof UnsupportedCapabilityError
@@ -225,11 +234,22 @@ function CanvasInner() {
             return
           }
 
-          graphRef.current = next
           try {
-            await saveGraph(next)
+            await saveGraph(next, stampRef.current)
           } catch (error) {
-            setNotice(error instanceof Error ? error.message : 'Could not save')
+            // Someone else — the agent — wrote while this edit was in hand. Take
+            // their graph and re-apply this one change on top of it, once. A
+            // second failure is a real problem, not a race.
+            if (error instanceof StaleGraphError) {
+              await load()
+              try {
+                await saveGraph(apply(), stampRef.current)
+              } catch (retry) {
+                setNotice(retry instanceof Error ? retry.message : 'Could not save')
+              }
+            } else {
+              setNotice(error instanceof Error ? error.message : 'Could not save')
+            }
           }
           await load()
         })

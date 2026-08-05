@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { readdirSync, rmSync } from 'node:fs'
 import path from 'node:path'
-import { resetWorkspace, waitForLedger, graphOf } from './helpers'
+import { resetWorkspace, setGraph, waitForLedger, graphOf } from './helpers'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -16,8 +16,7 @@ test('an export that violates a safe zone names the reason and does not ship', a
   page,
   request,
 }) => {
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [
         { id: 'marble', type: 'image', position: { x: 60, y: 80 }, prompt: 'bottle on marble', modelRole: 'draft', seed: 1, label: 'marble' },
         {
@@ -31,8 +30,7 @@ test('an export that violates a safe zone names the reason and does not ship', a
         },
       ],
       edges: [{ id: 'e1', from: 'marble', to: 'out', role: 'input', position: null }],
-    },
-  })
+    })
 
   await page.goto('/')
   await waitForLedger(page)
@@ -54,8 +52,7 @@ test('moving the headline out of the safe zone lets the same export through', as
   page,
   request,
 }) => {
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [
         { id: 'marble', type: 'image', position: { x: 60, y: 80 }, prompt: 'bottle on marble', modelRole: 'draft', seed: 1, label: 'marble' },
         {
@@ -67,8 +64,7 @@ test('moving the headline out of the safe zone lets the same export through', as
         },
       ],
       edges: [{ id: 'e1', from: 'marble', to: 'out', role: 'input', position: null }],
-    },
-  })
+    })
 
   await page.goto('/')
   await waitForLedger(page)

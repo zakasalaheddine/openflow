@@ -7,6 +7,23 @@ export const PNG = Buffer.from(
 )
 
 /**
+ * PATCHes `/api/flow` the same way the canvas does: read the current
+ * `updatedAt`, then send it back with the write. `/api/flow` rejects a PATCH
+ * that omits the stamp, so every spec that seeds or resets the graph directly
+ * goes through here rather than posting a bare `{ nodes, edges }` body.
+ *
+ * Throws loudly on a non-2xx response — a swallowed 400 here means the spec
+ * fails later on an unrelated timeout, nowhere near the actual cause.
+ */
+export async function setGraph(request: APIRequestContext, graph: unknown) {
+  const { updatedAt } = await (await request.get('/api/flow?role=draft')).json()
+  const response = await request.patch('/api/flow', { data: { graph, updatedAt } })
+  if (!response.ok()) {
+    throw new Error(`PATCH /api/flow failed: ${response.status()} ${await response.text()}`)
+  }
+}
+
+/**
  * One server serves every spec, so each starts from a known slate rather than
  * inheriting what the last one left. Uses the same public endpoints the UI
  * does — a test-only reset hatch would be a path nobody else exercises.
@@ -16,7 +33,7 @@ export async function resetWorkspace(request: APIRequestContext) {
   for (const source of sources as { id: string }[]) {
     await request.delete(`/api/sources?id=${encodeURIComponent(source.id)}`)
   }
-  await request.patch('/api/flow', { data: { nodes: [], edges: [] } })
+  await setGraph(request, { nodes: [], edges: [] })
 }
 
 export async function uploadSource(request: APIRequestContext, name = 'bottle.png') {

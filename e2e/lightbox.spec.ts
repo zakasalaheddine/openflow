@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { resetWorkspace, waitForLedger, uploadSource } from './helpers'
+import { resetWorkspace, setGraph, waitForLedger, uploadSource } from './helpers'
 
 // The card crops to 5:4 so twelve shots fit on one screen. Judging one of them
 // needs the file, not the crop.
@@ -12,12 +12,10 @@ test.beforeEach(async ({ request }) => {
 
 test('a reference opens at full size and closes on Escape', async ({ page, request }) => {
   const sourceId = await uploadSource(request)
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [{ id: 'bottle', type: 'source', sourceId, position: { x: 60, y: 80 } }],
       edges: [],
-    },
-  })
+    })
 
   await page.goto('/')
   await waitForLedger(page)
@@ -35,8 +33,7 @@ test('a reference opens at full size and closes on Escape', async ({ page, reque
 })
 
 test('a rendered shot opens its own output, and the close button works', async ({ page, request }) => {
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [
         {
           id: 'marble',
@@ -48,8 +45,7 @@ test('a rendered shot opens its own output, and the close button works', async (
         },
       ],
       edges: [],
-    },
-  })
+    })
 
   await page.goto('/')
   await waitForLedger(page)
@@ -68,12 +64,10 @@ test('opening a frame does not run it, wire it, or fan it out', async ({ page, r
   // and the canvas's alt-click fan-out both live. A preview that costs money or
   // spawns a node is worse than no preview.
   const sourceId = await uploadSource(request)
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [{ id: 'bottle', type: 'source', sourceId, position: { x: 60, y: 80 } }],
       edges: [],
-    },
-  })
+    })
 
   await page.goto('/')
   await waitForLedger(page)

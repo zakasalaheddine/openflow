@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { resetWorkspace, waitForLedger, wire, graphOf } from './helpers'
+import { resetWorkspace, setGraph, waitForLedger, wire, graphOf } from './helpers'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -18,7 +18,7 @@ const shotAndClip = {
 test('an image wired into a clip becomes its start frame', async ({ page, request }) => {
   // Not a dialog asking what the edge means: an image feeding a video is that
   // image being frame zero, and there is nothing else it could reasonably be.
-  await request.patch('/api/flow', { data: shotAndClip })
+  await setGraph(request, shotAndClip)
 
   await page.goto('/')
   await waitForLedger(page)
@@ -33,7 +33,7 @@ test('alt-clicking a shot spawns a pre-wired sibling with the previous prompt', 
   page,
   request,
 }) => {
-  await request.patch('/api/flow', { data: shotAndClip })
+  await setGraph(request, shotAndClip)
 
   await page.goto('/')
   await waitForLedger(page)
@@ -62,15 +62,13 @@ test('alt-clicking a shot spawns a pre-wired sibling with the previous prompt', 
 test('a second start frame into the same clip is refused', async ({ page, request }) => {
   // Two frame zeros would silently pick one, and the clip that came back would
   // look like a model failure.
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [
         ...shotAndClip.nodes,
         { id: 'slate', type: 'image', position: { x: 60, y: 480 }, prompt: 'bottle on slate', modelRole: 'draft', seed: 3 },
       ],
       edges: [],
-    },
-  })
+    })
 
   await page.goto('/')
   await waitForLedger(page)
