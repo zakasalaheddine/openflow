@@ -1,4 +1,4 @@
-import type { FlowNode, NodeSize } from '@/core/types'
+import type { FlowNode, NodeSize } from './types'
 
 export const COLUMN = 250
 /** A full card plus the gutter, so consecutive rows cannot touch. */
