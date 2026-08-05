@@ -23,6 +23,7 @@ function toLines(messages: { role: string; content: unknown }[]): Line[] {
 export function ChatPanel() {
   const [lines, setLines] = useState<Line[]>([])
   const [enabled, setEnabled] = useState(true)
+  const [demo, setDemo] = useState(false)
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -31,6 +32,7 @@ export function ChatPanel() {
   useEffect(() => {
     void fetchChat().then((state) => {
       setEnabled(state.enabled)
+      setDemo(state.demo)
       setLines(toLines(state.messages))
     })
   }, [])
@@ -96,7 +98,9 @@ export function ChatPanel() {
       {error && <p className="chat__error">{error}</p>}
       {!enabled && (
         <p className="chat__error">
-          Set OPENROUTER_API_KEY in .env to use chat, or LLM_MODE=replay for recorded answers.
+          {demo
+            ? 'This is a read-only demo.'
+            : 'Set OPENROUTER_API_KEY in .env to use chat, or LLM_MODE=replay for recorded answers.'}
         </p>
       )}
 

@@ -160,7 +160,7 @@ export async function startRun(
   return { kind: 'started', enqueued: body.enqueued, cached: body.cached }
 }
 
-export type ChatState = { enabled: boolean; messages: { role: string; content: unknown }[] }
+export type ChatState = { enabled: boolean; demo: boolean; messages: { role: string; content: unknown }[] }
 
 export const fetchChat = async (): Promise<ChatState> =>
   (await fetch('/api/chat', { cache: 'no-store' })).json()

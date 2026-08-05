@@ -9,12 +9,20 @@ import { llmMode, isDemo } from '@/env'
 
 export const dynamic = 'force-dynamic'
 
-/** The thread, so a reload does not lose the conversation. */
+/**
+ * The thread, so a reload does not lose the conversation.
+ *
+ * `demo` is reported separately from `enabled`, not folded into one boolean:
+ * a demo visitor cannot set an environment variable, and the panel needs to
+ * say the true reason chat is off rather than a fix that isn't theirs to make.
+ */
 export async function GET() {
   const db = getDb()
   const { flowId } = ensureWorkspace(db)
+  const demo = isDemo()
   return NextResponse.json({
-    enabled: llmMode() !== 'off' && !isDemo(),
+    enabled: llmMode() !== 'off' && !demo,
+    demo,
     messages: loadThread(db, flowId),
   })
 }
