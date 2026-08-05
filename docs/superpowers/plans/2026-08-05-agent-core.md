@@ -802,12 +802,12 @@ Swap the client and re-key the fixtures. The old `complete()` disappears with th
 - Modify: `src/app/canvas.tsx` — Brief chip becomes Brand, brief textarea removed
 - Modify: `package.json`, `.env`, `.env.example`
 - Modify: `test/unit/llm-adapter.test.ts` (rewritten), `test/unit/brief-to-flow.test.ts` (drop `briefPrompt` cases)
-- Create: `test/unit/llm-fixture-key.test.ts`
-- Delete: `test/fixtures/llm/04a6761f2bbbc1262db0289db991448a.json`
+- Create: `test/unit/llm-fixture-key.test.ts`, `e2e/brand.spec.ts`
+- Delete: `test/fixtures/llm/04a6761f2bbbc1262db0289db991448a.json`, `e2e/brief-to-flow.spec.ts`
 
 **Interfaces:**
 - Consumes: nothing from earlier tasks.
-- Produces: `createChatModel(options: { mode: LlmMode; fixtureDir?: string }): LanguageModelV3 | LanguageModelV4` — a model instance to hand to `streamText`. `LlmDisabledError`, `MissingLlmFixtureError`, `fixtureKey(request: { prompt: unknown; tools: unknown }): string`.
+- Produces: `createChatModel(options: { mode: LlmMode; fixtureDir?: string })` — a `LanguageModelV4` to hand to `streamText`. The OpenRouter provider reports `specificationVersion: 'v4'`, so V4 is the only shape involved; do not widen the type to a union. Also `LlmDisabledError`, `MissingLlmFixtureError`, `fixtureKey(request: { prompt: unknown; tools: unknown }): string`.
 - Produces: `openrouterModel(): string` from `src/env.ts`.
 
 - [ ] **Step 1: Add the dependencies**
@@ -1114,7 +1114,6 @@ import { describe, test, expect, vi, afterEach } from 'vitest'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { streamText } from 'ai'
 import { createChatModel, fixtureKey, LlmDisabledError, MissingLlmFixtureError } from '@/models/llm'
 import { llmMode, openrouterModel } from '@/env'
 
@@ -1130,8 +1129,26 @@ const HELLO = {
   ],
 }
 
-const run = (model: ReturnType<typeof createChatModel>) =>
-  streamText({ model, messages: [{ role: 'user', content: 'what would you build' }] }).text
+/**
+ * The model is exercised directly rather than through streamText.
+ *
+ * streamText turns a provider failure into AI_NoOutputGeneratedError, so a test
+ * driven through it would pass whether the adapter threw LlmDisabledError, a
+ * missing fixture, or nothing at all — which is the opposite of what these
+ * three tests exist to prove.
+ */
+const request = { prompt: [{ role: 'user', content: 'what would you build' }], tools: [] }
+
+const readText = async (stream: ReadableStream<unknown>) => {
+  const reader = stream.getReader()
+  let text = ''
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) return text
+    const chunk = value as { type: string; delta?: string }
+    if (chunk.type === 'text-delta') text += chunk.delta ?? ''
+  }
+}
 
 describe('llmMode', () => {
   test('is off when no key is set, so chat degrades instead of erroring oddly', () => {
@@ -1164,23 +1181,20 @@ describe('llmMode', () => {
 
 describe('the chat model', () => {
   test('off refuses rather than reaching for a key it does not have', async () => {
-    await expect(run(createChatModel({ mode: 'off' }))).rejects.toThrow(LlmDisabledError)
+    const model = createChatModel({ mode: 'off' })
+    await expect(model.doStream(request as never)).rejects.toThrow(LlmDisabledError)
   })
 
   test('replay serves a recorded turn and opens no socket', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'openflow-llm-'))
     try {
+      writeFileSync(path.join(dir, `${fixtureKey(request)}.json`), JSON.stringify(HELLO))
+
       const fetchSpy = vi.spyOn(globalThis, 'fetch')
-      // Record what the request will actually look like, then answer it.
       const model = createChatModel({ mode: 'replay', fixtureDir: dir })
-      const capture = streamText({ model, messages: [{ role: 'user', content: 'what would you build' }] })
-      await expect(capture.text).rejects.toThrow(MissingLlmFixtureError)
+      const { stream } = await model.doStream(request as never)
 
-      const missing = await capture.text.catch((error: Error) => error.message)
-      const file = missing.match(/at (\S+\.json)/)![1]
-      writeFileSync(file, JSON.stringify(HELLO))
-
-      expect(await run(createChatModel({ mode: 'replay', fixtureDir: dir }))).toContain('two shots')
+      expect(await readText(stream)).toContain('two shots')
       expect(fetchSpy).not.toHaveBeenCalled()
       fetchSpy.mockRestore()
     } finally {
@@ -1191,9 +1205,8 @@ describe('the chat model', () => {
   test('an unrecorded request is a loud miss, not a stale answer', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'openflow-llm-'))
     try {
-      await expect(run(createChatModel({ mode: 'replay', fixtureDir: dir }))).rejects.toThrow(
-        MissingLlmFixtureError,
-      )
+      const model = createChatModel({ mode: 'replay', fixtureDir: dir })
+      await expect(model.doStream(request as never)).rejects.toThrow(MissingLlmFixtureError)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -1215,13 +1228,44 @@ rm test/fixtures/llm/04a6761f2bbbc1262db0289db991448a.json
 
 In `test/unit/brief-to-flow.test.ts`, delete any `describe`/`test` block that imports or calls `briefPrompt`. Leave the `buildFlowFromBrief` and `loadTemplates` blocks untouched.
 
+Delete `e2e/brief-to-flow.spec.ts`. Its subject — the brief bar producing a graph — no longer exists, and it drives `data-testid="brief"`, `brief-text` and `brief-submit`, all three of which are gone. Its coverage is replaced by `e2e/chat.spec.ts` in Task 6; do not leave a rewritten stub in between.
+
+```bash
+git rm e2e/brief-to-flow.spec.ts
+```
+
+Its brand-profile assertion is worth keeping, so add this small spec in its place as `e2e/brand.spec.ts`:
+
+```typescript
+import { test, expect } from '@playwright/test'
+import { resetWorkspace, waitForLedger } from './helpers'
+
+test.beforeEach(async ({ request }) => {
+  await resetWorkspace(request)
+})
+
+test('the brand profile is written by a person and survives a reload', async ({ page }) => {
+  await page.goto('/')
+  await waitForLedger(page)
+
+  await page.getByTestId('brand').click()
+  await page.getByTestId('brand-profile').fill('Warm, editorial, never clinical.')
+  await page.getByTestId('brand-save').click()
+
+  await page.reload()
+  await waitForLedger(page)
+  await page.getByTestId('brand').click()
+  await expect(page.getByTestId('brand-profile')).toHaveValue('Warm, editorial, never clinical.')
+})
+```
+
 - [ ] **Step 10: Run the suite**
 
 Run: `npm run typecheck && npm run lint && npm run test:unit`
-Expected: PASS. If an e2e spec drives `data-testid="brief"`, update it to `data-testid="brand"` and drop its brief-submit assertions.
+Expected: PASS
 
 Run: `npm run test:e2e`
-Expected: PASS
+Expected: PASS. Grep for any remaining `brief` test ids first — `grep -rn "brief" e2e/` should return nothing but the new `brand.spec.ts` has no match at all.
 
 - [ ] **Step 11: Commit**
 
@@ -1502,7 +1546,6 @@ export function runTurn(input: {
 
 ```typescript
 import { eq } from 'drizzle-orm'
-import { asc } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getDb } from '@/db'
 import { projects, messages } from '@/db/schema'
@@ -1543,26 +1586,48 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Say what you want built.' }, { status: 400 })
   }
 
+  // Checked here, not caught below. streamText never throws synchronously: a
+  // provider that refuses produces a 200 with an empty body, so a missing key
+  // would render as a blank reply instead of the sentence naming the variable.
+  if (llmMode() === 'off') {
+    return NextResponse.json({ error: new LlmDisabledError().message }, { status: 422 })
+  }
+
   const project = db.select().from(projects).where(eq(projects.id, projectId)).get()
 
-  try {
-    const result = runTurn({
-      db,
-      ids: { projectId, flowId },
-      model: createChatModel({ mode: llmMode() }),
-      brandProfile: project?.brandProfile ?? '',
-      message,
-    })
-    return result.toTextStreamResponse()
-  } catch (error) {
-    if (error instanceof LlmDisabledError) {
-      return NextResponse.json({ error: error.message }, { status: 422 })
-    }
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Chat failed' },
-      { status: 500 },
-    )
-  }
+  const result = runTurn({
+    db,
+    ids: { projectId, flowId },
+    model: createChatModel({ mode: llmMode() }),
+    brandProfile: project?.brandProfile ?? '',
+    message,
+  })
+
+  // Hand-pumped rather than `toTextStreamResponse()`, for one reason: that
+  // helper swallows a mid-turn failure and closes the body, so a model that
+  // dies four tool calls in looks to the reader like a model with nothing to
+  // say. The tool calls already ran and the nodes are already on the canvas —
+  // saying so is the difference between a bug report and a retry.
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const encoder = new TextEncoder()
+      try {
+        for await (const chunk of result.textStream) {
+          controller.enqueue(encoder.encode(chunk))
+        }
+      } catch (error) {
+        controller.enqueue(
+          encoder.encode(
+            `\n\n[The model stopped: ${error instanceof Error ? error.message : String(error)}. Anything already on the canvas is saved.]`,
+          ),
+        )
+      } finally {
+        controller.close()
+      }
+    },
+  })
+
+  return new Response(stream, { headers: { 'content-type': 'text/plain; charset=utf-8' } })
 }
 
 /** Starting over. The graph is untouched — only the conversation is cleared. */
@@ -1574,7 +1639,7 @@ export async function DELETE() {
 }
 ```
 
-Remove the unused `asc` import if lint flags it — `loadThread` already orders.
+`loadThread` does its own ordering, so this route imports no drizzle ordering helpers.
 
 - [ ] **Step 6: Write the loop test**
 
@@ -1897,12 +1962,12 @@ Add to the stylesheet the app already imports (check `src/app/layout.tsx` for th
 .chat__empty { opacity: 0.6; font-size: 0.85rem; }
 .chat__line { white-space: pre-wrap; font-size: 0.9rem; line-height: 1.45; }
 .chat__line--user { opacity: 0.7; }
-.chat__error { padding: 0 0.75rem; color: var(--warn, #c1442e); font-size: 0.85rem; }
+.chat__error { padding: 0 0.75rem; color: var(--danger); font-size: 0.85rem; }
 .chat__compose { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.75rem; border-top: 1px solid var(--line); }
 .chat__compose textarea { resize: vertical; width: 100%; }
 ```
 
-If `--line`, `--panel` or `--warn` do not exist, use the names the stylesheet already defines.
+`--line`, `--panel`, `--danger`, `--slate` and `--ink` are all defined in `src/app/globals.css` already — do not add new colour variables.
 
 - [ ] **Step 5: Check it by hand**
 
@@ -1943,6 +2008,7 @@ import { describe, test, expect } from 'vitest'
 import { MockLanguageModelV4, simulateReadableStream } from 'ai/test'
 import { tempDb, seedProject, seedFlow, seedSource } from '../helpers/db'
 import { runTurn } from '@/agent/loop'
+import { createOps } from '@/agent/ops'
 import { saveGraph } from '@/core/workspace'
 import { planRun } from '@/core/executor'
 import { applyWire } from '@/core/wiring'
@@ -2040,39 +2106,57 @@ describe('chat and canvas agree', () => {
     expect(hashes(chatFlow)).toEqual(hashes(canvasFlow))
   })
 
-  test('a wire drawn by chat and the same wire drawn on the canvas agree too', async () => {
+  test('a clip wired to its first frame hashes the same through either door', async () => {
+    // The wire is the interesting half. inputHash folds in upstreamHashes, so a
+    // video node's hash depends on the edge existing AND on the role inferred
+    // for it. If inferRole or applyWire were re-implemented in the agent layer,
+    // this is where it shows — the first test has no edges and cannot see it.
     const { db } = tempDb()
     const projectId = seedProject(db)
-
     const chatFlow = seedFlow(db, projectId, EMPTY, 'flow-chat')
-    const turns = [
-      [
-        { type: 'stream-start', warnings: [] },
-        call('c1', 'add_node', { type: 'image', prompt: 'still' }),
-        finish('tool-calls'),
-      ],
-      [
-        { type: 'stream-start', warnings: [] },
-        call('c2', 'add_node', { type: 'video', prompt: 'push in' }),
-        finish('tool-calls'),
-      ],
-      [
-        { type: 'stream-start', warnings: [] },
-        { type: 'text-start', id: 't' },
-        { type: 'text-delta', id: 't', delta: 'Wired.' },
-        { type: 'text-end', id: 't' },
-        finish('stop'),
-      ],
-    ]
+
+    // The third turn wires whatever the first two produced. A real model would
+    // read the ids off add_node's return; the script reads them off the graph,
+    // which is the same information arriving the same way.
     let index = 0
     const model = new MockLanguageModelV4({
-      doStream: async () => ({
-        stream: simulateReadableStream({
-          chunks: turns[index++] as never[],
-          initialDelayInMs: null,
-          chunkDelayInMs: null,
-        }),
-      }),
+      doStream: async () => {
+        const nodes = createOps(db, { projectId, flowId: chatFlow }).listGraph().nodes
+        const turns = [
+          [
+            { type: 'stream-start', warnings: [] },
+            call('c1', 'add_node', { type: 'image', prompt: 'still' }),
+            finish('tool-calls'),
+          ],
+          [
+            { type: 'stream-start', warnings: [] },
+            call('c2', 'add_node', { type: 'video', prompt: 'push in' }),
+            finish('tool-calls'),
+          ],
+          [
+            { type: 'stream-start', warnings: [] },
+            call('c3', 'wire', {
+              from: nodes.find((n) => n.type === 'image')!.id,
+              to: nodes.find((n) => n.type === 'video')!.id,
+            }),
+            finish('tool-calls'),
+          ],
+          [
+            { type: 'stream-start', warnings: [] },
+            { type: 'text-start', id: 't' },
+            { type: 'text-delta', id: 't', delta: 'Wired. Press Run when you want it.' },
+            { type: 'text-end', id: 't' },
+            finish('stop'),
+          ],
+        ]
+        return {
+          stream: simulateReadableStream({
+            chunks: turns[index++] as never[],
+            initialDelayInMs: null,
+            chunkDelayInMs: null,
+          }),
+        }
+      },
     })
 
     await runTurn({
@@ -2080,7 +2164,7 @@ describe('chat and canvas agree', () => {
       ids: { projectId, flowId: chatFlow },
       model,
       brandProfile: '',
-      message: 'a still and a clip off it',
+      message: 'a still and a clip that starts from it',
     }).text
 
     const canvasFlow = seedFlow(db, projectId, EMPTY, 'flow-canvas')
@@ -2106,10 +2190,10 @@ describe('chat and canvas agree', () => {
         .map((planned) => planned.inputHash)
         .sort()
 
-    // The chat turn above adds both nodes but draws no wire, so add it the same
-    // way the canvas does — through applyWire — and compare.
-    expect(hashes(chatFlow).length).toBe(2)
-    expect(hashes(canvasFlow).length).toBe(2)
+    // Node ids and positions are excluded from hashableConfig, so two graphs
+    // built with different ids hash identically when the work is identical.
+    expect(hashes(chatFlow)).toEqual(hashes(canvasFlow))
+    expect(hashes(chatFlow)).toHaveLength(2)
   })
 })
 ```
@@ -2117,9 +2201,9 @@ describe('chat and canvas agree', () => {
 - [ ] **Step 2: Run it**
 
 Run: `npx vitest run test/acceptance/chat-authoring.test.ts`
-Expected: PASS
+Expected: PASS (2 tests)
 
-If `planRun`'s export name or return shape differs, open `src/core/executor.ts` and use whatever it actually exports — the assertion is "the set of `input_hash` values matches", not a particular helper name. Do not weaken it to a length check.
+`planRun(db, flowId, options?)` is exported from `src/core/executor.ts:84` and returns `PlannedNode[]`, each carrying `inputHash` — verified, not assumed. If either assertion fails, the agent layer has grown logic the canvas does not have. Find it. Never weaken `toEqual` to a length check: a length check is what made the first draft of this test pass while proving nothing.
 
 - [ ] **Step 3: Record an e2e fixture**
 
@@ -2201,8 +2285,10 @@ git commit -m "test(agent): the same graph, whichever door built it"
 | OpenRouter via ai-sdk; `@anthropic-ai/sdk` deleted | 3 |
 | Request-wide fixture key | 3 |
 | `off`/`replay`/`live` preserved; `OPENFLOW_RECORD_LLM=1` | 3 |
-| `briefPrompt`, `/api/brief` POST, `submitBrief`, brief bar deleted | 3 |
-| Brand profile still human-written | 3 |
+| `briefPrompt`, `/api/brief` POST, `submitBrief`, brief bar, `e2e/brief-to-flow.spec.ts` deleted | 3 |
+| Brand profile still human-written, with a browser check | 3 (`e2e/brand.spec.ts`) |
+| A missing key reaches the reader as a sentence, not a blank reply | 4 (`llmMode() === 'off'` guard before `runTurn`) |
+| A mid-turn failure reaches the reader too | 4 (hand-pumped stream, not `toTextStreamResponse`) |
 | `messages` table; system prompt from registry + graph | 4 |
 | `stopWhen: stepCountIs(12)` | 4 |
 | `isDemo()` 403 on `/api/chat` | 4 |
@@ -2232,3 +2318,4 @@ Checked against `ai@7.0.52` and `@openrouter/ai-sdk-provider@3.0.0` before this 
 - Stream chunk shapes: `{type:'stream-start',warnings:[]}`, `{type:'text-start',id}`, `{type:'text-delta',id,delta}`, `{type:'text-end',id}`, `{type:'tool-call',toolCallId,toolName,input}`, `{type:'finish',finishReason,usage}`.
 - `steps[i].response.messages` is `ModelMessage[]` and re-feeds directly into `streamText({ messages })`.
 - `result.toTextStreamResponse()` returns `200 text/plain; charset=utf-8` with the text stream as the body.
+- **`streamText` never throws synchronously.** A `doStream` that throws produces a rejected `result.text` — but the rejection is `AI_NoOutputGeneratedError` ("No output generated. Check the stream for errors."), *not* the original error, and `toTextStreamResponse()` returns **200 with an empty body**. A `try { runTurn() } catch (LlmDisabledError)` in the route would never fire, and the panel would render a blank reply. Task 4 Step 5 guards `off` before the call and wraps the stream so a mid-turn failure reaches the user as text.
