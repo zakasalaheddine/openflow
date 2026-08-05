@@ -14,6 +14,7 @@ import {
   type Edge as RfEdge,
 } from '@xyflow/react'
 import { applyWire, removeNode, WiringError } from '@/core/wiring'
+import { newNode } from '@/core/node-defaults'
 import { UnsupportedCapabilityError } from '@/models/registry'
 import type { Flow, FlowNode, ModelRole, NodeId } from '@/core/types'
 import { NodeCard } from './node-card'
@@ -439,16 +440,11 @@ function CanvasInner() {
   function addNode(type: 'image' | 'video' | 'export') {
     const id = newId(type)
     const position = freeSlot(graphRef.current.nodes)
-    const node =
-      type === 'image'
-        ? { id, type, position, prompt: '', modelRole: 'draft' as const, seed: 1 }
-        : type === 'video'
-          ? { id, type, position, prompt: '', durationSec: 5, audio: false, modelRole: 'draft' as const, seed: 1 }
-          : { id, type, position, formats: [] }
+    const node = newNode(type, { id, position })
 
-    void commit((current) => ({ ...current, nodes: [...current.nodes, node as FlowNode] }))
+    void commit((current) => ({ ...current, nodes: [...current.nodes, node] }))
     setSelectedId(id)
-    reveal(position, sizeOf(node as FlowNode))
+    reveal(position, sizeOf(node))
   }
 
   /**
@@ -474,16 +470,14 @@ function CanvasInner() {
     const anchor = from.position ?? slotFor(current.nodes.indexOf(from))
 
     const id = newId('video')
-    const node: FlowNode = {
+    const node = newNode('video', {
       id,
-      type: 'video',
       position: { x: anchor.x + COLUMN, y: anchor.y + siblings.length * ROW },
       prompt: previous && 'prompt' in previous ? previous.prompt : '',
-      durationSec: 5,
-      audio: false,
-      modelRole: 'draft',
+      // A fresh seed, not the default: an identical sibling would be a re-roll,
+      // not a fan-out.
       seed: Math.floor(Math.random() * 1_000_000),
-    }
+    })
 
     void commit((graph) => applyWire({ ...graph, nodes: [...graph.nodes, node] }, fromId, id, { role }))
     setSelectedId(id)
