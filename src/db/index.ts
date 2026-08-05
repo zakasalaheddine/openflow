@@ -61,6 +61,16 @@ function migrate(sqlite: Database.Database) {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS messages (
+      seq INTEGER PRIMARY KEY AUTOINCREMENT,
+      flow_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS messages_flow_idx ON messages(flow_id, seq);
+
     CREATE TABLE IF NOT EXISTS node_runs (
       id TEXT PRIMARY KEY,
       flow_id TEXT NOT NULL,
