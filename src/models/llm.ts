@@ -1,23 +1,25 @@
-import { readFileSync, existsSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
-import Anthropic from '@anthropic-ai/sdk'
-import type { LlmMode } from '../env'
+import { createOpenRouter } from '@openrouter/ai-sdk-provider'
+import { wrapLanguageModel, type LanguageModelMiddleware } from 'ai'
+import { MockLanguageModelV4, simulateReadableStream } from 'ai/test'
+import { canonicalJson, type JsonValue } from '../core/hash'
+import { openrouterModel, type LlmMode } from '../env'
 
 /**
  * THE ONE PLACE that talks to an LLM.
  *
  * The same seam as models/fal.ts, for the same reason: a recorded fixture makes
- * the brief path testable without a key, and CI can never accidentally spend.
+ * the chat path testable without a key, and CI can never accidentally spend.
  *
- * The model is asked for JSON matching a schema rather than trusted to produce
- * it. What comes back is still untrusted input — core/brief.ts validates it
- * against the template set before a single node is created.
+ * What comes back is still untrusted. Tool arguments are validated by their zod
+ * schemas and the resulting graph by flowSchema before anything is saved.
  */
 export class LlmDisabledError extends Error {
   constructor() {
     super(
-      'Brief-to-flow needs an LLM. Set ANTHROPIC_API_KEY (or LLM_MODE=replay to use recorded responses).',
+      'Chat needs a model. Set OPENROUTER_API_KEY (or LLM_MODE=replay to use recorded responses).',
     )
     this.name = 'LlmDisabledError'
   }
@@ -25,69 +27,106 @@ export class LlmDisabledError extends Error {
 
 export class MissingLlmFixtureError extends Error {
   constructor(file: string) {
-    super(`No LLM fixture at ${file}. Record one with LLM_MODE=live, or fix the prompt.`)
+    super(`No LLM fixture at ${file}. Record one with LLM_MODE=live OPENFLOW_RECORD_LLM=1.`)
     this.name = 'MissingLlmFixtureError'
   }
 }
 
-export type JsonSchema = Record<string, unknown>
+/**
+ * Keyed by the WHOLE request, not by one prompt string.
+ *
+ * A chat turn is a growing array of messages and tool results. Keying on a
+ * single string made every turn of one conversation collide, so replay served
+ * the wrong turn and the suite went green anyway. The tool set is folded in too:
+ * adding a tool changes what the model can answer, so it must change the key.
+ */
+export const fixtureKey = (request: { prompt: unknown; tools?: unknown }) =>
+  createHash('sha256')
+    .update(canonicalJson({ prompt: request.prompt, tools: request.tools } as JsonValue))
+    .digest('hex')
+    .slice(0, 32)
 
-export type LlmAdapter = {
-  /** Returns the model's raw JSON text. Parsing and validation happen upstream. */
-  complete(request: { prompt: string; schema: JsonSchema }): Promise<string>
+const DEFAULT_FIXTURE_DIR = path.resolve('test/fixtures/llm')
+
+/**
+ * Replay is a mock model rather than hand-rolled stream faking: ai-sdk ships
+ * MockLanguageModelV4 for exactly this, and the recorded chunks are the same
+ * shapes a real provider emits, so replay exercises the real code path.
+ */
+function replayModel(fixtureDir: string) {
+  const load = (options: { prompt: unknown; tools?: unknown }) => {
+    const file = path.join(fixtureDir, `${fixtureKey(options)}.json`)
+    if (!existsSync(file)) throw new MissingLlmFixtureError(file)
+    return JSON.parse(readFileSync(file, 'utf8')) as { chunks: unknown[] }
+  }
+
+  return new MockLanguageModelV4({
+    doStream: async (options) => ({
+      stream: simulateReadableStream({
+        chunks: load(options).chunks as never[],
+        initialDelayInMs: null,
+        chunkDelayInMs: null,
+      }),
+    }),
+  })
 }
 
-/** Keyed by prompt, so a changed prompt surfaces as a missing fixture. */
-export const fixtureKey = (prompt: string) =>
-  createHash('sha256').update(prompt).digest('hex').slice(0, 32)
-
-function replayAdapter(fixtureDir: string): LlmAdapter {
+/**
+ * The recording tap: `wrapLanguageModel`'s `wrapStream` middleware hook, not a
+ * `MockLanguageModelV4` wrapped around a real model — `wrapStream` is what the
+ * SDK ships for exactly this (observe a stream without changing what it
+ * yields), and it keeps the vocabulary honest: nothing here is mocked.
+ *
+ * Exported so a test can prove it round-trips into replay without a live key:
+ * feed it a MockLanguageModelV4, drain the tapped stream, then replay the file
+ * it wrote and check the two produce the same text.
+ */
+export function recordingMiddleware(fixtureDir: string): LanguageModelMiddleware {
   return {
-    async complete({ prompt }) {
-      const file = path.join(fixtureDir, `${fixtureKey(prompt)}.json`)
-      if (!existsSync(file)) throw new MissingLlmFixtureError(file)
-      return readFileSync(file, 'utf8')
+    wrapStream: async ({ doStream, params }) => {
+      const { stream, ...rest } = await doStream()
+      const chunks: unknown[] = []
+      const tapped = stream.pipeThrough(
+        new TransformStream({
+          transform(chunk, controller) {
+            chunks.push(chunk)
+            controller.enqueue(chunk)
+          },
+          flush() {
+            mkdirSync(fixtureDir, { recursive: true })
+            writeFileSync(
+              path.join(fixtureDir, `${fixtureKey(params)}.json`),
+              `${JSON.stringify({ chunks }, null, 2)}\n`,
+            )
+          },
+        }),
+      )
+      return { stream: tapped, ...rest }
     },
   }
 }
 
-function liveAdapter(): LlmAdapter {
-  return {
-    async complete({ prompt, schema }) {
-      const client = new Anthropic()
-      const response = await client.messages.create({
-        model: 'claude-opus-5',
-        max_tokens: 4096,
-        // Structured outputs rather than a prefill or a "reply with JSON only"
-        // plea: the response is constrained to the schema, so the failure modes
-        // that remain are the ones core/brief.ts actually checks for.
-        output_config: { format: { type: 'json_schema', schema } },
-        messages: [{ role: 'user', content: prompt }],
-      })
+/** Live, with an optional recording tap so a fixture is a run away, not a hand-write. */
+function liveModel(fixtureDir: string) {
+  const provider = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY })
+  const model = provider.chat(openrouterModel())
+  if (process.env.OPENFLOW_RECORD_LLM !== '1') return model
 
-      if (response.stop_reason === 'refusal') {
-        throw new Error('The model declined this brief.')
-      }
-      const text = response.content.find((block) => block.type === 'text')
-      if (!text || text.type !== 'text') {
-        throw new Error('The model returned no text for this brief.')
-      }
-      return text.text
-    },
-  }
+  return wrapLanguageModel({ model, middleware: recordingMiddleware(fixtureDir) })
 }
 
-export function createLlmAdapter(options: { mode: LlmMode; fixtureDir?: string }): LlmAdapter {
+export function createChatModel(options: { mode: LlmMode; fixtureDir?: string }) {
+  const fixtureDir = options.fixtureDir ?? DEFAULT_FIXTURE_DIR
   switch (options.mode) {
     case 'off':
-      return {
-        async complete() {
+      return new MockLanguageModelV4({
+        doStream: async () => {
           throw new LlmDisabledError()
         },
-      }
+      })
     case 'replay':
-      return replayAdapter(options.fixtureDir ?? path.resolve('test/fixtures/llm'))
+      return replayModel(fixtureDir)
     case 'live':
-      return liveAdapter()
+      return liveModel(fixtureDir)
   }
 }

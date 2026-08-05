@@ -30,7 +30,6 @@ import {
   startExport,
   fetchBrief,
   saveBrandProfile,
-  submitBrief,
   uploadFile,
   createTextSource,
   previewReplace,
@@ -88,8 +87,7 @@ function CanvasInner() {
   } | null>(null)
   const [dropping, setDropping] = useState(false)
   const [exported, setExported] = useState<{ written: number; refusals: string[] } | null>(null)
-  const [brief, setBrief] = useState<{ text: string; profile: string } | null>(null)
-  const [briefing, setBriefing] = useState(false)
+  const [brief, setBrief] = useState<{ profile: string } | null>(null)
   const [preview, setPreview] = useState<Preview | null>(null)
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<RfNode>([])
@@ -606,26 +604,18 @@ function CanvasInner() {
     }
   }
 
-  async function openBrief() {
-    setNotice(null)
+  async function openBrand() {
     const { brandProfile } = await fetchBrief()
-    setBrief({ text: '', profile: brandProfile })
+    setBrief({ profile: brandProfile })
   }
 
-  async function runBrief() {
+  async function saveBrand() {
     if (!brief) return
-    setBriefing(true)
     try {
-      // The profile is saved first and separately: it is a thing a person
-      // confirmed about their brand, and it should survive a brief that fails.
       await saveBrandProfile(brief.profile)
-      await submitBrief(brief.text)
       setBrief(null)
-      await load()
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Brief failed')
-    } finally {
-      setBriefing(false)
+      setNotice(error instanceof Error ? error.message : 'Could not save the brand profile')
     }
   }
 
@@ -702,8 +692,8 @@ function CanvasInner() {
           </span>
         )}
 
-        <button className="chip" onClick={() => void openBrief()} data-testid="brief">
-          Brief
+        <button className="chip" onClick={() => void openBrand()} data-testid="brand">
+          Brand
         </button>
 
         <button className="chip" onClick={() => void exportAll()} data-testid="export">
@@ -839,7 +829,7 @@ function CanvasInner() {
 
         {brief && (
           <div className="floating">
-            <div className="banner" role="dialog" aria-label="Brief">
+            <div className="banner" role="dialog" aria-label="Brand">
               <label className="field">
                 <span className="slate">Brand profile</span>
                 <textarea
@@ -850,27 +840,9 @@ function CanvasInner() {
                   onChange={(e) => setBrief({ ...brief, profile: e.target.value })}
                 />
               </label>
-              <label className="field">
-                <span className="slate">Brief</span>
-                <textarea
-                  rows={3}
-                  value={brief.text}
-                  placeholder="Launch the serum. Three scenes for a feed test."
-                  data-testid="brief-text"
-                  onChange={(e) => setBrief({ ...brief, text: e.target.value })}
-                />
-              </label>
-              {/* It writes a graph and stops. Nothing is dispatched — what comes
-                  back is a starting point, and Run stays a deliberate act. */}
-              <span className="hint">Fills a template. Nothing renders until you press Run.</span>
               <div className="banner__actions">
-                <button
-                  className="chip"
-                  disabled={briefing || !brief.text.trim()}
-                  onClick={() => void runBrief()}
-                  data-testid="brief-submit"
-                >
-                  {briefing ? 'Writing…' : 'Build the graph'}
+                <button className="run" onClick={() => void saveBrand()} data-testid="brand-save">
+                  Save
                 </button>
                 <button className="chip" onClick={() => setBrief(null)}>
                   Cancel
