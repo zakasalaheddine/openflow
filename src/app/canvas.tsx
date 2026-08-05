@@ -20,6 +20,7 @@ import { NodeCard } from './node-card'
 import { Inspector } from './inspector'
 import { COLUMN, ROW, freeSlot, slotFor } from './slots'
 import { Lightbox, type Preview } from './lightbox'
+import { AssetMenu } from './asset-menu'
 import {
   fetchFlow,
   saveGraph,
@@ -400,6 +401,49 @@ function CanvasInner() {
     })
   }
 
+  /**
+   * The toolbar's way in, for everyone who does not think to drag a file onto a
+   * canvas — and the only way at all to write a note, which until now meant
+   * dragging selected text out of another application.
+   *
+   * `freeSlot` rather than a drop point, and each upload placed against the
+   * graph as it stands: two files chosen at once must not land on each other.
+   */
+  async function addAssets(files: File[]) {
+    try {
+      for (const file of files) {
+        const { id } = await uploadFile(file)
+        addSourceNode(id, freeSlot(graphRef.current.nodes))
+        // `commit` is queued, so the next slot is only free once this one has
+        // actually landed in the graph.
+        await queueRef.current
+      }
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Upload failed')
+    }
+  }
+
+  async function addNote(text: string) {
+    try {
+      const { id } = await createTextSource(text)
+      addSourceNode(id, freeSlot(graphRef.current.nodes))
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Could not save that note')
+    }
+  }
+
+  /**
+   * Places an asset that already exists. No upload, no new row, no version bump.
+   *
+   * A second node for a source already on the canvas is allowed: hashing is
+   * keyed on sourceId and version, so both are references to the same bytes and
+   * go stale together. A product feeding shots in two far corners of a large
+   * graph should not force a wire across the whole thing.
+   */
+  function addExistingSource(sourceId: string) {
+    addSourceNode(sourceId, freeSlot(graphRef.current.nodes))
+  }
+
   async function handleDrop(event: React.DragEvent) {
     event.preventDefault()
     setDropping(false)
@@ -513,6 +557,13 @@ function CanvasInner() {
             + {type}
           </button>
         ))}
+
+        <AssetMenu
+          sources={state?.sources ?? []}
+          onUpload={(files) => void addAssets(files)}
+          onNote={(text) => void addNote(text)}
+          onPick={addExistingSource}
+        />
 
         <button
           className="chip"

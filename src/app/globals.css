@@ -712,3 +712,90 @@ button {
   border-color: var(--safelight);
   color: var(--safelight);
 }
+
+/* ---------- add-asset menu ---------- */
+
+/*
+ * Anchored to its chip rather than to the viewport, because the toolbar's
+ * layout is a flex row and the chip's position moves with it. The wrapper is
+ * the anchor; nothing here needs the top layer.
+ */
+.assets {
+  position: relative;
+  display: flex;
+}
+
+.assets__menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  min-width: 240px;
+  max-width: 320px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--line-bright);
+  border-radius: 3px;
+  background: var(--panel);
+  box-shadow: 0 12px 28px rgb(0 0 0 / 0.45);
+}
+
+.assets__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 2px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink);
+  text-align: left;
+}
+
+.assets__item:hover {
+  background: var(--raised);
+}
+
+.assets__rule {
+  height: 0;
+  margin: 4px 0;
+  border: none;
+  border-top: 1px solid var(--line);
+}
+
+.assets__glyph {
+  flex: none;
+  color: var(--slate);
+}
+
+.assets__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assets__version {
+  margin-left: auto;
+  flex: none;
+  color: var(--slate-dim);
+}
+
+.assets__note {
+  display: grid;
+  gap: 6px;
+  padding: 6px;
+}
+
+.assets__note textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 6px;
+  border: 1px solid var(--line-bright);
+  border-radius: 2px;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 12px;
+}

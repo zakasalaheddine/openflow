@@ -7,6 +7,22 @@ import { assetsDir } from '@/env'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * The name a person will recognise, kept only to be shown back to them.
+ *
+ * The stored path is a generated UUID — `storeUpload` never touches the
+ * filename, because a name is attacker-controlled and a path built from one
+ * escapes the store root. That is still true, and this changes none of it: the
+ * name lands in a column nothing resolves, opens or joins on. Without it the
+ * only label an asset has is its UUID, and two product shots are
+ * indistinguishable in every list that will ever show them.
+ *
+ * Control characters stripped and length capped, so a hostile name cannot
+ * garble the UI it is displayed in.
+ */
+const displayName = (name: string) =>
+  name.replace(/[\x00-\x1f\x7f]/g, '').trim().slice(0, 80) || undefined
+
 export async function GET() {
   const db = getDb()
   const { projectId } = ensureWorkspace(db)
@@ -46,7 +62,11 @@ export async function POST(request: Request) {
     })
 
     return NextResponse.json({
-      id: createSource(db, projectId, { kind: stored.kind, files: [stored.reference] }),
+      id: createSource(db, projectId, {
+        kind: stored.kind,
+        files: [stored.reference],
+        notes: displayName(file.name),
+      }),
       kind: stored.kind,
     })
   } catch (error) {
