@@ -38,7 +38,7 @@ const textOverlay = z
   })
   .optional()
 
-const nodeSchema = z.discriminatedUnion('type', [
+export const nodeSchema = z.discriminatedUnion('type', [
   z.object({
     id: z.string().min(1),
     type: z.literal('source'),

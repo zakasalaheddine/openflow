@@ -7,7 +7,7 @@ import { saveGraph, listSources as listProjectSources } from '@/core/workspace'
 import { applyWire, removeEdge, removeNode } from '@/core/wiring'
 import { buildFlowFromBrief, loadTemplates } from '@/core/brief'
 import { previewRun } from '@/core/preview'
-import { flowSchema } from '@/core/schema'
+import { flowSchema, nodeSchema } from '@/core/schema'
 import { newNode } from '@/core/node-defaults'
 import { freeSlot } from '@/core/slots'
 import type { Flow, FlowNode } from '@/core/types'
@@ -124,6 +124,12 @@ export function createOps(db: Db, ids: { projectId: string; flowId: string }) {
       }))
     },
 
+    /**
+     * Not a tool, and carries no input schema for that reason: `agent/prompt.ts`
+     * (Task 4) calls this directly to render the template menu into the system
+     * prompt text, and the model answers by passing a `templateId` string to
+     * `apply_template` — there is no round trip here for a schema to guard.
+     */
     listTemplates() {
       return loadTemplates().map((t) => ({
         id: t.id,
@@ -161,11 +167,33 @@ export function createOps(db: Db, ids: { projectId: string; flowId: string }) {
       const graph = read()
       const current = nodeOf(graph, input.id)
       const { id: _id, ...patch } = input
-      const next = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined))
+      const provided = Object.entries(patch).filter(([, v]) => v !== undefined)
+      const candidate = { ...current, ...Object.fromEntries(provided) }
+
+      const parsed = nodeSchema.safeParse(candidate)
+      if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? 'Invalid node')
+
+      // nodeSchema silently drops a field it doesn't recognise for this node's
+      // type — durationSec on an image, say — and safeParse still succeeds, so
+      // an update that changed nothing would otherwise come back looking like
+      // it worked. The caller here is a model that only learns from an error
+      // it's told about, so name what got dropped rather than let it move on.
+      const dropped = provided.map(([key]) => key).filter((key) => !(key in parsed.data))
+      if (dropped.length > 0) {
+        // updateNodeInput, not a hand-written list: it's already the set of
+        // fields this tool accepts, so this can only ever name a field the
+        // caller could actually have sent — never internals like `position`,
+        // and never `seed`, which nodeSchema allows but updateNodeInput does not.
+        const patchable = new Set(Object.keys(updateNodeInput.shape).filter((key) => key !== 'id'))
+        const editable = Object.keys(parsed.data).filter((key) => patchable.has(key))
+        throw new Error(
+          `A ${current.type} node has no ${dropped.join(', ')}. Its editable fields are: ${editable.join(', ')}.`,
+        )
+      }
 
       write({
         ...graph,
-        nodes: graph.nodes.map((node) => (node.id === input.id ? ({ ...current, ...next } as FlowNode) : node)),
+        nodes: graph.nodes.map((node) => (node.id === input.id ? (parsed.data as FlowNode) : node)),
       })
       return { id: input.id }
     },

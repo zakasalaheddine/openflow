@@ -60,6 +60,18 @@ describe('update_node', () => {
     const { ops: o } = ops()
     expect(() => o.updateNode({ id: 'nope', prompt: 'x' })).toThrow(/nope/)
   })
+
+  test('refuses a field the node type does not have, instead of silently dropping it', () => {
+    // An image node has no durationSec. Accepting it would let the schema
+    // strip the field, persist the unchanged node, and report success — the
+    // caller here is a model, and a silent no-op teaches it the edit landed.
+    const { ops: o } = ops()
+    const { id } = o.addNode({ type: 'image', prompt: 'first' })
+    expect(() => o.updateNode({ id, durationSec: 5 })).toThrow(/durationSec/)
+    const node = o.listGraph().nodes.find((n) => n.id === id)!
+    expect(node).toMatchObject({ prompt: 'first' })
+    expect(node).not.toHaveProperty('durationSec')
+  })
 })
 
 describe('delete_node', () => {
