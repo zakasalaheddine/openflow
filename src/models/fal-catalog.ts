@@ -44,7 +44,8 @@ export function formatFor(category: string | undefined): ModelFormat | null {
 }
 
 /** Segments that qualify the thing before them rather than naming it. */
-const QUALIFIER = /^(v?\d+([.\-]\d+)*|pro|max|ultra|master|turbo|fast|lite|mini|plus|standard|hd|preview|beta)$/i
+const QUALIFIER =
+  /^(v?\d+([.\-]\d+)*|pro|max|ultra|master|turbo|fast|lite|mini|plus|standard|hd|preview|beta|draft|distilled|schnell|dev|base)$/i
 
 const TASK = new Set([
   'text-to-image',
@@ -67,10 +68,10 @@ const TASK = new Set([
 export function shortIdFor(slug: string): string {
   const segments = slug.split('/').filter(Boolean)
   const withoutOwner = segments.length > 1 ? segments.slice(1) : segments
-  const withoutTask = [...withoutOwner]
-  while (withoutTask.length > 1 && TASK.has(withoutTask[withoutTask.length - 1])) {
-    withoutTask.pop()
-  }
+  // Dropped wherever they appear, not only at the end: fal puts the tier after
+  // the task on some models — `flux-3/image-to-video/draft` — and stripping
+  // only the tail left the id as the bare word `draft`.
+  const withoutTask = withoutOwner.filter((segment) => !TASK.has(segment))
 
   const parts: string[] = []
   for (let i = withoutTask.length - 1; i >= 0; i--) {
@@ -123,16 +124,22 @@ export function priceFrom(prose: string | null | undefined): ModelSpec['cost'] |
   if (!prose) return null
   const text = prose.replaceAll('*', '')
 
+  // "$0.15 per image", "$0.04/megapixel" — and "0.06 $ per second", which fal
+  // writes on some models and which cost this a real price until it was added.
   const amountThenUnit = text.match(
-    /\$\s*([\d.]+)\s*(?:per|\/|for each|each)\s+(image|second|megapixel|megapixels|mp)\b/i,
+    /(?:\$\s*([\d.]+)|([\d.]+)\s*\$)\s*(?:per|\/|for each|each|an|a)\s+(image|second|megapixel|megapixels|mp)\b/i,
   )
-  if (amountThenUnit) return centsFor(amountThenUnit[1], amountThenUnit[2])
+  if (amountThenUnit) {
+    return centsFor(amountThenUnit[1] ?? amountThenUnit[2], amountThenUnit[3])
+  }
 
   // "For every second of video you generated, you will be charged $0.084"
   const unitThenAmount = text.match(
-    /(?:per|every|each)\s+(image|second|megapixel|megapixels|mp)\b[^.$]{0,120}?\$\s*([\d.]+)/i,
+    /(?:per|every|each)\s+(image|second|megapixel|megapixels|mp)\b[^.$]{0,120}?(?:\$\s*([\d.]+)|([\d.]+)\s*\$)/i,
   )
-  if (unitThenAmount) return centsFor(unitThenAmount[2], unitThenAmount[1])
+  if (unitThenAmount) {
+    return centsFor(unitThenAmount[2] ?? unitThenAmount[3], unitThenAmount[1])
+  }
 
   return null
 }

@@ -15,7 +15,13 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { catalog, ensureModelsFile } from '../src/models/catalog'
-import { buildRow, type Candidate, type FalIndexEntry, type FalInputSchema } from '../src/models/fal-catalog'
+import {
+  buildRow,
+  priceFrom,
+  type Candidate,
+  type FalIndexEntry,
+  type FalInputSchema,
+} from '../src/models/fal-catalog'
 import { dataDir, loadDotEnv, modelsPath } from '../src/env'
 import type { ModelSpec } from '../src/models/registry'
 
@@ -96,12 +102,33 @@ export async function addModels(file: string) {
   const added: ModelSpec[] = []
   const skipped: string[] = []
   const assumed: string[] = []
+  const repriced: string[] = []
+
+  /**
+   * A row already in the catalog with no price gets asked again.
+   *
+   * fal edits its pricing prose, and this command's reading of it improves —
+   * "0.06 $ per second" was a real published price that went unread until the
+   * regex learned that shape. Without this pass, a row added while it could not
+   * be read stays unpriced forever, and the fix only ever reaches models you
+   * had not added yet.
+   */
+  const rows = existing.map((row) => ({ ...row }))
+  for (const row of rows) {
+    if (row.cost.amount !== null) continue
+    const entry = await findEntry(row.falEndpoint).catch(() => null)
+    const cost = priceFrom(entry?.pricingInfoOverride)
+    if (!cost || cost.amount === null) continue
+    row.cost = cost
+    row.pricingNote = entry?.pricingInfoOverride?.replaceAll('*', '').trim()
+    repriced.push(`${row.id} — ${(cost.amount / 100).toFixed(4)}/${cost.unit}`)
+  }
 
   for (const slug of wanted) {
     // Two ways to already have it: the same endpoint under any name, or the
     // same name over any endpoint. Both are duplicates — one would render twice
     // under two ids, the other would make a node id ambiguous.
-    const byEndpoint = [...existing, ...added].find(
+    const byEndpoint = [...rows, ...added].find(
       (row) => row.falEndpoint === slug || row.editEndpoint === slug,
     )
     if (byEndpoint) {
@@ -133,7 +160,7 @@ export async function addModels(file: string) {
       continue
     }
 
-    const clash = [...existing, ...added].find((row) => row.id === built.row.id)
+    const clash = [...rows, ...added].find((row) => row.id === built.row.id)
     if (clash) {
       skipped.push(`= ${slug} — the name '${built.row.id}' is taken by ${clash.falEndpoint}`)
       continue
@@ -143,15 +170,15 @@ export async function addModels(file: string) {
     if (built.assumedRefLimit) assumed.push(built.row.id)
   }
 
-  if (added.length > 0) {
-    writeFileSync(modelsPath(), `${JSON.stringify([...existing, ...added], null, 2)}\n`)
+  if (added.length > 0 || repriced.length > 0) {
+    writeFileSync(modelsPath(), `${JSON.stringify([...rows, ...added], null, 2)}\n`)
   }
 
-  return { added, skipped, assumed }
+  return { added, skipped, assumed, repriced }
 }
 
 if (process.argv[1]?.endsWith('add-models.ts')) {
-  const { added, skipped, assumed } = await addModels(listPath())
+  const { added, skipped, assumed, repriced } = await addModels(listPath())
 
   for (const row of added) {
     const caps = [
@@ -168,10 +195,13 @@ if (process.argv[1]?.endsWith('add-models.ts')) {
         : `$${(row.cost.amount / 100).toFixed(4)}/${row.cost.unit}`
     console.log(`+ ${row.id}  ${row.format}  ${price}${caps ? `  (${caps})` : ''}`)
   }
+  for (const line of repriced) console.log(`~ ${line}  (was unpriced)`)
   for (const line of skipped) console.log(`  ${line}`)
 
-  if (added.length > 0) {
-    console.log(`\n[openflow] ${added.length} added to ${modelsPath()}.`)
+  if (added.length > 0 || repriced.length > 0) {
+    console.log(
+      `\n[openflow] ${added.length} added, ${repriced.length} repriced in ${modelsPath()}.`,
+    )
     const unpriced = added.filter((row) => row.cost.amount === null)
     if (unpriced.length > 0) {
       console.log(

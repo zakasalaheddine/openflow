@@ -11,6 +11,10 @@ describe('shortIdFor', () => {
     ['fal-ai/nano-banana-pro', 'nano-banana-pro'],
     ['fal-ai/flux-2-pro/edit', 'flux-2-pro'],
     ['fal-ai/veo3.1/image-to-video', 'veo3.1'],
+    // fal puts the tier AFTER the task here. Stripping only the tail left this
+    // one as the bare word `draft`, which names nothing and collides with every
+    // other model's draft tier.
+    ['blackforestlabs/flux-3/image-to-video/draft', 'flux-3-draft'],
   ])('%s → %s', (slug, expected) => {
     expect(shortIdFor(slug)).toBe(expected)
   })
@@ -85,6 +89,14 @@ describe('priceFrom', () => {
     ).toEqual({ unit: 'second', amount: 8.4 })
   })
 
+  test('reads the dollar sign after the number, which fal also writes', () => {
+    // blackforestlabs/flux-3/image-to-video/draft, verbatim. A real, published,
+    // unambiguous price that went unread because the regex wanted the $ first.
+    expect(
+      priceFrom('Your request will be charged at **0.06** $ per second of generated draft video (720p).'),
+    ).toEqual({ unit: 'second', amount: 6 })
+  })
+
   test('keeps fractions of a cent rather than rounding them to free', () => {
     expect(priceFrom('Tentative pricing is **$0.0675** per image.')).toEqual({
       unit: 'image',
@@ -100,6 +112,17 @@ describe('priceFrom', () => {
     expect(
       priceFrom(
         'You will be charged for both input and output images. The first input image is not charged, and every additional input image will cost **$0.0045**.',
+      ),
+    ).toBeNull()
+  })
+
+  test('leaves a token-priced model unpriced, because it has no per-image number', () => {
+    // openai/gpt-image-2, verbatim. Everything here is per million tokens, and
+    // fal publishes no per-image figure anywhere — inventing one from $30/1M
+    // would need a token count per image that nobody published.
+    expect(
+      priceFrom(
+        'Text tokens (per 1M): **$5.00** input, **$1.25** cached, **$10.00** output.\nImage tokens (per 1M): **$8.00** input, **$2.00** cached, **$30.00** output.',
       ),
     ).toBeNull()
   })
