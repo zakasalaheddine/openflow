@@ -26,8 +26,11 @@ export class LlmDisabledError extends Error {
 }
 
 export class MissingLlmFixtureError extends Error {
-  constructor(file: string) {
-    super(`No LLM fixture at ${file}. Record one with LLM_MODE=live OPENFLOW_RECORD_LLM=1.`)
+  constructor(file: string, model: string) {
+    super(
+      `No LLM fixture at ${file} for ${model}. Record one with LLM_MODE=live OPENFLOW_RECORD_LLM=1, ` +
+        'or set OPENROUTER_MODEL back to the model the fixtures were recorded under.',
+    )
     this.name = 'MissingLlmFixtureError'
   }
 }
@@ -39,10 +42,22 @@ export class MissingLlmFixtureError extends Error {
  * single string made every turn of one conversation collide, so replay served
  * the wrong turn and the suite went green anyway. The tool set is folded in too:
  * adding a tool changes what the model can answer, so it must change the key.
+ *
+ * So does the model, for the same reason and one more. OPENROUTER_MODEL is one
+ * line to swap Opus for Kimi or MiniMax; without the model in the key, a turn
+ * recorded under the new one silently overwrites the old fixture, and replay
+ * then serves an answer no configured model ever gave. Fixtures are per-model
+ * because answers are.
  */
-export const fixtureKey = (request: { prompt: unknown; tools?: unknown }) =>
+export const fixtureKey = (request: { model: string; prompt: unknown; tools?: unknown }) =>
   createHash('sha256')
-    .update(canonicalJson({ prompt: request.prompt, tools: request.tools } as JsonValue))
+    .update(
+      canonicalJson({
+        model: request.model,
+        prompt: request.prompt,
+        tools: request.tools,
+      } as JsonValue),
+    )
     .digest('hex')
     .slice(0, 32)
 
@@ -53,10 +68,10 @@ const DEFAULT_FIXTURE_DIR = path.resolve('test/fixtures/llm')
  * MockLanguageModelV4 for exactly this, and the recorded chunks are the same
  * shapes a real provider emits, so replay exercises the real code path.
  */
-function replayModel(fixtureDir: string) {
+function replayModel(fixtureDir: string, model: string) {
   const load = (options: { prompt: unknown; tools?: unknown }) => {
-    const file = path.join(fixtureDir, `${fixtureKey(options)}.json`)
-    if (!existsSync(file)) throw new MissingLlmFixtureError(file)
+    const file = path.join(fixtureDir, `${fixtureKey({ ...options, model })}.json`)
+    if (!existsSync(file)) throw new MissingLlmFixtureError(file, model)
     return JSON.parse(readFileSync(file, 'utf8')) as { chunks: unknown[] }
   }
 
@@ -81,7 +96,7 @@ function replayModel(fixtureDir: string) {
  * feed it a MockLanguageModelV4, drain the tapped stream, then replay the file
  * it wrote and check the two produce the same text.
  */
-export function recordingMiddleware(fixtureDir: string): LanguageModelMiddleware {
+export function recordingMiddleware(fixtureDir: string, model: string): LanguageModelMiddleware {
   return {
     wrapStream: async ({ doStream, params }) => {
       const { stream, ...rest } = await doStream()
@@ -95,7 +110,7 @@ export function recordingMiddleware(fixtureDir: string): LanguageModelMiddleware
           flush() {
             mkdirSync(fixtureDir, { recursive: true })
             writeFileSync(
-              path.join(fixtureDir, `${fixtureKey(params)}.json`),
+              path.join(fixtureDir, `${fixtureKey({ ...params, model })}.json`),
               `${JSON.stringify({ chunks }, null, 2)}\n`,
             )
           },
@@ -107,16 +122,20 @@ export function recordingMiddleware(fixtureDir: string): LanguageModelMiddleware
 }
 
 /** Live, with an optional recording tap so a fixture is a run away, not a hand-write. */
-function liveModel(fixtureDir: string) {
+function liveModel(fixtureDir: string, id: string) {
   const provider = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY })
-  const model = provider.chat(openrouterModel())
+  const model = provider.chat(id)
   if (process.env.OPENFLOW_RECORD_LLM !== '1') return model
 
-  return wrapLanguageModel({ model, middleware: recordingMiddleware(fixtureDir) })
+  return wrapLanguageModel({ model, middleware: recordingMiddleware(fixtureDir, id) })
 }
 
-export function createChatModel(options: { mode: LlmMode; fixtureDir?: string }) {
+export function createChatModel(options: { mode: LlmMode; fixtureDir?: string; model?: string }) {
   const fixtureDir = options.fixtureDir ?? DEFAULT_FIXTURE_DIR
+  // Replay reads the same variable live does. A fixture belongs to the model
+  // that would have been called, so swapping OPENROUTER_MODEL misses loudly
+  // instead of replaying the previous model's answer.
+  const model = options.model ?? openrouterModel()
   switch (options.mode) {
     case 'off':
       return new MockLanguageModelV4({
@@ -125,8 +144,8 @@ export function createChatModel(options: { mode: LlmMode; fixtureDir?: string })
         },
       })
     case 'replay':
-      return replayModel(fixtureDir)
+      return replayModel(fixtureDir, model)
     case 'live':
-      return liveModel(fixtureDir)
+      return liveModel(fixtureDir, model)
   }
 }

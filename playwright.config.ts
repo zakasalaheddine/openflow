@@ -45,6 +45,10 @@ export default defineConfig({
       // Recorded responses, keyed by prompt. A prompt change surfaces as a
       // missing fixture rather than a live call CI would pay for.
       LLM_MODE: 'replay',
+      // Pinned because the model is part of the fixture key. Left unset, `next
+      // start` reads OPENROUTER_MODEL from whatever .env the developer keeps,
+      // and the checked-in fixtures stop matching for everyone who swapped it.
+      OPENROUTER_MODEL: 'anthropic/claude-opus-5',
     },
   },
 })

@@ -18,7 +18,7 @@ npm run studio
 
 `npm run studio` boots the server, builds on first run, creates the database, opens a browser, and asks for a fal key. An empty answer is a valid answer — the canvas opens and Run asks again when you need it.
 
-Chat needs an OpenRouter key. Put `OPENROUTER_API_KEY` in `.env` and, if you want a different model, `OPENROUTER_MODEL` (default `anthropic/claude-opus-5`). Without a key the panel says so and the canvas works as before.
+Chat needs an OpenRouter key. Put `OPENROUTER_API_KEY` in `.env` and, if you want a different model, `OPENROUTER_MODEL` (default `anthropic/claude-opus-5`; anything on OpenRouter that supports tool use — the agent is nothing but tool calls). Without a key the panel says so and the canvas works as before. Recorded chat fixtures are keyed to the model that produced them, so the suites pin the default and swapping models never overwrites them.
 
 **There is no `npx openflow-studio`, and this README used to claim otherwise.** A Next app cannot be built from inside a `node_modules` directory, which is all `npx` is; the details, and the two other ways it fails, are in [`docs/phases/phase-3-video-export-ship.md`](./docs/phases/phase-3-video-export-ship.md). Cloning is the path this project actually tests.
 

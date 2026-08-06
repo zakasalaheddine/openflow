@@ -73,6 +73,9 @@ describe('llmMode', () => {
     expect(llmMode()).toBe('replay')
   })
 
+  // The literal is asserted, not read from env: the checked-in fixtures are
+  // keyed to this exact string and both test configs pin it, so bumping the
+  // default in env.ts has to fail here rather than drift away from them.
   test('the model is one environment variable, with a working default', () => {
     vi.stubEnv('OPENROUTER_MODEL', '')
     expect(openrouterModel()).toBe('anthropic/claude-opus-5')
@@ -90,7 +93,10 @@ describe('the chat model', () => {
   test('replay serves a recorded turn and opens no socket', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'openflow-llm-'))
     try {
-      writeFileSync(path.join(dir, `${fixtureKey(request)}.json`), JSON.stringify(HELLO))
+      writeFileSync(
+        path.join(dir, `${fixtureKey({ ...request, model: openrouterModel() })}.json`),
+        JSON.stringify(HELLO),
+      )
 
       const fetchSpy = vi.spyOn(globalThis, 'fetch')
       const model = createChatModel({ mode: 'replay', fixtureDir: dir })
@@ -115,9 +121,38 @@ describe('the chat model', () => {
   })
 
   test('the key is the request, so two different requests cannot share a fixture', () => {
-    expect(fixtureKey({ prompt: [{ role: 'user', content: 'a' }], tools: [] })).not.toBe(
-      fixtureKey({ prompt: [{ role: 'user', content: 'b' }], tools: [] }),
+    const model = 'anthropic/claude-opus-5'
+    expect(fixtureKey({ model, prompt: [{ role: 'user', content: 'a' }], tools: [] })).not.toBe(
+      fixtureKey({ model, prompt: [{ role: 'user', content: 'b' }], tools: [] }),
     )
+  })
+
+  // OPENROUTER_MODEL is one line to swap. Without this, recording the same turn
+  // under a second model overwrites the first one's fixture in place, and replay
+  // then serves an answer neither model gave under the model it is set to.
+  test('the model is in the key, so swapping it cannot overwrite the old fixture', () => {
+    const prompt = [{ role: 'user', content: 'a' }]
+    expect(fixtureKey({ model: 'anthropic/claude-opus-5', prompt, tools: [] })).not.toBe(
+      fixtureKey({ model: 'moonshotai/kimi-k3', prompt, tools: [] }),
+    )
+  })
+
+  test('replay misses loudly when the model changed under it', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'openflow-llm-'))
+    try {
+      writeFileSync(
+        path.join(dir, `${fixtureKey({ ...request, model: 'anthropic/claude-opus-5' })}.json`),
+        JSON.stringify(HELLO),
+      )
+      const model = createChatModel({
+        mode: 'replay',
+        fixtureDir: dir,
+        model: 'moonshotai/kimi-k3',
+      })
+      await expect(model.doStream(request as never)).rejects.toThrow(MissingLlmFixtureError)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 
@@ -141,7 +176,7 @@ describe('the recording tap', () => {
           }),
         }),
       })
-      const tapped = wrapLanguageModel({ model: stub, middleware: recordingMiddleware(dir) })
+      const tapped = wrapLanguageModel({ model: stub, middleware: recordingMiddleware(dir, openrouterModel()) })
 
       const { stream } = await tapped.doStream(request as never)
       expect(await readText(stream)).toContain('two shots')
