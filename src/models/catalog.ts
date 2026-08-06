@@ -33,9 +33,10 @@ const modelSpecSchema = z.object({
   cost: z.object({
     unit: z.enum(['image', 'megapixel', 'second']),
     // Cents, and never negative: a negative row would let a run cancel out real
-    // cost and slip past the spend cap.
-    amount: z.number().min(0),
+    // cost and slip past the spend cap. Null means unpriced — see ModelSpec.
+    amount: z.number().min(0).nullable(),
   }),
+  pricingNote: z.string().optional(),
   verifiedOn: z.string().nullable(),
 })
 

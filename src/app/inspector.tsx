@@ -64,7 +64,10 @@ function Field({
   )
 }
 
-const perUnit = (cost: ModelRow['cost']) => `${money(cost.amount)}/${cost.unit}`
+const perUnit = (cost: ModelRow['cost']) =>
+  // Never "$0.00". A row nobody has priced is not a free model, and reading it
+  // as one is how a comparison picks the wrong winner.
+  cost.amount === null ? 'unpriced' : `${money(cost.amount)}/${cost.unit}`
 
 /** What this model can be asked for, in the terms the wiring rules refuse on. */
 const capsLine = (row: ModelRow) =>
@@ -116,7 +119,11 @@ function ModelField({
         ))}
       </select>
       <span className="hint" data-testid="node-model-caps">
-        {current ? capsLine(current) : 'Add it to models.json, or pick one that is there.'}
+        {!current
+          ? 'Add it to models.json, or pick one that is there.'
+          : current.cost.amount === null
+            ? `No price — fal published none. Set cost.amount in models.json before running it. · ${capsLine(current)}`
+            : capsLine(current)}
       </span>
     </label>
   )

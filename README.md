@@ -56,7 +56,15 @@ Read these first. They are the immune system of this project.
 
 ## Models are rows in a file you edit
 
-The catalog is `models.json` in your data dir, seeded on first boot from the six rows that ship. Adding a fal model is an edit to that file — a slug, its capabilities and its price — and it appears in the picker on the next canvas reload. No rebuild, no pull request.
+The catalog is `models.json` in your data dir, seeded on first boot from the six rows that ship. To add more, write fal model ids into `models.txt` beside it — one per line — and run:
+
+```bash
+npm run models:add
+```
+
+Everything else comes from fal: the medium from its category, the capabilities from its OpenAPI input schema, the price from the sentence on its model page. Ids you already have are skipped, so the file is a list you keep rather than a queue you clear. You can also just edit `models.json` by hand — the command writes the same rows you would.
+
+fal publishes no readable price for roughly half its catalogue. Those rows land **unpriced**: selectable, comparable, and refused at Run by name until you set `cost.amount` yourself. Never zero — a zero quotes $0.00 before a Run and the spend cap approves an invoice it never saw. Every row keeps `pricingNote`, the sentence its price was read out of, because fal's prose carries conditions a regex cannot ("4K outputs are charged at double").
 
 | Image | Video |
 |---|---|

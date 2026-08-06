@@ -63,10 +63,18 @@ export async function GET() {
         // planRun skips a node whose model has left the catalog so the canvas
         // still loads. The card has to say so, or it reads as an ordinary
         // unrendered shot that Run mysteriously refuses.
+        const row =
+          node.type === 'image' || node.type === 'video'
+            ? catalog().find((m) => m.id === node.modelId)
+            : undefined
         const missingModel =
-          (node.type === 'image' || node.type === 'video') && !catalog().some((m) => m.id === node.modelId)
-            ? `No model '${node.modelId}' in the catalog. Pick another, or add it to models.json.`
-            : null
+          node.type !== 'image' && node.type !== 'video'
+            ? null
+            : !row
+              ? `No model '${node.modelId}' in the catalog. Pick another, or add it to models.json.`
+              : row.cost.amount === null
+                ? `${row.id} has no price. fal published none — set its cost.amount in models.json before running it.`
+                : null
         // Matched on inputHash, never just nodeId — the same rule exporter.ts's
         // currentRun follows. Node ids are deterministic now (agent/ops.ts's
         // newId recycles a freed suffix), so a stale run for a deleted node can

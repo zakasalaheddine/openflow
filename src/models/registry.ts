@@ -22,7 +22,21 @@ export type ModelSpec = {
     nativeAudio: boolean
     maxDurationSec?: number
   }
-  cost: { unit: 'image' | 'megapixel' | 'second'; amount: number }
+  /**
+   * `amount` is null when nobody has priced it yet — fal publishes no price for
+   * roughly half its catalogue, and `npm run models:add` adds those rows rather
+   * than dropping them. An unpriced row is selectable and unrunnable: Run
+   * refuses it by name, because a render whose cost the ledger cannot see is a
+   * spend cap that cannot do its job.
+   */
+  cost: { unit: 'image' | 'megapixel' | 'second'; amount: number | null }
+  /**
+   * The sentence fal published the price in, kept verbatim for rows added by
+   * `npm run models:add`. The number above was read out of it by a regex, and
+   * fal's pricing prose carries conditions a regex cannot ("4K outputs are
+   * charged at double"), so this is what you check the number against.
+   */
+  pricingNote?: string
   /** ISO date of the last live call that worked, or null if never called. */
   verifiedOn: string | null
 }
@@ -40,6 +54,16 @@ export class UnsupportedCapabilityError extends Error {
  * as a graph asking a model for something it cannot do: refusable, explainable,
  * and never something to discover after fal has been paid.
  */
+/** Selectable, and refused at Run until someone writes the number down. */
+export class UnpricedModelError extends UnsupportedCapabilityError {
+  constructor(id: string) {
+    super(
+      `${id} has no price. fal did not publish one — set its cost.amount in models.json before running it.`,
+    )
+    this.name = 'UnpricedModelError'
+  }
+}
+
 export class UnknownModelError extends UnsupportedCapabilityError {
   constructor(id: string) {
     super(`No model '${id}' in the catalog. Add it to models.json or pick another on the node.`)
@@ -208,6 +232,7 @@ export type CostQuantity = {
 /** Gives the pre-run estimate, and therefore the spend cap, for free. */
 export function estimateCostCents(model: ModelSpec, quantity: CostQuantity): number {
   const { unit, amount } = model.cost
+  if (amount === null) throw new UnpricedModelError(model.id)
   let units: number
   switch (unit) {
     case 'image':
@@ -225,3 +250,6 @@ export function estimateCostCents(model: ModelSpec, quantity: CostQuantity): num
   // spend cap by cancelling out a real cost.
   return Math.max(0, units * amount)
 }
+
+/** A row nobody has put a number on yet. Selectable, never runnable. */
+export const isPriced = (model: ModelSpec) => model.cost.amount !== null

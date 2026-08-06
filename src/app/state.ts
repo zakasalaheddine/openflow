@@ -32,7 +32,7 @@ export type ModelRow = {
     nativeAudio: boolean
     maxDurationSec?: number
   }
-  cost: { unit: 'image' | 'megapixel' | 'second'; amount: number }
+  cost: { unit: 'image' | 'megapixel' | 'second'; amount: number | null }
 }
 
 export type FlowState = {

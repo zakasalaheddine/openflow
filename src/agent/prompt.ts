@@ -17,7 +17,7 @@ export function systemPrompt(input: { brandProfile: string; ops: Ops }) {
         `${m.caps.startEndFrame ? ', accepts a start frame' : ''}` +
         `${m.caps.textRendering ? ', renders legible text' : ''}` +
         `${m.caps.maxDurationSec ? `, max ${m.caps.maxDurationSec}s` : ''}` +
-        ` — ${(m.cost.amount / 100).toFixed(3)} per ${m.cost.unit}`,
+        ` — ${m.cost.amount === null ? 'unpriced, cannot be run until someone prices it' : `${(m.cost.amount / 100).toFixed(3)} per ${m.cost.unit}`}`,
     )
     .join('\n')
 
