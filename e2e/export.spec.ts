@@ -9,7 +9,7 @@ const EXPORTS = path.resolve(import.meta.dirname, '..', '.playwright-exports')
 
 const shotThenExport = (overlay?: Record<string, unknown>, formats: unknown[] = []) => ({
   nodes: [
-    { id: 'marble', type: 'image', position: { x: 60, y: 80 }, prompt: 'bottle on marble', modelRole: 'draft', seed: 1, label: 'marble' },
+    { id: 'marble', type: 'image', position: { x: 60, y: 80 }, prompt: 'bottle on marble', modelId: 'flux-2-pro', seed: 1, label: 'marble' },
     { id: 'out', type: 'export', position: { x: 420, y: 80 }, formats, ...(overlay ? { overlay } : {}) },
   ],
   edges: [{ id: 'e1', from: 'marble', to: 'out', role: 'input', position: null }],

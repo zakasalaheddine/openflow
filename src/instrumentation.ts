@@ -13,7 +13,7 @@ export async function register() {
   const { getDb } = await import('./db')
   const { startWorker } = await import('./worker/loop')
   const { createAdapter } = await import('./models/fal')
-  const { ensureModelsFile } = await import('./models/registry')
+  const { ensureModelsFile } = await import('./models/catalog')
   const { falMode, isDemo } = await import('./env')
 
   const mode = falMode()

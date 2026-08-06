@@ -16,7 +16,7 @@ const spec: FlowFile = {
   flow: {
     nodes: [
       { id: 'bottle', type: 'source', sourceId: 'src:bottle' },
-      { id: 'marble', type: 'image', prompt: 'bottle on marble', modelRole: 'draft', seed: 1 },
+      { id: 'marble', type: 'image', prompt: 'bottle on marble', modelId: 'flux-2-pro', seed: 1 },
     ],
     edges: [{ id: 'e1', from: 'bottle', to: 'marble', role: 'reference', position: null }],
   },

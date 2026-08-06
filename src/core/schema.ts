@@ -13,8 +13,6 @@ const position = z.object({ x: z.number(), y: z.number() }).optional()
  */
 const size = z.object({ w: z.number().min(80), h: z.number().min(80) }).optional()
 
-const modelRole = z.enum(['draft', 'hero', 'specialist'])
-
 /** Fractions of the frame, so 0..1 rather than pixels. */
 const fraction = z.number().min(0).max(1)
 
@@ -54,7 +52,9 @@ export const nodeSchema = z.discriminatedUnion('type', [
     size,
     label: z.string().optional(),
     prompt: z.string(),
-    modelRole,
+    // Validated as a string here and against the catalog on save: schema.ts is
+    // pure and has no business reading a file off disk.
+    modelId: z.string().min(1),
     seed: z.number().int().optional(),
   }),
   z.object({
@@ -68,7 +68,7 @@ export const nodeSchema = z.discriminatedUnion('type', [
     // client is an unbounded invoice.
     durationSec: z.number().min(1).max(60),
     audio: z.boolean(),
-    modelRole,
+    modelId: z.string().min(1),
     seed: z.number().int().optional(),
   }),
   z.object({

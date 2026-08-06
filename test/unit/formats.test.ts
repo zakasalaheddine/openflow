@@ -17,7 +17,7 @@ const DOOH = { name: 'DOOH 4:5', w: 864, h: 1080 }
 
 const graph = (over: Partial<ExportNode> = {}): Flow => ({
   nodes: [
-    { id: 'shot', type: 'image', prompt: 'bottle on marble', modelRole: 'draft', label: 'shot' },
+    { id: 'shot', type: 'image', prompt: 'bottle on marble', modelId: 'flux-2-pro', label: 'shot' },
     { id: 'out', type: 'export', formats: [], ...over },
   ],
   edges: [{ id: 'e1', from: 'shot', to: 'out', role: 'input', position: null }],

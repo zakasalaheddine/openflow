@@ -7,7 +7,7 @@ test.beforeEach(async ({ request }) => {
   await resetWorkspace(request)
   await setGraph(request, {
       nodes: [
-        { id: 'marble', type: 'image', position: { x: 60, y: 80 }, prompt: 'bottle on marble', modelRole: 'draft', seed: 7 },
+        { id: 'marble', type: 'image', position: { x: 60, y: 80 }, prompt: 'bottle on marble', modelId: 'flux-2-pro', seed: 7 },
       ],
       edges: [],
     })

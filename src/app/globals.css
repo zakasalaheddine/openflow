@@ -463,6 +463,20 @@ button {
   color: var(--slate);
 }
 
+/*
+ * Between the status and the price, and allowed to run out of room before
+ * either of them does: a long fal slug must never push the bill off the card.
+ */
+.node__model {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 6px;
+  opacity: 0.75;
+}
+
 .node__status[data-status='succeeded'] {
   color: var(--fixed);
 }

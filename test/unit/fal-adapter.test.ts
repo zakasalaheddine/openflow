@@ -9,9 +9,9 @@ import {
   MissingFixtureError,
   type FalRawResult,
 } from '@/models/fal'
-import { resolveModel } from '@/models/registry'
+import { modelById } from '@/models/catalog'
 
-const model = resolveModel('image', 'draft')
+const model = modelById('flux-2-pro')
 
 describe('parseOutputs', () => {
   // Every assumption about fal's response shape lives in this one function.
@@ -132,7 +132,7 @@ describe('adapter in `stub` mode', () => {
   // of the worker reads the file rather than the row. A placeholder makes the
   // probe, the transcode, the export resize and the spec check all pass on
   // bytes that are not media at all.
-  const videoModel = resolveModel('video', 'draft')
+  const videoModel = modelById('hailuo-2-3-pro')
 
   const bytesOf = async (spec: typeof model) => {
     const adapter = createAdapter({ mode: 'stub' })
@@ -204,7 +204,7 @@ describe('adapter in `live` mode', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const adapter = createAdapter({ mode: 'live' })
-    const video = resolveModel('video', 'draft')
+    const video = modelById('hailuo-2-3-pro')
     const { requestId } = await adapter.submit({ model: video, input: {}, hash: 'abc' })
     const result = await adapter.poll(requestId)
 

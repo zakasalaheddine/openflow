@@ -1,13 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import type { FlowNode, ModelRole } from '@/core/types'
+import type { FlowNode } from '@/core/types'
 import { DEFAULT_TEXT_BOX } from '@/core/spec'
-import { money, type NodeState } from './state'
+import { money, type ModelRow, type NodeState } from './state'
 
 type Props = {
   node: FlowNode
   state: NodeState | undefined
+  models: ModelRow[]
   onChange: (next: FlowNode) => void
   onDelete: () => void
   onReroll: () => void
@@ -63,12 +64,70 @@ function Field({
   )
 }
 
+const perUnit = (cost: ModelRow['cost']) => `${money(cost.amount)}/${cost.unit}`
+
+/** What this model can be asked for, in the terms the wiring rules refuse on. */
+const capsLine = (row: ModelRow) =>
+  [
+    row.caps.refImages > 0 ? `${row.caps.refImages} reference image(s)` : 'no reference images',
+    row.caps.startEndFrame ? 'accepts a start frame' : null,
+    row.caps.textRendering ? 'renders legible text' : null,
+    row.caps.nativeAudio ? 'native audio' : null,
+    row.caps.maxDurationSec ? `up to ${row.caps.maxDurationSec}s` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+/**
+ * The model is the node's, and the price of the choice is on the choice.
+ *
+ * Listed from the catalog the server sent rather than anything hardcoded here:
+ * adding a row to models.json has to be enough to make it selectable, or the
+ * file would only be half the source of truth.
+ */
+function ModelField({
+  node,
+  models,
+  onChange,
+}: {
+  node: Extract<FlowNode, { modelId: string }>
+  models: ModelRow[]
+  onChange: (next: FlowNode) => void
+}) {
+  const format = node.type === 'image' ? 'image' : 'video'
+  const rows = models.filter((m) => m.format === format)
+  const current = rows.find((m) => m.id === node.modelId)
+
+  return (
+    <label className="field">
+      <span className="slate">Model</span>
+      <select
+        value={node.modelId}
+        data-testid="node-model"
+        onChange={(e) => onChange({ ...node, modelId: e.target.value })}
+      >
+        {/* A model the catalog no longer has still has to be visible, or the
+            select would silently show some other model as this node's. */}
+        {!current && <option value={node.modelId}>{node.modelId} — not in the catalog</option>}
+        {rows.map((row) => (
+          <option key={row.id} value={row.id}>
+            {row.id} — {perUnit(row.cost)}
+          </option>
+        ))}
+      </select>
+      <span className="hint" data-testid="node-model-caps">
+        {current ? capsLine(current) : 'Add it to models.json, or pick one that is there.'}
+      </span>
+    </label>
+  )
+}
+
 /**
  * Re-roll and prompt editing sit side by side but read differently on purpose:
  * re-roll keeps the direction and changes the dice, editing changes the
  * direction. Confusing the two means re-rolling a bad idea forever.
  */
-export function Inspector({ node, state, onChange, onDelete, onReroll }: Props) {
+export function Inspector({ node, state, models, onChange, onDelete, onReroll }: Props) {
 
   return (
     <aside className="inspector" aria-label={`Inspector for ${node.id}`}>
@@ -167,20 +226,7 @@ export function Inspector({ node, state, onChange, onDelete, onReroll }: Props) 
         </>
       )}
 
-      {'modelRole' in node && (
-        <label className="field">
-          <span className="slate">Model role</span>
-          <select
-            value={node.modelRole}
-            data-testid="node-role"
-            onChange={(e) => onChange({ ...node, modelRole: e.target.value as ModelRole })}
-          >
-            <option value="draft">Draft</option>
-            <option value="hero">Hero</option>
-            <option value="specialist">Specialist</option>
-          </select>
-        </label>
-      )}
+      {'modelId' in node && <ModelField node={node} models={models} onChange={onChange} />}
 
       {'seed' in node && (
         <div className="field">

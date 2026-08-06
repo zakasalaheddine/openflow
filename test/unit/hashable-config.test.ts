@@ -6,7 +6,7 @@ const imageNode: FlowNode = {
   id: 'img',
   type: 'image',
   prompt: 'bottle on marble',
-  modelRole: 'draft',
+  modelId: 'flux-2-pro',
   seed: 7,
   position: { x: 10, y: 20 },
 }
@@ -17,7 +17,7 @@ const videoNode: FlowNode = {
   prompt: 'slow push in',
   durationSec: 5,
   audio: true,
-  modelRole: 'hero',
+  modelId: 'veo-3-1',
   position: { x: 0, y: 0 },
 }
 
@@ -41,17 +41,25 @@ describe('hashableConfig', () => {
   test('keeps the fields that change the output', () => {
     expect(hashableConfig(imageNode)).toEqual({
       prompt: 'bottle on marble',
-      modelRole: 'draft',
     })
   })
 
   test('keeps duration and audio on a video node', () => {
     expect(hashableConfig(videoNode)).toEqual({
       prompt: 'slow push in',
-      modelRole: 'hero',
       durationSec: 5,
       audio: true,
     })
+  })
+
+  test('omits the model, because inputHash already folds it in as its own field', () => {
+    // Listing it here too would hash one fact twice: planRun passes
+    // `modelId: model.id` to inputHash alongside this config, so a model change
+    // already changes the hash exactly once. Two spellings of one change is how
+    // a cache key drifts from what it claims to key on.
+    expect(hashableConfig({ ...imageNode, modelId: 'nano-banana-pro' } as FlowNode)).toEqual(
+      hashableConfig(imageNode),
+    )
   })
 
   test('keeps the source id on a source node', () => {
@@ -95,8 +103,4 @@ describe('hashableConfig', () => {
     expect(hashableConfig(edited)).not.toEqual(hashableConfig(imageNode))
   })
 
-  test('a model role change still changes the config', () => {
-    const edited = { ...imageNode, modelRole: 'hero' } as FlowNode
-    expect(hashableConfig(edited)).not.toEqual(hashableConfig(imageNode))
-  })
 })

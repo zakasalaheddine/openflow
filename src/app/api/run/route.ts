@@ -4,7 +4,7 @@ import { ensureWorkspace } from '@/core/workspace'
 import { enqueueRun, SpendCapExceededError } from '@/core/executor'
 import { UnsupportedCapabilityError } from '@/models/registry'
 import { isDemo } from '@/env'
-import type { ModelRole, NodeId } from '@/core/types'
+import type { NodeId } from '@/core/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +22,6 @@ export async function POST(request: Request) {
   const db = getDb()
   const { flowId } = ensureWorkspace(db)
   const body = (await request.json().catch(() => ({}))) as {
-    role?: ModelRole
     confirmOverspend?: boolean
     /** Render one node and whatever upstream it still needs. */
     nodeId?: NodeId
@@ -30,7 +29,6 @@ export async function POST(request: Request) {
 
   try {
     const result = enqueueRun(db, flowId, {
-      role: body.role,
       confirmOverspend: body.confirmOverspend === true,
       only: body.nodeId,
     })

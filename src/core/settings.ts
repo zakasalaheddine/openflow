@@ -12,7 +12,6 @@ export type ProjectSettings = {
   /** Cents. Blocks a run whose estimate exceeds it, pending confirmation. */
   spendCapPerRun: number
   concurrency: number
-  defaultMode: 'draft' | 'hero'
 }
 
 export const DEFAULT_SETTINGS: ProjectSettings = {
@@ -24,5 +23,4 @@ export const DEFAULT_SETTINGS: ProjectSettings = {
   ],
   spendCapPerRun: 5000,
   concurrency: 4,
-  defaultMode: 'draft',
 }

@@ -1,4 +1,4 @@
-import { catalog } from '@/models/registry'
+import { catalog } from '@/models/catalog'
 import type { Ops } from './ops'
 
 /**

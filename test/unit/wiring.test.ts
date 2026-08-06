@@ -1,33 +1,34 @@
 import { describe, test, expect } from 'vitest'
 import { inferRole, validateWire, applyWire, WiringError } from '@/core/wiring'
-import { UnsupportedCapabilityError, resolveModel, type ModelSpec } from '@/models/registry'
+import { UnsupportedCapabilityError, type ModelSpec } from '@/models/registry'
+import { modelById } from '@/models/catalog'
 import type { Flow, FlowNode } from '@/core/types'
 
 /**
- * Every video row shipped today is image-to-video, so the start-frame gate
- * would be vacuous against the real registry. Injecting the lookup keeps the
- * gate provably enforced for the day a text-to-video row is added — which is
- * the only time it matters and the worst time to discover it never worked.
+ * Every video row shipped today accepts a start frame, so the gate would be
+ * vacuous against the real catalog. Injecting the lookup keeps it provably
+ * enforced for the day a text-to-video row is added — which is the only time it
+ * matters and the worst time to discover it never worked.
  */
-const withoutStartFrame = (format: 'image' | 'video', role: string): ModelSpec => ({
-  ...resolveModel(format, role as 'draft'),
-  caps: { ...resolveModel(format, role as 'draft').caps, startEndFrame: false },
-})
+const withoutStartFrame = (id: string): ModelSpec => {
+  const model = modelById(id)
+  return { ...model, caps: { ...model.caps, startEndFrame: false } }
+}
 
 const image = (id: string): FlowNode => ({
   id,
   type: 'image',
   prompt: 'bottle',
-  modelRole: 'draft',
+  modelId: 'flux-2-pro',
 })
 
-const video = (id: string, modelRole: 'draft' | 'hero' | 'specialist' = 'specialist'): FlowNode => ({
+const video = (id: string, modelId = 'kling-3-pro'): FlowNode => ({
   id,
   type: 'video',
   prompt: 'push in',
   durationSec: 5,
   audio: false,
-  modelRole,
+  modelId,
 })
 
 const source = (id: string): FlowNode => ({ id, type: 'source', sourceId: `src:${id}` })
@@ -64,7 +65,7 @@ describe('inferRole', () => {
 describe('validateWire', () => {
   test('accepts image into a video model that supports start frames', () => {
     const flow = flowOf(image('a'), video('b'))
-    expect(() => validateWire(flow, 'a', 'b')).not.toThrow()
+    expect(() => validateWire(flow, 'a', 'b', { resolve: modelById })).not.toThrow()
   })
 
   test('refuses a start frame into a model that cannot accept one', () => {
@@ -78,7 +79,7 @@ describe('validateWire', () => {
 
   test('refuses a self-edge', () => {
     const flow = flowOf(image('a'))
-    expect(() => validateWire(flow, 'a', 'a')).toThrow(WiringError)
+    expect(() => validateWire(flow, 'a', 'a', { resolve: modelById })).toThrow(WiringError)
   })
 
   test('refuses a wire that would create a cycle', () => {
@@ -86,7 +87,7 @@ describe('validateWire', () => {
       nodes: [image('a'), video('b')],
       edges: [{ id: 'e1', from: 'a', to: 'b', role: 'start_frame', position: null }],
     }
-    expect(() => validateWire(flow, 'b', 'a')).toThrow(WiringError)
+    expect(() => validateWire(flow, 'b', 'a', { resolve: modelById })).toThrow(WiringError)
   })
 
   test('refuses a duplicate edge', () => {
@@ -94,11 +95,11 @@ describe('validateWire', () => {
       nodes: [image('a'), video('b')],
       edges: [{ id: 'e1', from: 'a', to: 'b', role: 'start_frame', position: null }],
     }
-    expect(() => validateWire(flow, 'a', 'b')).toThrow(WiringError)
+    expect(() => validateWire(flow, 'a', 'b', { resolve: modelById })).toThrow(WiringError)
   })
 
   test('refuses an unknown node', () => {
-    expect(() => validateWire(flowOf(image('a')), 'a', 'ghost')).toThrow(WiringError)
+    expect(() => validateWire(flowOf(image('a')), 'a', 'ghost', { resolve: modelById })).toThrow(WiringError)
   })
 
   test('refuses a second start frame into the same video', () => {
@@ -107,13 +108,13 @@ describe('validateWire', () => {
       nodes: [image('a'), image('a2'), video('b')],
       edges: [{ id: 'e1', from: 'a', to: 'b', role: 'start_frame', position: null }],
     }
-    expect(() => validateWire(flow, 'a2', 'b')).toThrow(WiringError)
+    expect(() => validateWire(flow, 'a2', 'b', { resolve: modelById })).toThrow(WiringError)
   })
 
   test('refuses anything wired into a source node', () => {
     // A source brings an existing file in; nothing feeds it.
     const flow = flowOf(image('a'), source('s'))
-    expect(() => validateWire(flow, 'a', 's')).toThrow(WiringError)
+    expect(() => validateWire(flow, 'a', 's', { resolve: modelById })).toThrow(WiringError)
   })
 })
 
@@ -122,7 +123,7 @@ describe('reference wiring', () => {
     // Twelve shots on one product is the normal case, not an edge case. Nothing
     // may cap it — the readability answer is how the edges are drawn.
     let flow = flowOf(source('bottle'), image('a'), image('b'), image('c'))
-    for (const to of ['a', 'b', 'c']) flow = applyWire(flow, 'bottle', to)
+    for (const to of ['a', 'b', 'c']) flow = applyWire(flow, 'bottle', to, { resolve: modelById })
 
     expect(flow.edges).toHaveLength(3)
     expect(flow.edges.every((e) => e.role === 'reference')).toBe(true)
@@ -131,8 +132,8 @@ describe('reference wiring', () => {
   test('a shot may take several references', () => {
     // A product plus a brand-tone text fragment, on the same shot.
     let flow = flowOf(source('bottle'), source('voice'), image('a'))
-    flow = applyWire(flow, 'bottle', 'a')
-    flow = applyWire(flow, 'voice', 'a')
+    flow = applyWire(flow, 'bottle', 'a', { resolve: modelById })
+    flow = applyWire(flow, 'voice', 'a', { resolve: modelById })
     expect(flow.edges).toHaveLength(2)
   })
 
@@ -140,24 +141,24 @@ describe('reference wiring', () => {
     // Recraft (image specialist) has caps.refImages === 0. Silently dropping
     // the reference produces off-brand output that reads as a model problem.
     const flow: Flow = {
-      nodes: [source('bottle'), { ...image('a'), modelRole: 'specialist' } as FlowNode],
+      nodes: [source('bottle'), { ...image('a'), modelId: 'recraft-v3' } as FlowNode],
       edges: [],
     }
-    expect(() => validateWire(flow, 'bottle', 'a')).toThrow(UnsupportedCapabilityError)
+    expect(() => validateWire(flow, 'bottle', 'a', { resolve: modelById })).toThrow(UnsupportedCapabilityError)
   })
 
   test('refuses more references than the model accepts', () => {
     const many = Array.from({ length: 8 }, (_, i) => source(`s${i}`))
     let flow = flowOf(...many, image('a'))
     // flux-2-pro accepts 4.
-    for (let i = 0; i < 4; i++) flow = applyWire(flow, `s${i}`, 'a')
-    expect(() => validateWire(flow, 's4', 'a')).toThrow(UnsupportedCapabilityError)
+    for (let i = 0; i < 4; i++) flow = applyWire(flow, `s${i}`, 'a', { resolve: modelById })
+    expect(() => validateWire(flow, 's4', 'a', { resolve: modelById })).toThrow(UnsupportedCapabilityError)
   })
 })
 
 describe('applyWire', () => {
   test('adds an edge with the inferred role', () => {
-    const next = applyWire(flowOf(image('a'), video('b')), 'a', 'b')
+    const next = applyWire(flowOf(image('a'), video('b')), 'a', 'b', { resolve: modelById })
     expect(next.edges).toHaveLength(1)
     expect(next.edges[0]).toMatchObject({ from: 'a', to: 'b', role: 'start_frame' })
   })
@@ -167,13 +168,13 @@ describe('applyWire', () => {
     // an LLM_MODE=replay fixture and replayed — a random id changes on every
     // run, so it can never match a recorded fixture and made every wiring
     // conversation unrecordable. See wiring.ts's edgeFor for the full reasoning.
-    const next = applyWire(flowOf(image('a'), video('b')), 'a', 'b')
+    const next = applyWire(flowOf(image('a'), video('b')), 'a', 'b', { resolve: modelById })
     expect(next.edges[0].id).toBe('a->b')
   })
 
   test('leaves position null in v1', () => {
     // Reserved for v2 sequence ordering. Present so v2 needs no migration.
-    const next = applyWire(flowOf(image('a'), video('b')), 'a', 'b')
+    const next = applyWire(flowOf(image('a'), video('b')), 'a', 'b', { resolve: modelById })
     expect(next.edges[0].position).toBeNull()
   })
 
@@ -181,14 +182,14 @@ describe('applyWire', () => {
     // The canvas re-reads graph_json after every change; a mutated input makes
     // the view and the stored graph disagree.
     const flow = flowOf(image('a'), video('b'))
-    applyWire(flow, 'a', 'b')
+    applyWire(flow, 'a', 'b', { resolve: modelById })
     expect(flow.edges).toHaveLength(0)
   })
 
   test('supports one image fanning out to three clips', () => {
     // The core interaction. Three edges, no special case in the engine.
     let flow = flowOf(image('img'), video('push'), video('sweep'), video('tilt'))
-    for (const to of ['push', 'sweep', 'tilt']) flow = applyWire(flow, 'img', to)
+    for (const to of ['push', 'sweep', 'tilt']) flow = applyWire(flow, 'img', to, { resolve: modelById })
 
     expect(flow.edges).toHaveLength(3)
     expect(flow.edges.every((e) => e.role === 'start_frame')).toBe(true)

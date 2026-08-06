@@ -16,7 +16,7 @@ import {
 import { applyWire, removeNode, WiringError } from '@/core/wiring'
 import { newNode } from '@/core/node-defaults'
 import { UnsupportedCapabilityError } from '@/models/registry'
-import type { Flow, FlowNode, ModelRole, NodeId } from '@/core/types'
+import type { Flow, FlowNode, NodeId } from '@/core/types'
 import { NodeCard } from './node-card'
 import { Inspector } from './inspector'
 import { CARD_SOURCE, COLUMN, MIN_CARD, ROW, freeSlot, sizeOf, slotFor } from './slots'
@@ -70,7 +70,6 @@ export function Canvas() {
 function CanvasInner() {
   const { fitView, screenToFlowPosition, setCenter, getZoom, getNode } = useReactFlow()
 
-  const [role, setRole] = useState<ModelRole>('draft')
   const [state, setState] = useState<FlowState | null>(null)
   const [selectedId, setSelectedId] = useState<NodeId | null>(null)
   // Open on load — chat is the primary way in, not a drawer someone has to
@@ -191,7 +190,7 @@ function CanvasInner() {
   const load = useCallback(async () => {
     const read = ++readRef.current
     try {
-      const next = await fetchFlow(role)
+      const next = await fetchFlow()
       if (read !== readRef.current || interactingRef.current) return
       absorb(next)
     } catch (error) {
@@ -199,7 +198,7 @@ function CanvasInner() {
         setNotice(error instanceof Error ? error.message : 'Could not load the flow')
       }
     }
-  }, [role, absorb])
+  }, [absorb])
 
   useEffect(() => {
     let alive = true
@@ -389,7 +388,7 @@ function CanvasInner() {
    */
   const run = useCallback(
     async (options: { nodeId?: NodeId; confirmOverspend?: boolean } = {}) => {
-      const outcome = await startRun(role, options.confirmOverspend === true, options.nodeId)
+      const outcome = await startRun(options.confirmOverspend === true, options.nodeId)
       if (outcome.kind === 'needs-confirmation') {
         setConfirming({ message: outcome.message, nodeId: options.nodeId })
         return
@@ -406,7 +405,7 @@ function CanvasInner() {
       )
       await load()
     },
-    [role, load],
+    [load],
   )
 
   const onRun = useCallback((nodeId: NodeId) => void run({ nodeId }), [run])
@@ -439,10 +438,35 @@ function CanvasInner() {
   )
   const hiddenRefs = rfEdges.length - visibleEdges.length
 
+  /**
+   * The catalog's default for that format, from the rows the flow route sent.
+   * Nothing here hardcodes a model id — adding a row to models.json and marking
+   * it default has to be enough to change what a fresh node gets.
+   */
+  /**
+   * The capability gate runs here as well as on the server, so a refused wire
+   * is refused under the cursor rather than after a round trip. It reads the
+   * same rows the picker does — the catalog is the server's, always.
+   */
+  function resolveModel(id: string) {
+    const row = (state?.models ?? []).find((m) => m.id === id)
+    if (!row) throw new WiringError(`No model '${id}' in the catalog.`)
+    return row
+  }
+
+  function defaultModelId(format: 'image' | 'video') {
+    const rows = (state?.models ?? []).filter((m) => m.format === format)
+    return (rows.find((m) => m.default) ?? rows[0])?.id
+  }
+
   function addNode(type: 'image' | 'video' | 'export') {
     const id = newId(type)
     const position = freeSlot(graphRef.current.nodes)
-    const node = newNode(type, { id, position })
+    const node = newNode(type, {
+      id,
+      position,
+      ...(type === 'export' ? {} : { modelId: defaultModelId(type) }),
+    })
 
     void commit((current) => ({ ...current, nodes: [...current.nodes, node] }))
     setSelectedId(id)
@@ -474,6 +498,7 @@ function CanvasInner() {
     const id = newId('video')
     const node = newNode('video', {
       id,
+      modelId: defaultModelId('video'),
       position: { x: anchor.x + COLUMN, y: anchor.y + siblings.length * ROW },
       prompt: previous && 'prompt' in previous ? previous.prompt : '',
       // A fresh seed, not the default: an identical sibling would be a re-roll,
@@ -481,7 +506,7 @@ function CanvasInner() {
       seed: Math.floor(Math.random() * 1_000_000),
     })
 
-    void commit((graph) => applyWire({ ...graph, nodes: [...graph.nodes, node] }, fromId, id, { role }))
+    void commit((graph) => applyWire({ ...graph, nodes: [...graph.nodes, node] }, fromId, id, { resolve: resolveModel }))
     setSelectedId(id)
     reveal(node.position!, sizeOf(node))
   }
@@ -501,7 +526,7 @@ function CanvasInner() {
         ...current,
         nodes: [...current.nodes, { id, type: 'source', sourceId, position }],
       }
-      return wireTo ? applyWire(withNode, id, wireTo, { role }) : withNode
+      return wireTo ? applyWire(withNode, id, wireTo, { resolve: resolveModel }) : withNode
     })
   }
 
@@ -589,7 +614,7 @@ function CanvasInner() {
     // Flow while it is still finishing the gesture, which fires onConnect twice
     // for one drag.
     setTimeout(() => {
-      void commit((current) => applyWire(current, source, target, { role }))
+      void commit((current) => applyWire(current, source, target, { resolve: resolveModel }))
     }, 0)
   }
 
@@ -640,19 +665,6 @@ function CanvasInner() {
     >
       <header className="topbar">
         <h1 className="topbar__title">OpenFlow</h1>
-
-        <div className="toggle" role="group" aria-label="Render quality">
-          {(['draft', 'hero'] as const).map((option) => (
-            <button
-              key={option}
-              aria-pressed={role === option}
-              onClick={() => setRole(option)}
-              data-testid={`role-${option}`}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
 
         {(['image', 'video', 'export'] as const).map((type) => (
           <button key={type} className="chip" onClick={() => addNode(type)} data-testid={`add-${type}`}>
@@ -973,6 +985,7 @@ function CanvasInner() {
           key={selected.id}
           node={selected}
           state={state?.nodes[selected.id]}
+          models={state?.models ?? []}
           onChange={(next) =>
             void commit((current) => ({
               ...current,

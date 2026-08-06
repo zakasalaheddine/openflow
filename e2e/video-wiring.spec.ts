@@ -9,8 +9,8 @@ test.beforeEach(async ({ request }) => {
 
 const shotAndClip = {
   nodes: [
-    { id: 'marble', type: 'image', position: { x: 60, y: 200 }, prompt: 'bottle on marble', modelRole: 'draft', seed: 1 },
-    { id: 'turn', type: 'video', position: { x: 420, y: 200 }, prompt: 'the bottle turning', durationSec: 5, audio: false, modelRole: 'draft', seed: 2 },
+    { id: 'marble', type: 'image', position: { x: 60, y: 200 }, prompt: 'bottle on marble', modelId: 'flux-2-pro', seed: 1 },
+    { id: 'turn', type: 'video', position: { x: 420, y: 200 }, prompt: 'the bottle turning', durationSec: 5, audio: false, modelId: 'hailuo-2-3-pro', seed: 2 },
   ],
   edges: [],
 }
@@ -65,7 +65,7 @@ test('a second start frame into the same clip is refused', async ({ page, reques
   await setGraph(request, {
       nodes: [
         ...shotAndClip.nodes,
-        { id: 'slate', type: 'image', position: { x: 60, y: 480 }, prompt: 'bottle on slate', modelRole: 'draft', seed: 3 },
+        { id: 'slate', type: 'image', position: { x: 60, y: 480 }, prompt: 'bottle on slate', modelId: 'flux-2-pro', seed: 3 },
       ],
       edges: [],
     })

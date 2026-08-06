@@ -2,24 +2,24 @@ import { describe, test, expect } from 'vitest'
 import { newNode } from '@/core/node-defaults'
 
 describe('newNode', () => {
-  test('an image gets draft role and seed 1', () => {
-    expect(newNode('image', { id: 'x' })).toEqual({
+  test('an image gets the model it was given and seed 1', () => {
+    expect(newNode('image', { id: 'x', modelId: 'flux-2-pro' })).toEqual({
       id: 'x',
       type: 'image',
       prompt: '',
-      modelRole: 'draft',
+      modelId: 'flux-2-pro',
       seed: 1,
     })
   })
 
-  test('a video gets a silent 5-second draft clip and seed 1', () => {
-    expect(newNode('video', { id: 'x' })).toEqual({
+  test('a video gets a silent 5-second clip and seed 1', () => {
+    expect(newNode('video', { id: 'x', modelId: 'hailuo-2-3-pro' })).toEqual({
       id: 'x',
       type: 'video',
       prompt: '',
       durationSec: 5,
       audio: false,
-      modelRole: 'draft',
+      modelId: 'hailuo-2-3-pro',
       seed: 1,
     })
   })
@@ -33,13 +33,19 @@ describe('newNode', () => {
   })
 
   test('overrides win, but only the fields given', () => {
-    const node = newNode('image', { id: 'x', prompt: 'a serum on marble', seed: 7 })
-    expect(node).toMatchObject({ prompt: 'a serum on marble', seed: 7, modelRole: 'draft' })
+    const node = newNode('image', { id: 'x', prompt: 'a serum on marble', seed: 7, modelId: 'flux-2-pro' })
+    expect(node).toMatchObject({ prompt: 'a serum on marble', seed: 7, modelId: 'flux-2-pro' })
   })
 
   test('never invents an id or a position', () => {
-    const node = newNode('image', { id: 'x' })
+    const node = newNode('image', { id: 'x', modelId: 'flux-2-pro' })
     expect(node).not.toHaveProperty('position')
+  })
+
+  test('refuses to invent a model, because the catalog owns that choice', () => {
+    // Defaulting to a hardcoded id here would put a node on a model nobody
+    // picked, at a price nobody quoted, and read as a model problem later.
+    expect(() => newNode('image', { id: 'x' })).toThrow(/modelId/)
   })
 
   test('keeps a given position and label', () => {

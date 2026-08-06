@@ -1,13 +1,6 @@
 import { describe, test, expect } from 'vitest'
-import {
-  SEED,
-  resolveModel,
-  assertAnchorsSupported,
-  assertStartFrameSupported,
-  estimateCostCents,
-  UnsupportedCapabilityError,
-  type ModelSpec,
-} from '@/models/registry'
+import { SEED, assertAnchorsSupported, assertStartFrameSupported, estimateCostCents, UnsupportedCapabilityError, type ModelSpec } from '@/models/registry'
+import { modelById } from '@/models/catalog'
 
 const spec = (over: Partial<ModelSpec> = {}): ModelSpec => ({
   id: 'test/model',
@@ -63,22 +56,15 @@ describe('the shipped seed', () => {
   })
 })
 
-describe('resolveModel', () => {
-  test('selects by format and role', () => {
-    const model = resolveModel('image', 'draft')
+describe('modelById', () => {
+  test('resolves the row a node names', () => {
+    const model = modelById('flux-2-pro')
     expect(model.format).toBe('image')
-    expect(model.id).toBe('flux-2-pro')
+    expect(model.falEndpoint).toBe('fal-ai/flux-2-pro')
   })
 
-  test('the draft and hero rows for a format are different models', () => {
-    // The graph-level Draft/Hero toggle is worth more than fifty dropdowns
-    // only if it actually changes what runs.
-    expect(resolveModel('image', 'draft').id).not.toBe(resolveModel('image', 'hero').id)
-  })
-
-  test('throws for a role that has no row', () => {
-    // `text` specialist is deliberately empty — do not fill it for symmetry.
-    expect(() => resolveModel('text', 'specialist')).toThrow()
+  test('two rows of the same format are two different models, or there is nothing to compare', () => {
+    expect(modelById('flux-2-pro').id).not.toBe(modelById('nano-banana-pro').id)
   })
 })
 

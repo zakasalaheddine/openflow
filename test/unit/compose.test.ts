@@ -21,7 +21,7 @@ const text = (id: string, content: string) =>
 
 const flow = (...edgeFroms: string[]): Flow => ({
   nodes: [
-    { id: 'shot', type: 'image', prompt: 'a serum bottle on marble', modelRole: 'draft' },
+    { id: 'shot', type: 'image', prompt: 'a serum bottle on marble', modelId: 'flux-2-pro' },
     ...edgeFroms.map((id) => ({ id, type: 'source' as const, sourceId: `src:${id}` })),
   ],
   edges: edgeFroms.map((id, i) => ({

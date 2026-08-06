@@ -14,7 +14,7 @@ import { tempExportDir, seedRenderedNode } from '../helpers/exports'
 const graph: Flow = {
   nodes: [
     { id: 'bottle', type: 'source', sourceId: 'source-1' },
-    { id: 'shot', type: 'image', prompt: 'bottle on marble', modelRole: 'draft', seed: 7, label: 'shot' },
+    { id: 'shot', type: 'image', prompt: 'bottle on marble', modelId: 'flux-2-pro', seed: 7, label: 'shot' },
     { id: 'out', type: 'export', formats: [{ name: '1:1', w: 1080, h: 1080 }] },
   ],
   edges: [

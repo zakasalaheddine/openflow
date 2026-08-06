@@ -4,7 +4,7 @@ import { saveGraph, saveGraphIfCurrent, StaleGraphError } from '@/core/workspace
 import type { Flow } from '@/core/types'
 
 const graphOf = (...ids: string[]): Flow => ({
-  nodes: ids.map((id) => ({ id, type: 'image', prompt: '', modelRole: 'draft', seed: 1 })),
+  nodes: ids.map((id) => ({ id, type: 'image', prompt: '', modelId: 'flux-2-pro', seed: 1 })),
   edges: [],
 })
 

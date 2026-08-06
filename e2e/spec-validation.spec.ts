@@ -18,7 +18,7 @@ test('an export that violates a safe zone names the reason and does not ship', a
 }) => {
   await setGraph(request, {
       nodes: [
-        { id: 'marble', type: 'image', position: { x: 60, y: 80 }, prompt: 'bottle on marble', modelRole: 'draft', seed: 1, label: 'marble' },
+        { id: 'marble', type: 'image', position: { x: 60, y: 80 }, prompt: 'bottle on marble', modelId: 'flux-2-pro', seed: 1, label: 'marble' },
         {
           id: 'out',
           type: 'export',
@@ -54,7 +54,7 @@ test('moving the headline out of the safe zone lets the same export through', as
 }) => {
   await setGraph(request, {
       nodes: [
-        { id: 'marble', type: 'image', position: { x: 60, y: 80 }, prompt: 'bottle on marble', modelRole: 'draft', seed: 1, label: 'marble' },
+        { id: 'marble', type: 'image', position: { x: 60, y: 80 }, prompt: 'bottle on marble', modelId: 'flux-2-pro', seed: 1, label: 'marble' },
         {
           id: 'out',
           type: 'export',

@@ -3,7 +3,7 @@ import { freeSlot, slotFor } from '@/app/slots'
 import type { FlowNode } from '@/core/types'
 
 const at = (id: string, index: number): FlowNode =>
-  ({ id, type: 'image', prompt: '', modelRole: 'draft', seed: 1, position: slotFor(index) }) as FlowNode
+  ({ id, type: 'image', prompt: '', modelId: 'flux-2-pro', seed: 1, position: slotFor(index) }) as FlowNode
 
 describe('placing a new card', () => {
   test('fills the next slot on an untouched canvas', () => {

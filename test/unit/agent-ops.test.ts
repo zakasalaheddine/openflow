@@ -17,7 +17,7 @@ function ops() {
 describe('add_node', () => {
   test('adds a node and hands back the id, because the next thing is to wire it', () => {
     const { ops: o } = ops()
-    const { id } = o.addNode({ type: 'image', prompt: 'a serum on marble', modelRole: 'hero' })
+    const { id } = o.addNode({ type: 'image', prompt: 'a serum on marble', modelId: 'nano-banana-pro' })
     expect(id).toMatch(/^image-/)
     expect(o.listGraph().nodes).toHaveLength(1)
   })
@@ -28,14 +28,14 @@ describe('add_node', () => {
     const { ops: o } = ops()
     const { id } = o.addNode({ type: 'image', prompt: 'x' })
     const node = o.listGraph().nodes.find((n) => n.id === id)!
-    expect(node).toMatchObject({ seed: 1, modelRole: 'draft' })
+    expect(node).toMatchObject({ seed: 1, modelId: 'flux-2-pro' })
   })
 
   test('a video gets the same defaults the canvas gives it', () => {
     const { ops: o } = ops()
     const { id } = o.addNode({ type: 'video', prompt: 'push in' })
     const node = o.listGraph().nodes.find((n) => n.id === id)!
-    expect(node).toMatchObject({ durationSec: 5, audio: false, modelRole: 'draft', seed: 1 })
+    expect(node).toMatchObject({ durationSec: 5, audio: false, modelId: 'hailuo-2-3-pro', seed: 1 })
   })
 
   test('the id is deterministic from the graph, not random, so a replayed conversation gets the same id twice', () => {
@@ -73,10 +73,10 @@ describe('add_node', () => {
 describe('update_node', () => {
   test('changes only what was named', () => {
     const { ops: o } = ops()
-    const { id } = o.addNode({ type: 'image', prompt: 'first', modelRole: 'draft' })
+    const { id } = o.addNode({ type: 'image', prompt: 'first', modelId: 'flux-2-pro' })
     o.updateNode({ id, prompt: 'second' })
     const node = o.listGraph().nodes.find((n) => n.id === id)!
-    expect(node).toMatchObject({ prompt: 'second', modelRole: 'draft' })
+    expect(node).toMatchObject({ prompt: 'second', modelId: 'flux-2-pro' })
   })
 
   test('refuses a node that is not there', () => {
@@ -142,7 +142,7 @@ describe('wire', () => {
     // the capability gate lives there and nowhere else.
     const { db, projectId, flowId } = ops()
     const o = createOps(db, { projectId, flowId })
-    const target = o.addNode({ type: 'image', prompt: 'shot', modelRole: 'draft' }).id
+    const target = o.addNode({ type: 'image', prompt: 'shot', modelId: 'flux-2-pro' }).id
     const refs = Array.from({ length: 12 }, (_, i) =>
       o.addNode({ type: 'source', sourceId: seedSource(db, projectId, `source-${i}`) }).id,
     )

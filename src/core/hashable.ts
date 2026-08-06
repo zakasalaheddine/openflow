@@ -21,14 +21,15 @@ export function hashableConfig(node: FlowNode): Record<string, JsonValue> {
       // keeps it pure and testable without a database.
       return { sourceId: node.sourceId }
     case 'image':
+      // The model is deliberately absent. inputHash folds `modelId` in as its
+      // own field (executor.ts), so listing it here would hash the same fact
+      // twice and make the two spellings of one change look like two changes.
       return {
         prompt: node.prompt,
-        modelRole: node.modelRole,
       }
     case 'video':
       return {
         prompt: node.prompt,
-        modelRole: node.modelRole,
         durationSec: node.durationSec,
         audio: node.audio,
       }

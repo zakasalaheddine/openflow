@@ -2,15 +2,8 @@ import { describe, test, expect, vi, afterEach } from 'vitest'
 import { mkdtempSync, writeFileSync, rmSync, existsSync, utimesSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import {
-  catalog,
-  ensureModelsFile,
-  modelById,
-  defaultModelFor,
-  SEED,
-  UnknownModelError,
-  UnsupportedCapabilityError,
-} from '@/models/registry'
+import { SEED, UnknownModelError, UnsupportedCapabilityError } from '@/models/registry'
+import { catalog, ensureModelsFile, modelById, defaultModelFor } from '@/models/catalog'
 import { modelsPath } from '@/env'
 
 const dirs: string[] = []

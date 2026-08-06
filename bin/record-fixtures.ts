@@ -15,7 +15,7 @@ import path from 'node:path'
 import { openDb } from '../src/db'
 import { importFlowFile, readFlowFile } from '../src/core/run-flow'
 import { planRun } from '../src/core/executor'
-import { byId } from '../src/models/registry'
+import { byId } from '../src/models/catalog'
 import { createAdapter } from '../src/models/fal'
 import { loadDotEnv } from '../src/env'
 

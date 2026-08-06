@@ -43,9 +43,9 @@ describe('inputHash', () => {
   test('ignores key order inside config', () => {
     const reordered: HashInput = {
       ...base,
-      config: { modelRole: 'draft', prompt: 'a bottle on marble' },
+      config: { modelId: 'flux-2-pro', prompt: 'a bottle on marble' },
     }
-    expect(inputHash({ ...base, config: { prompt: 'a bottle on marble', modelRole: 'draft' } })).toBe(
+    expect(inputHash({ ...base, config: { prompt: 'a bottle on marble', modelId: 'flux-2-pro' } })).toBe(
       inputHash(reordered),
     )
   })

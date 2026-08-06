@@ -41,7 +41,7 @@
         "id": "marble",
         "type": "image",
         "prompt": "the serum bottle on a marble counter, soft morning window light",
-        "modelRole": "draft",
+        "modelId": "flux-2-pro",
         "seed": 1,
         "position": {
           "x": 340,
@@ -52,7 +52,7 @@
         "id": "slate",
         "type": "image",
         "prompt": "the serum bottle on wet slate, hard directional light",
-        "modelRole": "draft",
+        "modelId": "flux-2-pro",
         "seed": 2,
         "position": {
           "x": 340,
@@ -63,7 +63,7 @@
         "id": "linen",
         "type": "image",
         "prompt": "the serum bottle on crumpled linen, diffuse overcast light",
-        "modelRole": "draft",
+        "modelId": "flux-2-pro",
         "seed": 3,
         "position": {
           "x": 340,

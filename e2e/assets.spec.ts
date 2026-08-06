@@ -38,9 +38,9 @@ test('one asset feeds many shots, each wire a reference', async ({ page, request
   await setGraph(request, {
       nodes: [
         { id: 'bottle', type: 'source', sourceId, position: { x: 40, y: 200 } },
-        { id: 'marble', type: 'image', position: { x: 360, y: 20 }, prompt: 'on marble', modelRole: 'draft', seed: 1 },
-        { id: 'slate', type: 'image', position: { x: 360, y: 300 }, prompt: 'on slate', modelRole: 'draft', seed: 2 },
-        { id: 'linen', type: 'image', position: { x: 360, y: 580 }, prompt: 'on linen', modelRole: 'draft', seed: 3 },
+        { id: 'marble', type: 'image', position: { x: 360, y: 20 }, prompt: 'on marble', modelId: 'flux-2-pro', seed: 1 },
+        { id: 'slate', type: 'image', position: { x: 360, y: 300 }, prompt: 'on slate', modelId: 'flux-2-pro', seed: 2 },
+        { id: 'linen', type: 'image', position: { x: 360, y: 580 }, prompt: 'on linen', modelId: 'flux-2-pro', seed: 3 },
       ],
       edges: [],
     })
@@ -65,8 +65,8 @@ test('reference edges can be taken off screen, and the toolbar says how many', a
   await setGraph(request, {
       nodes: [
         { id: 'bottle', type: 'source', sourceId, position: { x: 40, y: 80 } },
-        { id: 'marble', type: 'image', position: { x: 360, y: 20 }, prompt: 'on marble', modelRole: 'draft', seed: 1 },
-        { id: 'clip', type: 'video', position: { x: 680, y: 20 }, prompt: 'push in', durationSec: 5, audio: false, modelRole: 'draft', seed: 1 },
+        { id: 'marble', type: 'image', position: { x: 360, y: 20 }, prompt: 'on marble', modelId: 'flux-2-pro', seed: 1 },
+        { id: 'clip', type: 'video', position: { x: 680, y: 20 }, prompt: 'push in', durationSec: 5, audio: false, modelId: 'hailuo-2-3-pro', seed: 1 },
       ],
       edges: [
         { id: 'r1', from: 'bottle', to: 'marble', role: 'reference', position: null },
@@ -95,8 +95,8 @@ test('hovering an asset lights up everything it feeds', async ({ page, request }
   await setGraph(request, {
       nodes: [
         { id: 'bottle', type: 'source', sourceId, position: { x: 40, y: 80 } },
-        { id: 'marble', type: 'image', position: { x: 360, y: 20 }, prompt: 'on marble', modelRole: 'draft', seed: 1 },
-        { id: 'other', type: 'image', position: { x: 360, y: 320 }, prompt: 'unrelated', modelRole: 'draft', seed: 2 },
+        { id: 'marble', type: 'image', position: { x: 360, y: 20 }, prompt: 'on marble', modelId: 'flux-2-pro', seed: 1 },
+        { id: 'other', type: 'image', position: { x: 360, y: 320 }, prompt: 'unrelated', modelId: 'flux-2-pro', seed: 2 },
       ],
       edges: [{ id: 'r1', from: 'bottle', to: 'marble', role: 'reference', position: null }],
     })
@@ -114,8 +114,8 @@ test('replacing an asset prices the blast radius before committing', async ({ pa
   await setGraph(request, {
       nodes: [
         { id: 'bottle', type: 'source', sourceId, position: { x: 40, y: 80 } },
-        { id: 'marble', type: 'image', position: { x: 360, y: 20 }, prompt: 'on marble', modelRole: 'draft', seed: 1 },
-        { id: 'clip', type: 'video', position: { x: 680, y: 20 }, prompt: 'push in', durationSec: 5, audio: false, modelRole: 'draft', seed: 1 },
+        { id: 'marble', type: 'image', position: { x: 360, y: 20 }, prompt: 'on marble', modelId: 'flux-2-pro', seed: 1 },
+        { id: 'clip', type: 'video', position: { x: 680, y: 20 }, prompt: 'push in', durationSec: 5, audio: false, modelId: 'hailuo-2-3-pro', seed: 1 },
       ],
       edges: [
         { id: 'r1', from: 'bottle', to: 'marble', role: 'reference', position: null },
@@ -150,7 +150,7 @@ test('a text asset composes ahead of the shot prompt', async ({ page, request })
   await setGraph(request, {
       nodes: [
         { id: 'tone', type: 'source', sourceId: voice, position: { x: 40, y: 80 } },
-        { id: 'marble', type: 'image', position: { x: 360, y: 20 }, prompt: 'a serum bottle on marble', modelRole: 'draft', seed: 1 },
+        { id: 'marble', type: 'image', position: { x: 360, y: 20 }, prompt: 'a serum bottle on marble', modelId: 'flux-2-pro', seed: 1 },
       ],
       edges: [{ id: 'r1', from: 'tone', to: 'marble', role: 'reference', position: null }],
     })
@@ -168,7 +168,7 @@ test('a text asset composes ahead of the shot prompt', async ({ page, request })
 test('double-clicking a prompt edits it in place and stales the shot', async ({ page, request }) => {
   await setGraph(request, {
       nodes: [
-        { id: 'marble', type: 'image', position: { x: 60, y: 60 }, prompt: 'on marble', modelRole: 'draft', seed: 1 },
+        { id: 'marble', type: 'image', position: { x: 60, y: 60 }, prompt: 'on marble', modelId: 'flux-2-pro', seed: 1 },
       ],
       edges: [],
     })
@@ -190,14 +190,10 @@ test('double-clicking a prompt edits it in place and stales the shot', async ({ 
 })
 
 test('refuses a sixth reference into a model that accepts four', async ({ page, request }) => {
-  // flux-2-pro, the draft image row, honours four reference images. A fifth is
-  // refused at wiring time — accepting it and dropping it at render time bills
-  // for output that ignored the asset.
-  //
-  // Note the Draft/Hero toggle overrides every node's own modelRole, so a
-  // node marked `specialist` still resolves to the draft row here. That is what
-  // the toggle is for, and it is why this spec tests the count rather than the
-  // capability flag.
+  // flux-2-pro honours four reference images. A fifth is refused at wiring
+  // time — accepting it and dropping it at render time bills for output that
+  // ignored the asset. The node names the model, so the count refused here is
+  // that model's own, not whatever a toolbar was set to.
   const ids = []
   for (let i = 0; i < 5; i++) ids.push(await uploadSource(request, `ref-${i}.png`))
 
@@ -209,7 +205,7 @@ test('refuses a sixth reference into a model that accepts four', async ({ page, 
           sourceId,
           position: { x: 40, y: 20 + i * 150 },
         })),
-        { id: 'marble', type: 'image', position: { x: 420, y: 300 }, prompt: 'on marble', modelRole: 'draft', seed: 1 },
+        { id: 'marble', type: 'image', position: { x: 420, y: 300 }, prompt: 'on marble', modelId: 'flux-2-pro', seed: 1 },
       ],
       edges: ids.slice(0, 4).map((_, i) => ({
         id: `r${i}`,

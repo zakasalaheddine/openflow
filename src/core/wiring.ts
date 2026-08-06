@@ -1,11 +1,6 @@
 import { topoOrder, CycleError } from './graph'
-import {
-  resolveModel,
-  assertStartFrameSupported,
-  assertAnchorsSupported,
-  type ModelSpec,
-} from '../models/registry'
-import type { Flow, FlowNode, Edge, NodeId, ModelRole } from './types'
+import { assertStartFrameSupported, assertAnchorsSupported, type ModelSpec } from '../models/registry'
+import type { Flow, FlowNode, Edge, NodeId } from './types'
 
 export class WiringError extends Error {
   constructor(message: string) {
@@ -15,16 +10,33 @@ export class WiringError extends Error {
 }
 
 /**
- * Lets a caller resolve against a role override (the Draft·Hero toggle) or a
- * stubbed registry. Every shipped video row is image-to-video today, so without
- * this the start-frame gate would be untestable — and an untested gate is one
- * that quietly stops working before the row that needs it is ever added.
+ * How this file learns what a model can do.
+ *
+ * Injected rather than imported, for two reasons. The catalog reads a file, and
+ * this module is imported by the canvas — importing it here would drag node:fs
+ * into the browser bundle. And every shipped video row accepts a start frame
+ * today, so a stub is the only way to keep the start-frame refusal tested,
+ * which matters most on the day a text-to-video row is added.
+ *
+ * Only `id` and `caps` are read, so the trimmed rows the flow route sends the
+ * canvas satisfy it as-is.
  */
-export type ResolveModel = (format: 'image' | 'video', role: ModelRole) => ModelSpec
+export type ModelLike = Pick<ModelSpec, 'id' | 'caps'>
+export type ResolveModel = (id: string) => ModelLike
 
-const defaultResolve: ResolveModel = (format, role) => resolveModel(format, role)
+export type WireOptions = { resolve?: ResolveModel }
 
-export type WireOptions = { role?: ModelRole; resolve?: ResolveModel }
+/**
+ * A wire into a generator is priced work, so it is gated on what the model can
+ * accept. No resolver, no gate — and a gate that silently does not run is worse
+ * than one that refuses, so its absence is the refusal.
+ */
+const gateWith = (options: WireOptions): ResolveModel => {
+  if (!options.resolve) {
+    throw new WiringError('This wire needs the model catalog to check it. Pass `resolve`.')
+  }
+  return options.resolve
+}
 
 /**
  * Edges carry meaning, and the meaning follows from the node types — so it is
@@ -49,7 +61,6 @@ export function validateWire(
   toId: NodeId,
   options: WireOptions = {},
 ): Edge['role'] {
-  const resolve = options.resolve ?? defaultResolve
   const from = flow.nodes.find((n) => n.id === fromId)
   const to = flow.nodes.find((n) => n.id === toId)
 
@@ -69,10 +80,7 @@ export function validateWire(
     // Refused here, not silently dropped at render time: an ignored reference
     // produces off-brand output that reads as a model quality problem, and
     // nobody ever learns the asset was never sent.
-    const model = resolve(
-      to.type === 'image' ? 'image' : 'video',
-      options.role ?? (to as { modelRole: ModelRole }).modelRole,
-    )
+    const model = gateWith(options)((to as { modelId: string }).modelId)
     assertAnchorsSupported(model, [...referencesOf(flow, toId), fromId])
   }
 
@@ -84,7 +92,7 @@ export function validateWire(
     }
     // Refused here, not ignored at render time: rendering a clip that dropped
     // its own first frame still costs full price.
-    assertStartFrameSupported(resolve('video', options.role ?? (to as { modelRole: ModelRole }).modelRole))
+    assertStartFrameSupported(gateWith(options)((to as { modelId: string }).modelId))
   }
 
   // Cheaper to detect on the candidate graph than to explain a cycle later.

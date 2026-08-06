@@ -5,8 +5,8 @@
   "slots": ["before", "after"],
   "flow": {
     "nodes": [
-      { "id": "before", "type": "image", "label": "before", "position": { "x": 60, "y": 40 }, "prompt": "{{before}}", "modelRole": "draft", "seed": 1 },
-      { "id": "after", "type": "image", "label": "after", "position": { "x": 60, "y": 300 }, "prompt": "{{after}}", "modelRole": "draft", "seed": 2 },
+      { "id": "before", "type": "image", "label": "before", "position": { "x": 60, "y": 40 }, "prompt": "{{before}}", "modelId": "flux-2-pro", "seed": 1 },
+      { "id": "after", "type": "image", "label": "after", "position": { "x": 60, "y": 300 }, "prompt": "{{after}}", "modelId": "flux-2-pro", "seed": 2 },
       { "id": "export", "type": "export", "position": { "x": 420, "y": 170 }, "formats": [] }
     ],
     "edges": [

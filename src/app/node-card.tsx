@@ -156,6 +156,14 @@ export function NodeCard({ data }: NodeProps) {
         <span className="node__status" data-status={state.status} data-testid={`status-${node.id}`}>
           {STATUS_LABEL[state.status]}
         </span>
+        {/* On the card, not only in the inspector: three shots off one source
+            differ by their model and nothing else, and a comparison you have to
+            click through one card at a time is not a comparison. */}
+        {'modelId' in node && (
+          <span className="node__model" data-testid={`model-${node.id}`}>
+            {node.modelId}
+          </span>
+        )}
         <span data-testid={`price-${node.id}`}>
           {state.status === 'succeeded' ? money(state.costCents) : money(state.estimatedCents)}
         </span>

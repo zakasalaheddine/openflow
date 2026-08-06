@@ -8,9 +8,8 @@
 import { openDb } from '../src/db'
 import { readFlowFile, runFlow } from '../src/core/run-flow'
 import { createAdapter } from '../src/models/fal'
-import { ensureModelsFile } from '../src/models/registry'
+import { ensureModelsFile } from '../src/models/catalog'
 import { falMode, loadDotEnv } from '../src/env'
-import type { ModelRole } from '../src/core/types'
 
 // Before anything reads process.env. The canvas gets `.env` from Next; this
 // runner has no framework to do it for us.
@@ -19,23 +18,23 @@ loadDotEnv()
 const [file, ...rest] = process.argv.slice(2)
 
 if (!file) {
-  console.error('usage: tsx bin/run.ts <flow.json> [--hero] [--confirm]')
+  console.error('usage: tsx bin/run.ts <flow.json> [--confirm]')
   process.exit(1)
 }
 
-const role: ModelRole | undefined = rest.includes('--hero') ? 'hero' : undefined
+// No --hero. Each node names its own model in the flow file, and a flag that
+// overrode all of them is what made a three-model comparison unrunnable.
 const confirmOverspend = rest.includes('--confirm')
 
 const mode = falMode()
 const db = openDb()
 ensureModelsFile()
 
-console.log(`[openflow] ${file} · FAL_MODE=${mode}${role ? ` · ${role}` : ''}`)
+console.log(`[openflow] ${file} · FAL_MODE=${mode}`)
 
 try {
   const summary = await runFlow(db, readFlowFile(file), {
     adapter: createAdapter({ mode }),
-    role,
     confirmOverspend,
   })
 

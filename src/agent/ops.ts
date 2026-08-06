@@ -9,6 +9,7 @@ import { previewRun } from '@/core/preview'
 import { flowSchema, nodeSchema } from '@/core/schema'
 import { newNode } from '@/core/node-defaults'
 import { freeSlot } from '@/core/slots'
+import { modelById, defaultModelFor } from '@/models/catalog'
 import type { Flow, FlowNode } from '@/core/types'
 
 /**
@@ -25,7 +26,10 @@ import type { Flow, FlowNode } from '@/core/types'
  * deliberate human act, which is what keeps this inside the README's non-goal.
  */
 
-const modelRole = z.enum(['draft', 'hero', 'specialist'])
+// A catalog id, not an enum. The list is a file the person edits, so the tool
+// schema cannot enumerate it — the prompt lists what is available and
+// modelById refuses anything else before a node is ever priced.
+const modelId = z.string().min(1)
 
 export const listGraphInput = z.object({})
 export const listSourcesInput = z.object({})
@@ -37,7 +41,7 @@ export const addNodeInput = z.object({
   prompt: z.string().optional(),
   /** Required for source: an id from list_sources. */
   sourceId: z.string().optional(),
-  modelRole: modelRole.optional(),
+  modelId: modelId.optional(),
   durationSec: z.number().min(1).max(60).optional(),
   audio: z.boolean().optional(),
   formats: z
@@ -49,7 +53,7 @@ export const updateNodeInput = z.object({
   id: z.string(),
   label: z.string().optional(),
   prompt: z.string().optional(),
-  modelRole: modelRole.optional(),
+  modelId: modelId.optional(),
   durationSec: z.number().min(1).max(60).optional(),
   audio: z.boolean().optional(),
   formats: z
@@ -167,6 +171,10 @@ export function createOps(db: Db, ids: { projectId: string; flowId: string }) {
       const id = newId(graph, input.type)
       // freeSlot, not a fixed point: two nodes added in one turn must not land
       // on each other. Same helper the canvas toolbar uses.
+      // Refused here so the model is told, rather than at Run where the person
+      // would be the one to discover it.
+      if (input.modelId) modelById(input.modelId)
+
       const position = freeSlot(graph.nodes)
       // newNode carries the one set of defaults the canvas and the agent both
       // build a fresh node from — see core/node-defaults.ts.
@@ -176,7 +184,10 @@ export function createOps(db: Db, ids: { projectId: string; flowId: string }) {
         label: input.label,
         sourceId: input.sourceId,
         prompt: input.prompt,
-        modelRole: input.modelRole,
+        modelId:
+          input.type === 'image' || input.type === 'video'
+            ? (input.modelId ?? defaultModelFor(input.type).id)
+            : undefined,
         durationSec: input.durationSec,
         audio: input.audio,
         formats: input.formats,
@@ -189,6 +200,7 @@ export function createOps(db: Db, ids: { projectId: string; flowId: string }) {
     updateNode(input: UpdateNodeInput) {
       const graph = read()
       const current = nodeOf(graph, input.id)
+      if (input.modelId) modelById(input.modelId)
       const { id: _id, ...patch } = input
       const provided = Object.entries(patch).filter(([, v]) => v !== undefined)
       const candidate = { ...current, ...Object.fromEntries(provided) }
@@ -232,7 +244,7 @@ export function createOps(db: Db, ids: { projectId: string; flowId: string }) {
       const graph = read()
       // applyWire, not a copy: the reference cap, the one-start-frame rule and
       // the cycle check all live there, and the canvas calls the same function.
-      const next = applyWire(graph, input.from, input.to)
+      const next = applyWire(graph, input.from, input.to, { resolve: modelById })
       write(next)
       const edge = next.edges.at(-1)!
       return { edgeId: edge.id, role: edge.role }

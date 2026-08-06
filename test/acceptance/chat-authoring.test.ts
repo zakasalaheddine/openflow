@@ -6,6 +6,7 @@ import { createOps } from '@/agent/ops'
 import { saveGraph } from '@/core/workspace'
 import { planRun } from '@/core/executor'
 import { applyWire } from '@/core/wiring'
+import { modelById } from '@/models/catalog'
 import type { Flow } from '@/core/types'
 
 const EMPTY: Flow = { nodes: [], edges: [] }
@@ -84,7 +85,7 @@ describe('chat and canvas agree', () => {
           type: 'image',
           position: { x: 250, y: 0 },
           prompt: 'a serum on cold marble',
-          modelRole: 'draft',
+          modelId: 'flux-2-pro',
           seed: 1,
         },
       ],
@@ -179,20 +180,20 @@ describe('chat and canvas agree', () => {
     const canvasFlow = seedFlow(db, projectId, EMPTY, 'flow-canvas')
     const base: Flow = {
       nodes: [
-        { id: 'image-1', type: 'image', prompt: 'still', modelRole: 'draft', seed: 1 },
+        { id: 'image-1', type: 'image', prompt: 'still', modelId: 'flux-2-pro', seed: 1 },
         {
           id: 'video-1',
           type: 'video',
           prompt: 'push in',
           durationSec: 5,
           audio: false,
-          modelRole: 'draft',
+          modelId: 'hailuo-2-3-pro',
           seed: 1,
         },
       ],
       edges: [],
     }
-    saveGraph(db, canvasFlow, applyWire(base, 'image-1', 'video-1'))
+    saveGraph(db, canvasFlow, applyWire(base, 'image-1', 'video-1', { resolve: modelById }))
 
     const hashes = (flowId: string) =>
       planRun(db, flowId)

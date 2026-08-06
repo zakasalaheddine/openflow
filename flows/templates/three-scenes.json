@@ -5,9 +5,9 @@
   "slots": ["scene_one", "scene_two", "scene_three"],
   "flow": {
     "nodes": [
-      { "id": "shot-1", "type": "image", "label": "scene one", "position": { "x": 60, "y": 40 }, "prompt": "{{scene_one}}", "modelRole": "draft", "seed": 1 },
-      { "id": "shot-2", "type": "image", "label": "scene two", "position": { "x": 60, "y": 300 }, "prompt": "{{scene_two}}", "modelRole": "draft", "seed": 2 },
-      { "id": "shot-3", "type": "image", "label": "scene three", "position": { "x": 60, "y": 560 }, "prompt": "{{scene_three}}", "modelRole": "draft", "seed": 3 },
+      { "id": "shot-1", "type": "image", "label": "scene one", "position": { "x": 60, "y": 40 }, "prompt": "{{scene_one}}", "modelId": "flux-2-pro", "seed": 1 },
+      { "id": "shot-2", "type": "image", "label": "scene two", "position": { "x": 60, "y": 300 }, "prompt": "{{scene_two}}", "modelId": "flux-2-pro", "seed": 2 },
+      { "id": "shot-3", "type": "image", "label": "scene three", "position": { "x": 60, "y": 560 }, "prompt": "{{scene_three}}", "modelId": "flux-2-pro", "seed": 3 },
       { "id": "export", "type": "export", "position": { "x": 420, "y": 300 }, "formats": [] }
     ],
     "edges": [

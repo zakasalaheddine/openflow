@@ -14,7 +14,7 @@ const SQUARE = { name: '1:1', w: 1080, h: 1080 }
 
 const graph = (over: Partial<ExportNode>): Flow => ({
   nodes: [
-    { id: 'shot', type: 'image', prompt: 'bottle on marble', modelRole: 'draft', label: 'shot' },
+    { id: 'shot', type: 'image', prompt: 'bottle on marble', modelId: 'flux-2-pro', label: 'shot' },
     { id: 'out', type: 'export', formats: [SQUARE], ...over },
   ],
   edges: [{ id: 'e1', from: 'shot', to: 'out', role: 'input', position: null }],

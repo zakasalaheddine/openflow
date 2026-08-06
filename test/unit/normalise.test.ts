@@ -16,7 +16,7 @@ const CONFORMING = path.resolve('test/fixtures/media/conforming.mp4')
 
 const graph: Flow = {
   nodes: [
-    { id: 'clip', type: 'video', prompt: 'the bottle turning', durationSec: 1, audio: false, modelRole: 'draft' },
+    { id: 'clip', type: 'video', prompt: 'the bottle turning', durationSec: 1, audio: false, modelId: 'hailuo-2-3-pro' },
   ],
   edges: [],
 }

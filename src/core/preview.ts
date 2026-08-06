@@ -3,7 +3,7 @@ import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { flows, nodeRuns } from '../db/schema'
 import { planRun, IN_FLIGHT, type PlannedNode } from './executor'
 import { descendants } from './graph'
-import type { Flow, ModelRole, NodeId } from './types'
+import type { Flow, NodeId } from './types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = BetterSQLite3Database<any>
@@ -24,8 +24,8 @@ export type Preview = {
  * quote a number the executor then disagrees with. Two implementations of "what
  * would this cost" is how a UI ends up promising $11.40 and charging $19.
  */
-export function previewRun(db: Db, flowId: string, options: { role?: ModelRole } = {}): Preview {
-  const planned = planRun(db, flowId, options)
+export function previewRun(db: Db, flowId: string): Preview {
+  const planned = planRun(db, flowId)
   const hashes = planned.map((p) => p.inputHash)
 
   const existing = hashes.length
@@ -77,7 +77,6 @@ export function staleForSource(
   db: Db,
   projectId: string,
   sourceId: string,
-  options: { role?: ModelRole } = {},
 ): AffectedNode[] {
   const projectFlows = db.select().from(flows).where(eq(flows.projectId, projectId)).all()
   const affected: AffectedNode[] = []
@@ -93,7 +92,7 @@ export function staleForSource(
     const touched = new Set<NodeId>(holders)
     for (const id of holders) for (const child of descendants(shape, id)) touched.add(child)
 
-    for (const planned of planRun(db, flow.id, options)) {
+    for (const planned of planRun(db, flow.id)) {
       if (touched.has(planned.nodeId)) affected.push({ ...planned, flowId: flow.id })
     }
   }

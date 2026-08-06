@@ -8,7 +8,7 @@ import { enqueueRun } from './executor'
 import { assetsDir } from '../env'
 import { DEFAULT_SETTINGS, type ProjectSettings } from './settings'
 import { tick, type TickOptions } from '../worker/loop'
-import type { Flow, ModelRole } from './types'
+import type { Flow } from './types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = BetterSQLite3Database<any>
@@ -162,11 +162,10 @@ export type RunSummary = {
 export async function runFlow(
   db: Db,
   spec: FlowFile,
-  options: TickOptions & { role?: ModelRole; confirmOverspend?: boolean },
+  options: TickOptions & { confirmOverspend?: boolean },
 ): Promise<RunSummary> {
   const { flowId } = importFlowFile(db, spec)
   const { enqueued, cached } = enqueueRun(db, flowId, {
-    role: options.role,
     confirmOverspend: options.confirmOverspend,
   })
 

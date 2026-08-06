@@ -5,7 +5,7 @@
   "slots": ["scene", "headline", "cta"],
   "flow": {
     "nodes": [
-      { "id": "shot", "type": "image", "label": "scene", "position": { "x": 60, "y": 120 }, "prompt": "{{scene}}", "modelRole": "hero", "seed": 1 },
+      { "id": "shot", "type": "image", "label": "scene", "position": { "x": 60, "y": 120 }, "prompt": "{{scene}}", "modelId": "nano-banana-pro", "seed": 1 },
       {
         "id": "export",
         "type": "export",

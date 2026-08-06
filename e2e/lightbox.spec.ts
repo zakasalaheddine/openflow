@@ -40,7 +40,7 @@ test('a rendered shot opens its own output, and the close button works', async (
           type: 'image',
           position: { x: 60, y: 80 },
           prompt: 'bottle on marble',
-          modelRole: 'draft',
+          modelId: 'flux-2-pro',
           seed: 7701,
         },
       ],

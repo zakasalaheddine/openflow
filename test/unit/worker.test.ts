@@ -11,14 +11,14 @@ import type { Flow } from '@/core/types'
 import type { Adapter, SubmitRequest } from '@/models/fal'
 
 const flow: Flow = {
-  nodes: [{ id: 'img', type: 'image', prompt: 'bottle', modelRole: 'draft', seed: 1 }],
+  nodes: [{ id: 'img', type: 'image', prompt: 'bottle', modelId: 'flux-2-pro', seed: 1 }],
   edges: [],
 }
 
 const twoNodeFlow: Flow = {
   nodes: [
-    { id: 'a', type: 'image', prompt: 'one', modelRole: 'draft', seed: 1 },
-    { id: 'b', type: 'image', prompt: 'two', modelRole: 'draft', seed: 2 },
+    { id: 'a', type: 'image', prompt: 'one', modelId: 'flux-2-pro', seed: 1 },
+    { id: 'b', type: 'image', prompt: 'two', modelId: 'flux-2-pro', seed: 2 },
   ],
   edges: [],
 }
@@ -26,9 +26,9 @@ const twoNodeFlow: Flow = {
 /** A shot, the clip cut from it, and one unrelated shot beside them. */
 const clipFlow: Flow = {
   nodes: [
-    { id: 'img', type: 'image', prompt: 'bottle', modelRole: 'draft', seed: 1 },
-    { id: 'clip', type: 'video', prompt: 'push in', durationSec: 5, audio: false, modelRole: 'draft', seed: 2 },
-    { id: 'other', type: 'image', prompt: 'slate', modelRole: 'draft', seed: 3 },
+    { id: 'img', type: 'image', prompt: 'bottle', modelId: 'flux-2-pro', seed: 1 },
+    { id: 'clip', type: 'video', prompt: 'push in', durationSec: 5, audio: false, modelId: 'hailuo-2-3-pro', seed: 2 },
+    { id: 'other', type: 'image', prompt: 'slate', modelId: 'flux-2-pro', seed: 3 },
   ],
   edges: [{ id: 'e1', from: 'img', to: 'clip', role: 'start_frame', position: null }],
 }
@@ -188,7 +188,7 @@ describe('tick dispatch payload', () => {
     const anchored: Flow = {
       nodes: [
         { id: 'bottle', type: 'source', sourceId: 'source-1' },
-        { id: 'img', type: 'image', prompt: 'bottle', modelRole: 'draft', seed: 1 },
+        { id: 'img', type: 'image', prompt: 'bottle', modelId: 'flux-2-pro', seed: 1 },
       ],
       edges: [{ id: 'r1', from: 'bottle', to: 'img', role: 'reference', position: null }],
     }
@@ -216,7 +216,7 @@ describe('tick dispatch payload', () => {
     const flowId = seedFlow(db, projectId, {
       nodes: [
         { id: 'voice', type: 'source', sourceId: 'voice-1' },
-        { id: 'img', type: 'image', prompt: 'bottle', modelRole: 'draft', seed: 1 },
+        { id: 'img', type: 'image', prompt: 'bottle', modelId: 'flux-2-pro', seed: 1 },
       ],
       edges: [{ id: 'r1', from: 'voice', to: 'img', role: 'reference', position: null }],
     })

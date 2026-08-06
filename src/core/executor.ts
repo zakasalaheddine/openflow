@@ -9,8 +9,9 @@ import { previewRun } from './preview'
 import { DEFAULT_SETTINGS, type ProjectSettings } from './settings'
 import { referencesOf } from './wiring'
 import { composePrompt, referenceFiles } from './compose'
-import type { Flow, FlowNode, ModelRole, NodeId } from './types'
-import { resolveModel, assertAnchorsSupported, estimateCostCents, endpointFor } from '../models/registry'
+import type { Flow, FlowNode, NodeId } from './types'
+import { assertAnchorsSupported, estimateCostCents, endpointFor } from '../models/registry'
+import { modelById } from '../models/catalog'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = BetterSQLite3Database<any>
@@ -51,7 +52,7 @@ export type PlannedNode = {
 }
 
 /** Only image and video nodes dispatch. Source brings files in; export writes them out. */
-const isRunnable = (node: FlowNode): node is Extract<FlowNode, { modelRole: ModelRole }> =>
+const isRunnable = (node: FlowNode): node is Extract<FlowNode, { modelId: string }> =>
   node.type === 'image' || node.type === 'video'
 
 function loadContext(db: Db, flowId: string) {
@@ -84,7 +85,6 @@ function loadContext(db: Db, flowId: string) {
 export function planRun(
   db: Db,
   flowId: string,
-  options: { role?: ModelRole } = {},
 ): PlannedNode[] {
   const { graph, library } = loadContext(db, flowId)
   const byId = new Map(graph.nodes.map((n) => [n.id, n]))
@@ -124,7 +124,9 @@ export function planRun(
       continue
     }
 
-    const model = resolveModel(node.type === 'image' ? 'image' : 'video', options.role ?? node.modelRole)
+    // The node's own model, always. Nothing overrides it — that is the whole
+    // point of the field, and what makes three nodes off one source comparable.
+    const model = modelById(node.modelId)
     // References arrive as wires now, so the count comes from the graph.
     assertAnchorsSupported(model, referencesOf(graph, nodeId))
 
@@ -177,13 +179,13 @@ export type EnqueueResult = {
 export function enqueueRun(
   db: Db,
   flowId: string,
-  options: { role?: ModelRole; confirmOverspend?: boolean; only?: NodeId } = {},
+  options: { confirmOverspend?: boolean; only?: NodeId } = {},
 ): EnqueueResult {
   const { settings, graph } = loadContext(db, flowId)
 
   // Same derivation the toolbar shows. One function, so the quoted price and
   // the charged price cannot drift apart.
-  const preview = previewRun(db, flowId, options)
+  const preview = previewRun(db, flowId)
   let { stale: enqueued, cached } = preview
   let { estimatedCents } = preview
 

@@ -5,7 +5,8 @@ import { flows, nodeRuns, assets } from '@/db/schema'
 import { ensureWorkspace, saveGraphIfCurrent, StaleGraphError, listSources } from '@/core/workspace'
 import { previewRun } from '@/core/preview'
 import { flowSchema } from '@/core/schema'
-import type { Flow, ModelRole } from '@/core/types'
+import { catalog } from '@/models/catalog'
+import type { Flow } from '@/core/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,14 +16,12 @@ export const dynamic = 'force-dynamic'
  * Derived state (stale set, prices, run status) is never sent by the client —
  * a client that could set its own prices could quote whatever it liked.
  */
-export async function GET(request: Request) {
+export async function GET() {
   const db = getDb()
   const { projectId, flowId } = ensureWorkspace(db)
-  const role = (new URL(request.url).searchParams.get('role') as ModelRole | null) ?? undefined
-
   const flow = db.select().from(flows).where(eq(flows.id, flowId)).get()!
   const graph = flow.graphJson as Flow
-  const preview = previewRun(db, flowId, { role })
+  const preview = previewRun(db, flowId)
 
   const runs = db.select().from(nodeRuns).where(eq(nodeRuns.flowId, flowId)).all()
   const refs = runs.flatMap((r) => (r.outputRefs as string[] | null) ?? [])
@@ -32,8 +31,8 @@ export async function GET(request: Request) {
   const assetById = new Map(outputs.map((a) => [a.id, a]))
 
   // Latest run per (node, hash), not per node alone: the newest row for a
-  // node can belong to a different config than the one on screen (Draft/Hero
-  // flipped back after a newer Hero render), and picking newest-by-node-only
+  // node can belong to a different config than the one on screen (a model
+  // switched back after a render on the other one), and picking newest-by-node-only
   // then filtering on hash left nothing — the card read "succeeded"
   // (previewRun matches hashes across all runs) while showing no image and no
   // cost, because the run this map returned was for the wrong hash entirely.
@@ -49,6 +48,11 @@ export async function GET(request: Request) {
     flowId,
     updatedAt: flow.updatedAt,
     graph,
+    // The picker's list comes from here, never from the client: a client that
+    // could invent a model could name an endpoint nobody priced.
+    models: catalog()
+      .filter((m) => m.format !== 'text')
+      .map((m) => ({ id: m.id, format: m.format, default: m.default, caps: m.caps, cost: m.cost })),
     sources: listSources(db, projectId),
     nodes: Object.fromEntries(
       graph.nodes.map((node) => {

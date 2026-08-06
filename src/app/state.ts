@@ -1,4 +1,4 @@
-import type { Flow, ModelRole } from '@/core/types'
+import type { Flow } from '@/core/types'
 
 export type NodeState = {
   status: 'stale' | 'queued' | 'claimed' | 'submitted' | 'polling' | 'succeeded' | 'failed'
@@ -19,11 +19,28 @@ export type SourceRow = {
   version: number
 }
 
+/** A catalog row, trimmed to what the picker shows. */
+export type ModelRow = {
+  id: string
+  format: 'image' | 'video'
+  /** The row a fresh node of this format gets. */
+  default?: boolean
+  caps: {
+    refImages: number
+    textRendering: boolean
+    startEndFrame: boolean
+    nativeAudio: boolean
+    maxDurationSec?: number
+  }
+  cost: { unit: 'image' | 'megapixel' | 'second'; amount: number }
+}
+
 export type FlowState = {
   projectId: string
   flowId: string
   updatedAt: string
   graph: Flow
+  models: ModelRow[]
   sources: SourceRow[]
   nodes: Record<string, NodeState>
   totals: {
@@ -36,8 +53,8 @@ export type FlowState = {
 
 export const money = (cents: number) => `$${(cents / 100).toFixed(2)}`
 
-export async function fetchFlow(role: ModelRole): Promise<FlowState> {
-  const response = await fetch(`/api/flow?role=${role}`, { cache: 'no-store' })
+export async function fetchFlow(): Promise<FlowState> {
+  const response = await fetch('/api/flow', { cache: 'no-store' })
   if (!response.ok) throw new Error('Could not load the flow')
   return response.json()
 }
@@ -141,15 +158,11 @@ export type RunOutcome =
   | { kind: 'refused'; message: string }
 
 /** `nodeId` renders that one node plus any upstream it still needs; omit it for the whole flow. */
-export async function startRun(
-  role: ModelRole,
-  confirmOverspend = false,
-  nodeId?: string,
-): Promise<RunOutcome> {
+export async function startRun(confirmOverspend = false, nodeId?: string): Promise<RunOutcome> {
   const response = await fetch('/api/run', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role, confirmOverspend, nodeId }),
+    body: JSON.stringify({ confirmOverspend, nodeId }),
   })
   const body = await response.json()
 

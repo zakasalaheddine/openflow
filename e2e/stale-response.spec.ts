@@ -13,9 +13,9 @@ import { resetWorkspace, setGraph, waitForLedger, graphOf } from './helpers'
 test.describe.configure({ mode: 'serial' })
 
 const CARDS = [
-  { id: 'marble', type: 'image', position: { x: 40, y: 30 }, prompt: 'bottle on marble', modelRole: 'draft', seed: 901 },
-  { id: 'slate', type: 'image', position: { x: 290, y: 30 }, prompt: 'bottle on slate', modelRole: 'draft', seed: 902 },
-  { id: 'linen', type: 'image', position: { x: 540, y: 30 }, prompt: 'bottle on linen', modelRole: 'draft', seed: 903 },
+  { id: 'marble', type: 'image', position: { x: 40, y: 30 }, prompt: 'bottle on marble', modelId: 'flux-2-pro', seed: 901 },
+  { id: 'slate', type: 'image', position: { x: 290, y: 30 }, prompt: 'bottle on slate', modelId: 'flux-2-pro', seed: 902 },
+  { id: 'linen', type: 'image', position: { x: 540, y: 30 }, prompt: 'bottle on linen', modelId: 'flux-2-pro', seed: 903 },
 ]
 
 test('a slow poll cannot resurrect a deleted node', async ({ page, request }) => {

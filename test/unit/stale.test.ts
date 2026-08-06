@@ -6,11 +6,11 @@ import { nodeRuns, sources, flows } from '@/db/schema'
 import { tempDb, seedProject, seedSource, seedFlow } from '../helpers/db'
 import type { Flow } from '@/core/types'
 
-const anchored = (id: string, prompt: string): Flow['nodes'][number] => ({
+const anchored = (id: string, prompt: string, modelId = 'flux-2-pro'): Flow['nodes'][number] => ({
   id,
   type: 'image',
   prompt,
-  modelRole: 'draft',
+  modelId,
 })
 
 /** A source node pointing at the seeded library row, plus its reference edge. */
@@ -21,7 +21,7 @@ const chain: Flow = {
   nodes: [
     bottle(),
     anchored('img', 'bottle on marble'),
-    { id: 'clip', type: 'video', prompt: 'push in', durationSec: 5, audio: false, modelRole: 'draft' },
+    { id: 'clip', type: 'video', prompt: 'push in', durationSec: 5, audio: false, modelId: 'hailuo-2-3-pro' },
   ],
   edges: [
     refEdge('img'),
@@ -105,11 +105,16 @@ describe('previewRun', () => {
     expect(previewRun(db, flowId).estimatedCents).toBe(0)
   })
 
-  test('prices a hero run higher than a draft run', () => {
-    // What makes the Draft·Hero toggle legible: iterate at $4, render at $38.
-    const { db, flowId } = setup()
-    expect(previewRun(db, flowId, { role: 'hero' }).estimatedCents).toBeGreaterThan(
-      previewRun(db, flowId, { role: 'draft' }).estimatedCents,
+  test('prices each node by its own model, so the expensive one is visibly expensive', () => {
+    // What makes a comparison legible before you pay for it: the same shot on
+    // two models is two prices on two cards, not one number for the board.
+    const cheap = setup({ nodes: [bottle(), anchored('img', 'marble')], edges: [refEdge('img')] })
+    const rich = setup({
+      nodes: [bottle(), anchored('img', 'marble', 'nano-banana-pro')],
+      edges: [refEdge('img')],
+    })
+    expect(previewRun(rich.db, rich.flowId).estimatedCents).toBeGreaterThan(
+      previewRun(cheap.db, cheap.flowId).estimatedCents,
     )
   })
 
@@ -119,8 +124,8 @@ describe('previewRun', () => {
       nodes: [
         bottle(),
         anchored('img', 'bottle'),
-        { id: 'c1', type: 'video', prompt: 'a', durationSec: 5, audio: false, modelRole: 'draft' },
-        { id: 'c2', type: 'video', prompt: 'b', durationSec: 5, audio: false, modelRole: 'draft' },
+        { id: 'c1', type: 'video', prompt: 'a', durationSec: 5, audio: false, modelId: 'hailuo-2-3-pro' },
+        { id: 'c2', type: 'video', prompt: 'b', durationSec: 5, audio: false, modelId: 'hailuo-2-3-pro' },
         anchored('other', 'unrelated'),
       ],
       edges: [

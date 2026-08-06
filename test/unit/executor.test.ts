@@ -10,7 +10,7 @@ import { DEFAULT_SETTINGS } from '@/core/settings'
 const imageFlow: Flow = {
   nodes: [
     { id: 'bottle', type: 'source', sourceId: 'source-1' },
-    { id: 'img', type: 'image', prompt: 'bottle on marble', modelRole: 'draft', seed: 1 },
+    { id: 'img', type: 'image', prompt: 'bottle on marble', modelId: 'flux-2-pro', seed: 1 },
   ],
   edges: [{ id: 'e1', from: 'bottle', to: 'img', role: 'reference', position: null }],
 }
@@ -18,17 +18,17 @@ const imageFlow: Flow = {
 /** A shot, the clip cut from it, and an unrelated shot beside them. */
 const branchFlow: Flow = {
   nodes: [
-    { id: 'img', type: 'image', prompt: 'bottle on marble', modelRole: 'draft', seed: 1 },
-    { id: 'clip', type: 'video', prompt: 'slow push in', durationSec: 5, audio: false, modelRole: 'draft', seed: 2 },
-    { id: 'other', type: 'image', prompt: 'bottle on slate', modelRole: 'draft', seed: 3 },
+    { id: 'img', type: 'image', prompt: 'bottle on marble', modelId: 'flux-2-pro', seed: 1 },
+    { id: 'clip', type: 'video', prompt: 'slow push in', durationSec: 5, audio: false, modelId: 'hailuo-2-3-pro', seed: 2 },
+    { id: 'other', type: 'image', prompt: 'bottle on slate', modelId: 'flux-2-pro', seed: 3 },
   ],
   edges: [{ id: 'e1', from: 'img', to: 'clip', role: 'start_frame', position: null }],
 }
 
 const twoImageFlow: Flow = {
   nodes: [
-    { id: 'a', type: 'image', prompt: 'one', modelRole: 'draft', seed: 1 },
-    { id: 'b', type: 'image', prompt: 'two', modelRole: 'draft', seed: 2 },
+    { id: 'a', type: 'image', prompt: 'one', modelId: 'flux-2-pro', seed: 1 },
+    { id: 'b', type: 'image', prompt: 'two', modelId: 'flux-2-pro', seed: 2 },
   ],
   edges: [],
 }
@@ -92,7 +92,7 @@ describe('planRun', () => {
       nodes: [
         { id: 'bottle', type: 'source', sourceId: 'source-1' },
         // specialist image row is Recraft, caps.refImages === 0
-        { id: 'x', type: 'image', prompt: 'headline', modelRole: 'specialist' },
+        { id: 'x', type: 'image', prompt: 'headline', modelId: 'recraft-v3' },
       ],
       edges: [{ id: 'e1', from: 'bottle', to: 'x', role: 'reference', position: null }],
     }
@@ -100,12 +100,39 @@ describe('planRun', () => {
     expect(() => planRun(db, flowId)).toThrow(UnsupportedCapabilityError)
   })
 
-  test('resolves the model by role, so the draft/hero toggle changes the plan', () => {
-    const { db, flowId } = setup(imageFlow)
-    const draft = planRun(db, flowId)[0]
-    const hero = planRun(db, flowId, { role: 'hero' })[0]
-    expect(hero.modelId).not.toBe(draft.modelId)
-    expect(hero.inputHash).not.toBe(draft.inputHash)
+  test('two nodes off one source, two models: two plans, two hashes, two prices', () => {
+    // The whole point of the field. Nothing overrides a node's model, so a
+    // side-by-side comparison of three models is a graph, not a config change.
+    const compare: Flow = {
+      nodes: [
+        { id: 'bottle', type: 'source', sourceId: 'source-1' },
+        { id: 'cheap', type: 'image', prompt: 'bottle on marble', modelId: 'flux-2-pro', seed: 1 },
+        { id: 'rich', type: 'image', prompt: 'bottle on marble', modelId: 'nano-banana-pro', seed: 1 },
+      ],
+      edges: [
+        { id: 'e1', from: 'bottle', to: 'cheap', role: 'reference', position: null },
+        { id: 'e2', from: 'bottle', to: 'rich', role: 'reference', position: null },
+      ],
+    }
+    const { db, flowId } = setup(compare)
+    const planned = planRun(db, flowId)
+    const cheap = planned.find((p) => p.nodeId === 'cheap')!
+    const rich = planned.find((p) => p.nodeId === 'rich')!
+
+    expect(cheap.modelId).toBe('flux-2-pro')
+    expect(rich.modelId).toBe('nano-banana-pro')
+    // Same prompt, same seed, same source: only the model differs, and that is
+    // enough to make them two separate renders rather than one cache hit.
+    expect(rich.inputHash).not.toBe(cheap.inputHash)
+    expect(rich.estimatedCents).not.toBe(cheap.estimatedCents)
+  })
+
+  test('a model the catalog does not have is refused before it is priced', () => {
+    const { db, flowId } = setup({
+      ...imageFlow,
+      nodes: imageFlow.nodes.map((n) => (n.id === 'img' ? { ...n, modelId: 'gone-tomorrow' } : n)),
+    })
+    expect(() => planRun(db, flowId)).toThrow(/gone-tomorrow/)
   })
 })
 

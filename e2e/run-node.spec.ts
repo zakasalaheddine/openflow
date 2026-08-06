@@ -15,9 +15,9 @@ async function callSheet(request: APIRequestContext, take: number) {
   await resetWorkspace(request)
   await setGraph(request, {
       nodes: [
-        { id: 'marble', type: 'image', position: { x: 60, y: 80 }, prompt: 'bottle on marble', modelRole: 'draft', seed: take * 100 + 1 },
-        { id: 'slate', type: 'image', position: { x: 320, y: 80 }, prompt: 'bottle on slate', modelRole: 'draft', seed: take * 100 + 2 },
-        { id: 'turn', type: 'video', position: { x: 580, y: 80 }, prompt: 'slow turn', durationSec: 5, audio: false, modelRole: 'draft', seed: take * 100 + 3 },
+        { id: 'marble', type: 'image', position: { x: 60, y: 80 }, prompt: 'bottle on marble', modelId: 'flux-2-pro', seed: take * 100 + 1 },
+        { id: 'slate', type: 'image', position: { x: 320, y: 80 }, prompt: 'bottle on slate', modelId: 'flux-2-pro', seed: take * 100 + 2 },
+        { id: 'turn', type: 'video', position: { x: 580, y: 80 }, prompt: 'slow turn', durationSec: 5, audio: false, modelId: 'hailuo-2-3-pro', seed: take * 100 + 3 },
       ],
       edges: [{ id: 'g1', from: 'marble', to: 'turn', role: 'start_frame', position: null }],
     })

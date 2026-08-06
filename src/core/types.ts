@@ -4,8 +4,6 @@ export type SourceId = string
 /** Scarce by design. Four in v1; a fifth requires a written case. */
 export type NodeType = 'source' | 'image' | 'video' | 'export'
 
-export type ModelRole = 'draft' | 'hero' | 'specialist'
-
 export type AssetRef = {
   id: string
   path: string
@@ -100,7 +98,15 @@ export type SourceNode = NodeBase & {
 export type ImageNode = NodeBase & {
   type: 'image'
   prompt: string
-  modelRole: ModelRole
+  /**
+   * A row in the model catalog, by id. The node decides; nothing overrules it.
+   *
+   * It replaced `modelRole: 'draft' | 'hero' | 'specialist'`, which named a slot
+   * rather than a model and was overridden wholesale by a toolbar toggle — so
+   * three nodes wired to one product photo could not run on three models, which
+   * is the comparison that decides which model is worth paying for.
+   */
+  modelId: string
   seed?: number
 }
 
@@ -109,7 +115,8 @@ export type VideoNode = NodeBase & {
   prompt: string
   durationSec: number
   audio: boolean
-  modelRole: ModelRole
+  /** A row in the model catalog, by id. See ImageNode.modelId. */
+  modelId: string
   seed?: number
 }
 

@@ -1,4 +1,4 @@
-import type { AdFormat, FlowNode, ModelRole, NodeId, NodePosition, NodeType, TextOverlay } from './types'
+import type { AdFormat, FlowNode, NodeId, NodePosition, NodeType, TextOverlay } from './types'
 
 /**
  * Everything a caller may set on a fresh node. `id` is the only required
@@ -17,7 +17,12 @@ export type NewNodeOverrides = {
   label?: string
   sourceId?: string
   prompt?: string
-  modelRole?: ModelRole
+  /**
+   * Required for image and video. Deliberately not defaulted here: the default
+   * lives in the catalog, and reading a file off disk would drag node:fs into
+   * the canvas bundle — this module is imported by a client component.
+   */
+  modelId?: string
   seed?: number
   durationSec?: number
   audio?: boolean
@@ -28,9 +33,10 @@ export type NewNodeOverrides = {
 }
 
 /**
- * The repo's one set of defaults for a brand-new node — draft role, seed 1, a
- * silent 5-second clip, no formats yet. Matches what the canvas toolbar has
- * always created.
+ * The repo's one set of defaults for a brand-new node — seed 1, a silent
+ * 5-second clip, no formats yet. The model comes from the caller, because it
+ * comes from the catalog: the canvas reads it off the rows the flow route sent,
+ * the agent reads it with defaultModelFor.
  *
  * `seed` rides into `input_hash` as its own field (see hash.ts's `HashInput`,
  * populated from `node.seed` in executor.ts and models/input.ts — it is not
@@ -43,6 +49,13 @@ export function newNode(type: NodeType, overrides: NewNodeOverrides): FlowNode {
   const { id, position, label } = overrides
   const base = { id, ...(position ? { position } : {}), ...(label ? { label } : {}) }
 
+  const modelId = () => {
+    // Louder than defaulting to a hardcoded id: a node quietly built on the
+    // wrong model renders at the wrong price and reads as a model problem.
+    if (!overrides.modelId) throw new Error(`A ${type} node needs a modelId from the catalog.`)
+    return overrides.modelId
+  }
+
   switch (type) {
     case 'source':
       return { ...base, type, sourceId: overrides.sourceId ?? '' }
@@ -51,7 +64,7 @@ export function newNode(type: NodeType, overrides: NewNodeOverrides): FlowNode {
         ...base,
         type,
         prompt: overrides.prompt ?? '',
-        modelRole: overrides.modelRole ?? 'draft',
+        modelId: modelId(),
         seed: overrides.seed ?? 1,
       }
     case 'video':
@@ -61,7 +74,7 @@ export function newNode(type: NodeType, overrides: NewNodeOverrides): FlowNode {
         prompt: overrides.prompt ?? '',
         durationSec: overrides.durationSec ?? 5,
         audio: overrides.audio ?? false,
-        modelRole: overrides.modelRole ?? 'draft',
+        modelId: modelId(),
         seed: overrides.seed ?? 1,
       }
     case 'export':
