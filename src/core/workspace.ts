@@ -4,7 +4,7 @@ import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { projects, flows, sources } from '../db/schema'
 import { DEFAULT_SETTINGS } from './settings'
 import { assertModelFits } from './wiring'
-import { modelById } from '../models/catalog'
+import { byId as modelOrNone } from '../models/catalog'
 import type { Flow } from './types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -81,7 +81,11 @@ const stamp = (previous?: string) => {
 function assertModelsFit(graph: Flow) {
   for (const node of graph.nodes) {
     if (node.type !== 'image' && node.type !== 'video') continue
-    assertModelFits(graph, node.id, modelById(node.modelId))
+    // A model the catalog no longer has cannot be checked for fit, and refusing
+    // the save would trap the graph: you could not edit your way out of a row
+    // you deleted from models.json. Run refuses it instead.
+    const model = modelOrNone(node.modelId)
+    if (model) assertModelFits(graph, node.id, model)
   }
 }
 

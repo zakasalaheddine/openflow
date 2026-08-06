@@ -85,6 +85,7 @@ describe('migrate:model-ids', () => {
 
     const result = migrateModelIds(db)
     expect(result.runs).toBe(2)
+    expect(result.unclaimed).toBe(0)
 
     // The real assertion: nothing is stale, so the next Run spends nothing.
     const preview = previewRun(db, 'flow-1')
@@ -106,6 +107,9 @@ describe('migrate:model-ids', () => {
 
     const result = migrateModelIds(db)
     expect(result.runs).toBe(1)
+    // The number the person reads to decide whether the migration worked. If it
+    // can only ever be zero it is worse than absent.
+    expect(result.unclaimed).toBe(1)
     expect(
       db.select().from(nodeRuns).where(eq(nodeRuns.nodeId, 'slate')).get()!.inputHash,
     ).toBe('a'.repeat(64))

@@ -161,6 +161,21 @@ export function migrateModelIds(db: ReturnType<typeof openDb>) {
       }),
     }
 
+    // Counted BEFORE the rewrite, and against the pairs about to be re-pointed.
+    // Afterwards every claimed row holds a new hash, and a row belonging to a
+    // node since deleted never held one of these hashes to begin with — so a
+    // count taken at the end can only ever be zero, which would read as "none
+    // lost" on a database that lost some.
+    const claimable = new Set(
+      graph.nodes.map((node) => `${node.id}:${before.get(node.id) ?? ''}`),
+    )
+    unclaimed += db
+      .select()
+      .from(nodeRuns)
+      .where(eq(nodeRuns.flowId, flow.id))
+      .all()
+      .filter((run) => !claimable.has(`${run.nodeId}:${run.inputHash}`)).length
+
     // Written first: the new hashes are read back out of the executor against
     // the migrated graph, so there is one implementation of "what is this node's
     // hash now" rather than a second copy that can disagree with the app.
@@ -196,16 +211,6 @@ export function migrateModelIds(db: ReturnType<typeof openDb>) {
           ` · ${claimed.changes} run(s)`,
       )
     }
-
-    // Runs for nodes since deleted or edited keep their old hash and stay
-    // unclaimed. Counted out loud rather than hidden: they are renders that were
-    // paid for and will not be found again.
-    unclaimed += db
-      .select()
-      .from(nodeRuns)
-      .where(eq(nodeRuns.flowId, flow.id))
-      .all()
-      .filter((run) => [...before.values()].includes(run.inputHash)).length
   }
 
   return { nodes, runs, unclaimed }

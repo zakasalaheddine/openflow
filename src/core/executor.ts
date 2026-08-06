@@ -11,7 +11,7 @@ import { referencesOf } from './wiring'
 import { composePrompt, referenceFiles } from './compose'
 import type { Flow, FlowNode, NodeId } from './types'
 import { assertAnchorsSupported, estimateCostCents, endpointFor } from '../models/registry'
-import { modelById } from '../models/catalog'
+import { byId as modelOrNone, modelById } from '../models/catalog'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = BetterSQLite3Database<any>
@@ -126,7 +126,13 @@ export function planRun(
 
     // The node's own model, always. Nothing overrides it — that is the whole
     // point of the field, and what makes three nodes off one source comparable.
-    const model = modelById(node.modelId)
+    //
+    // A node naming a model the catalog no longer has is skipped rather than
+    // thrown on: this walk is what prices the canvas, and a graph that cannot
+    // be read is a graph you cannot fix. Run refuses it instead, by name, in
+    // enqueueRun — and the card says which model went missing.
+    const model = modelOrNone(node.modelId)
+    if (!model) continue
     // References arrive as wires now, so the count comes from the graph.
     assertAnchorsSupported(model, referencesOf(graph, nodeId))
 
@@ -182,6 +188,13 @@ export function enqueueRun(
   options: { confirmOverspend?: boolean; only?: NodeId } = {},
 ): EnqueueResult {
   const { settings, graph } = loadContext(db, flowId)
+
+  // Refused here rather than skipped. planRun tolerates a missing model so the
+  // canvas still loads; spending money on a graph that names one is a different
+  // question, and the answer is no.
+  for (const node of graph.nodes) {
+    if (node.type === 'image' || node.type === 'video') modelById(node.modelId)
+  }
 
   // Same derivation the toolbar shows. One function, so the quoted price and
   // the charged price cannot drift apart.

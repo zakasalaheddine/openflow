@@ -1,4 +1,6 @@
 import { describe, test, expect } from 'vitest'
+import { readFileSync, readdirSync } from 'node:fs'
+import path from 'node:path'
 import { SEED, assertAnchorsSupported, assertStartFrameSupported, estimateCostCents, UnsupportedCapabilityError, type ModelSpec } from '@/models/registry'
 import { modelById } from '@/models/catalog'
 
@@ -126,5 +128,25 @@ describe('estimateCostCents', () => {
   test('never returns a negative estimate', () => {
     // A negative estimate would let a bad row slip a run past the spend cap.
     expect(estimateCostCents(spec(), { images: -5 })).toBeGreaterThanOrEqual(0)
+  })
+})
+
+describe('the flows that ship', () => {
+  // A template naming a model a fresh install does not have is a template that
+  // cannot be applied — and the person who finds out is the one who clicked it.
+  const shipped = [
+    'flows/demo.json',
+    ...readdirSync('flows/templates').map((name) => path.join('flows/templates', name)),
+  ]
+
+  test.each(shipped)('%s names only models the seed has', (file) => {
+    const spec = JSON.parse(readFileSync(file, 'utf8'))
+    const nodes = (spec.flow?.nodes ?? spec.nodes) as { modelId?: string }[]
+    const named = nodes.map((n) => n.modelId).filter((id): id is string => Boolean(id))
+
+    expect(named.length).toBeGreaterThan(0)
+    for (const id of named) {
+      expect(SEED.map((m) => m.id)).toContain(id)
+    }
   })
 })

@@ -127,12 +127,23 @@ describe('planRun', () => {
     expect(rich.estimatedCents).not.toBe(cheap.estimatedCents)
   })
 
-  test('a model the catalog does not have is refused before it is priced', () => {
+  test('a model the catalog no longer has leaves the graph readable, and unpriced', () => {
+    // models.json is a file the person edits, so deleting a row is an ordinary
+    // action. If pricing the canvas threw, the graph naming that model could
+    // never be opened — and never fixed.
     const { db, flowId } = setup({
       ...imageFlow,
       nodes: imageFlow.nodes.map((n) => (n.id === 'img' ? { ...n, modelId: 'gone-tomorrow' } : n)),
     })
-    expect(() => planRun(db, flowId)).toThrow(/gone-tomorrow/)
+    expect(planRun(db, flowId).some((p) => p.nodeId === 'img')).toBe(false)
+  })
+
+  test('but Run refuses it by name, rather than quietly rendering the rest', () => {
+    const { db, flowId } = setup({
+      ...imageFlow,
+      nodes: imageFlow.nodes.map((n) => (n.id === 'img' ? { ...n, modelId: 'gone-tomorrow' } : n)),
+    })
+    expect(() => enqueueRun(db, flowId)).toThrow(/gone-tomorrow/)
   })
 })
 

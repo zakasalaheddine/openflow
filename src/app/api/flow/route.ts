@@ -60,6 +60,13 @@ export async function GET() {
         const planned = [...preview.stale, ...preview.cached, ...preview.inFlight].find(
           (p) => p.nodeId === node.id,
         )
+        // planRun skips a node whose model has left the catalog so the canvas
+        // still loads. The card has to say so, or it reads as an ordinary
+        // unrendered shot that Run mysteriously refuses.
+        const missingModel =
+          (node.type === 'image' || node.type === 'video') && !catalog().some((m) => m.id === node.modelId)
+            ? `No model '${node.modelId}' in the catalog. Pick another, or add it to models.json.`
+            : null
         // Matched on inputHash, never just nodeId — the same rule exporter.ts's
         // currentRun follows. Node ids are deterministic now (agent/ops.ts's
         // newId recycles a freed suffix), so a stale run for a deleted node can
@@ -69,12 +76,14 @@ export async function GET() {
         return [
           node.id,
           {
-            status: preview.cached.some((c) => c.nodeId === node.id)
+            status: missingModel
+              ? 'failed'
+              : preview.cached.some((c) => c.nodeId === node.id)
               ? 'succeeded'
               : preview.inFlight.some((f) => f.nodeId === node.id)
                 ? (currentRun?.status ?? 'queued')
                 : (currentRun?.status === 'failed' ? 'failed' : 'stale'),
-            error: currentRun?.error ?? null,
+            error: missingModel ?? currentRun?.error ?? null,
             costCents: currentRun?.costCents ?? 0,
             estimatedCents: Math.round(planned?.estimatedCents ?? 0),
             modelId: planned?.modelId ?? null,
