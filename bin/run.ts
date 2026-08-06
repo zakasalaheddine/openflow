@@ -8,6 +8,7 @@
 import { openDb } from '../src/db'
 import { readFlowFile, runFlow } from '../src/core/run-flow'
 import { createAdapter } from '../src/models/fal'
+import { ensureModelsFile } from '../src/models/registry'
 import { falMode, loadDotEnv } from '../src/env'
 import type { ModelRole } from '../src/core/types'
 
@@ -27,6 +28,7 @@ const confirmOverspend = rest.includes('--confirm')
 
 const mode = falMode()
 const db = openDb()
+ensureModelsFile()
 
 console.log(`[openflow] ${file} · FAL_MODE=${mode}${role ? ` · ${role}` : ''}`)
 

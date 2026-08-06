@@ -13,10 +13,16 @@ export async function register() {
   const { getDb } = await import('./db')
   const { startWorker } = await import('./worker/loop')
   const { createAdapter } = await import('./models/fal')
+  const { ensureModelsFile } = await import('./models/registry')
   const { falMode, isDemo } = await import('./env')
 
   const mode = falMode()
   const db = getDb()
+
+  // Written here rather than on first read: a read that writes would seed a
+  // catalog into whatever data dir a test happened to point at. Boot is the one
+  // moment we know the data dir is the real one.
+  ensureModelsFile()
 
   if (isDemo()) {
     // Pre-baked before the worker starts, so the first visitor never sees a

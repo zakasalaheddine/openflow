@@ -1,4 +1,4 @@
-import { REGISTRY } from '@/models/registry'
+import { catalog } from '@/models/registry'
 import type { Ops } from './ops'
 
 /**
@@ -9,10 +9,11 @@ import type { Ops } from './ops'
  * to be refused for is one it can avoid asking for.
  */
 export function systemPrompt(input: { brandProfile: string; ops: Ops }) {
-  const models = REGISTRY.filter((m) => m.format !== 'text')
+  const models = catalog()
+    .filter((m) => m.format !== 'text')
     .map(
       (m) =>
-        `- ${m.format} / ${m.role}: ${m.id} — up to ${m.caps.refImages} reference image(s)` +
+        `- ${m.format}: ${m.id} — up to ${m.caps.refImages} reference image(s)` +
         `${m.caps.startEndFrame ? ', accepts a start frame' : ''}` +
         `${m.caps.textRendering ? ', renders legible text' : ''}` +
         `${m.caps.maxDurationSec ? `, max ${m.caps.maxDurationSec}s` : ''}` +

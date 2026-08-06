@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest'
 import {
-  REGISTRY,
+  SEED,
   resolveModel,
   assertAnchorsSupported,
   assertStartFrameSupported,
@@ -12,7 +12,6 @@ import {
 const spec = (over: Partial<ModelSpec> = {}): ModelSpec => ({
   id: 'test/model',
   format: 'image',
-  role: 'draft',
   falEndpoint: 'fal-ai/test',
   caps: { refImages: 4, textRendering: false, startEndFrame: false, nativeAudio: false },
   cost: { unit: 'image', amount: 3 },
@@ -20,19 +19,21 @@ const spec = (over: Partial<ModelSpec> = {}): ModelSpec => ({
   ...over,
 })
 
-describe('REGISTRY', () => {
-  test('ships a draft, hero and specialist image row', () => {
-    const roles = REGISTRY.filter((m) => m.format === 'image').map((m) => m.role)
-    expect(new Set(roles)).toEqual(new Set(['draft', 'hero', 'specialist']))
+describe('the shipped seed', () => {
+  test('offers more than one model per format, or there is nothing to choose between', () => {
+    for (const format of ['image', 'video'] as const) {
+      expect(SEED.filter((m) => m.format === format).length).toBeGreaterThan(1)
+    }
   })
 
   test('has no duplicate ids', () => {
-    expect(new Set(REGISTRY.map((m) => m.id)).size).toBe(REGISTRY.length)
+    expect(new Set(SEED.map((m) => m.id)).size).toBe(SEED.length)
   })
 
-  test('has at most one row per format and role', () => {
-    const keys = REGISTRY.map((m) => `${m.format}:${m.role}`)
-    expect(new Set(keys).size).toBe(keys.length)
+  test('names exactly one default per format, so a fresh node is never ambiguous', () => {
+    for (const format of ['image', 'video'] as const) {
+      expect(SEED.filter((m) => m.format === format && m.default)).toHaveLength(1)
+    }
   })
 
   test('stamps verifiedOn with a real past date, or leaves it null', () => {
@@ -42,7 +43,7 @@ describe('REGISTRY', () => {
     // has actually rendered through it, so the date must at least be one that
     // has happened.
     const today = new Date().toISOString().slice(0, 10)
-    for (const model of REGISTRY) {
+    for (const model of SEED) {
       if (model.verifiedOn === null) continue
       expect(model.verifiedOn).toMatch(/^\d{4}-\d{2}-\d{2}$/)
       expect(model.verifiedOn <= today).toBe(true)
@@ -53,7 +54,7 @@ describe('REGISTRY', () => {
     // Cheap standing guard on the shape. It cannot prove an endpoint exists —
     // only a live call does that — but a typo'd slug that drops the owner is
     // caught here rather than by a 404 someone pays to see.
-    for (const model of REGISTRY) {
+    for (const model of SEED) {
       expect(model.falEndpoint).toMatch(/^[a-z0-9-]+\/[a-z0-9.\-/]+$/)
       if (model.editEndpoint) {
         expect(model.editEndpoint.startsWith(`${model.falEndpoint}/`)).toBe(true)
@@ -66,7 +67,7 @@ describe('resolveModel', () => {
   test('selects by format and role', () => {
     const model = resolveModel('image', 'draft')
     expect(model.format).toBe('image')
-    expect(model.role).toBe('draft')
+    expect(model.id).toBe('flux-2-pro')
   })
 
   test('the draft and hero rows for a format are different models', () => {

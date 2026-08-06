@@ -45,6 +45,16 @@ export const dataDir = () =>
 export const packageRoot = () => process.env.OPENFLOW_ROOT ?? process.cwd()
 
 export const dbPath = () => path.join(dataDir(), 'app.db')
+
+/**
+ * The model catalog, beside the database rather than inside it.
+ *
+ * A file is hand-editable, diffable and copyable between machines, which is the
+ * whole point: adding a fal model must not be a rebuild. It lives under the
+ * data dir so a test pointing OPENFLOW_DATA_DIR at a temp path can never read
+ * the catalog you are editing.
+ */
+export const modelsPath = () => path.join(dataDir(), 'models.json')
 export const assetsDir = () => path.join(dataDir(), 'assets')
 export const exportsDir = () =>
   path.resolve(process.env.OPENFLOW_EXPORTS_DIR ?? './exports')
