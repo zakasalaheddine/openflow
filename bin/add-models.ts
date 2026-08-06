@@ -17,6 +17,7 @@ import path from 'node:path'
 import { catalog, ensureModelsFile } from '../src/models/catalog'
 import {
   buildRow,
+  parseListLine,
   priceFrom,
   type Candidate,
   type FalIndexEntry,
@@ -42,6 +43,12 @@ const TEMPLATE = `# One fal model id per line. Blank lines and # comments are ig
 #
 # fal-ai/bytedance/seedream/v4/text-to-image
 # fal-ai/kling-video/v3/pro/image-to-video
+#
+# Some models fal prices per token rather than per image or per second, and a
+# few it does not price publicly at all. Those are refused rather than added
+# unpriced — write the price after the slug and they land:
+#
+# openai/gpt-image-2  0.12/image
 `
 
 async function findEntry(slug: string): Promise<FalIndexEntry | null> {
@@ -82,7 +89,7 @@ async function findEditSibling(slug: string, schema: FalInputSchema) {
   return editSchema ? { editSlug, editSchema } : {}
 }
 
-function readList(file: string): string[] {
+function readList(file: string) {
   if (!existsSync(file)) {
     writeFileSync(file, TEMPLATE)
     console.log(`[openflow] wrote ${file}. Put fal model ids in it, then run this again.`)
@@ -92,6 +99,8 @@ function readList(file: string): string[] {
     .split('\n')
     .map((line) => line.replace(/#.*$/, '').trim())
     .filter(Boolean)
+    .map(parseListLine)
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
 }
 
 export async function addModels(file: string) {
@@ -117,14 +126,20 @@ export async function addModels(file: string) {
   for (const row of rows) {
     if (row.cost.amount !== null) continue
     const entry = await findEntry(row.falEndpoint).catch(() => null)
-    const cost = priceFrom(entry?.pricingInfoOverride)
+    const fromFal = priceFrom(entry?.pricingInfoOverride)
+    // Yours only when fal has none, and matched on the endpoint rather than the
+    // id: the id is derived and may have changed since the row was written.
+    const yours = wanted.find((item) => item.slug === row.falEndpoint)?.price
+    const cost = fromFal ?? yours
     if (!cost || cost.amount === null) continue
     row.cost = cost
-    row.pricingNote = entry?.pricingInfoOverride?.replaceAll('*', '').trim()
-    repriced.push(`${row.id} — ${(cost.amount / 100).toFixed(4)}/${cost.unit}`)
+    if (entry?.pricingInfoOverride) row.pricingNote = entry.pricingInfoOverride.replaceAll('*', '').trim()
+    repriced.push(
+      `${row.id} — ${(cost.amount / 100).toFixed(4)}/${cost.unit}${fromFal ? '' : ' (yours)'}`,
+    )
   }
 
-  for (const slug of wanted) {
+  for (const { slug, price } of wanted) {
     // Two ways to already have it: the same endpoint under any name, or the
     // same name over any endpoint. Both are duplicates — one would render twice
     // under two ids, the other would make a node id ambiguous.
@@ -148,7 +163,13 @@ export async function addModels(file: string) {
         skipped.push(`! ${slug} — fal publishes no input schema for it`)
         continue
       }
-      candidate = { slug: entry.id, entry, schema, ...(await findEditSibling(entry.id, schema)) }
+      candidate = {
+        slug: entry.id,
+        entry,
+        schema,
+        ...(price ? { priceOverride: price } : {}),
+        ...(await findEditSibling(entry.id, schema)),
+      }
     } catch (error) {
       skipped.push(`! ${slug} — ${error instanceof Error ? error.message : String(error)}`)
       continue
@@ -202,14 +223,6 @@ if (process.argv[1]?.endsWith('add-models.ts')) {
     console.log(
       `\n[openflow] ${added.length} added, ${repriced.length} repriced in ${modelsPath()}.`,
     )
-    const unpriced = added.filter((row) => row.cost.amount === null)
-    if (unpriced.length > 0) {
-      console.log(
-        `${unpriced.length} of them have no price: fal publishes none, so they are selectable and` +
-          ' Run refuses them until you set cost.amount. ' +
-          unpriced.map((row) => row.id).join(', '),
-      )
-    }
     if (assumed.length > 0) {
       console.log(
         `${assumed.length} accept references but fal declares no limit, so they were given 1:` +

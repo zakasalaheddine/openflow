@@ -66,7 +66,15 @@ The first run writes `models.txt` beside the catalog and stops. Put fal model id
 
 Everything else comes from fal: the medium from its category, the capabilities from its OpenAPI input schema, the price from the sentence on its model page. Where fal declares that a model takes reference images but not how many, the row gets 1 and the command says so — raise `caps.refImages` yourself, because the wiring gate enforces whatever the file says. Ids you already have are skipped, so the file is a list you keep rather than a queue you clear. You can also just edit `models.json` by hand — the command writes the same rows you would.
 
-fal publishes no readable price for roughly half its catalogue. Those rows land **unpriced**: selectable, comparable, and refused at Run by name until you set `cost.amount` yourself. Never zero — a zero quotes $0.00 before a Run and the spend cap approves an invoice it never saw. Every row keeps `pricingNote`, the sentence its price was read out of, because fal's prose carries conditions a regex cannot ("4K outputs are charged at double").
+**Every row that lands has a price.** Most come from fal. A few models it prices per token instead — `openai/gpt-image-2` publishes `$30 per 1M image tokens` and no per-image figure anywhere, and no arithmetic turns one into the other without a token count nobody publishes. Those are refused rather than added unpriced, and the refusal names the line that fixes it:
+
+```
+openai/gpt-image-2  0.12/image
+```
+
+fal's own price always wins over yours when it has one, so a stale number in the list file cannot quietly override what you are actually charged. Every row keeps `pricingNote`, the sentence its price was read out of, because fal's prose carries conditions a regex cannot ("4K outputs are charged at double").
+
+A price can still be blank if you hand-edit `models.json` — such a row is selectable, comparable, and refused at Run by name. Never zero: a zero quotes $0.00 and the spend cap approves an invoice it never saw.
 
 | Image | Video |
 |---|---|

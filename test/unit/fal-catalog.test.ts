@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { shortIdFor, capsFrom, priceFrom, formatFor, buildRow } from '@/models/fal-catalog'
+import { shortIdFor, capsFrom, priceFrom, formatFor, buildRow, parseListLine } from '@/models/fal-catalog'
 
 describe('shortIdFor', () => {
   test.each([
@@ -167,29 +167,28 @@ describe('buildRow', () => {
     expect(built).toMatchObject({ ok: true, row: { pricingNote: /cost \$0.03 per image/ } as never })
   })
 
-  test('adds a model fal does not price, with a null amount rather than a zero', () => {
-    // fal publishes no readable price for roughly half its catalogue. Dropping
-    // those would make "add the models you want" quietly mean "add the ones fal
-    // wrote a sentence about". Zero would be worse still: it quotes nothing
-    // before a Run and the spend cap cannot see it.
+  test('refuses a model it cannot price, naming the line that would fix it', () => {
+    // Every row that lands has a price. A model in the picker that Run then
+    // refuses is a worse answer than one line telling you what to type.
     expect(buildRow({ ...candidate, entry: { ...candidate.entry, pricingInfoOverride: null } })).toMatchObject({
-      ok: true,
-      row: { id: 'seedream-v4', cost: { amount: null } },
+      ok: false,
+      reason: /0\.12\/image/,
     })
   })
 
-  test('an unreadable price is unpriced too, not a guess at the first figure', () => {
-    const built = buildRow({
-      ...candidate,
-      entry: {
-        ...candidate.entry,
-        pricingInfoOverride: 'Each 720p 5 second video with audio costs roughly $0.26.',
-      },
-    })
-    expect(built).toMatchObject({ ok: true, row: { cost: { amount: null } } })
-    // And the sentence rides along, so the number you have to write down is one
-    // you can read off the row rather than go hunting for.
-    expect(built).toMatchObject({ ok: true, row: { pricingNote: /costs roughly \$0.26/ } as never })
+  test('takes the price you wrote when fal has none, and only then', () => {
+    // openai/gpt-image-2 is priced per million tokens. No arithmetic turns that
+    // into a per-image figure without a token count nobody publishes.
+    const tokenPriced = { ...candidate.entry, pricingInfoOverride: 'Image tokens (per 1M): **$30.00** output.' }
+    expect(
+      buildRow({ ...candidate, entry: tokenPriced, priceOverride: { unit: 'image', amount: 12 } }),
+    ).toMatchObject({ ok: true, row: { cost: { unit: 'image', amount: 12 } } })
+
+    // fal's own price still wins when there is one, so a stale number in the
+    // list file cannot quietly override what you are actually charged.
+    expect(
+      buildRow({ ...candidate, priceOverride: { unit: 'image', amount: 999 } }),
+    ).toMatchObject({ ok: true, row: { cost: { amount: 3 } } })
   })
 
   test('refuses a deprecated model, and one with no node to live on', () => {
@@ -237,5 +236,27 @@ describe('buildRow', () => {
         caps: { refImages: 4 },
       },
     })
+  })
+})
+
+describe('parseListLine', () => {
+  test('a bare slug asks fal for everything', () => {
+    expect(parseListLine('openai/gpt-image-2')).toEqual({ slug: 'openai/gpt-image-2' })
+  })
+
+  test('a slug with a price carries it, dollars per unit', () => {
+    expect(parseListLine('openai/gpt-image-2  0.12/image')).toEqual({
+      slug: 'openai/gpt-image-2',
+      price: { unit: 'image', amount: 12 },
+    })
+    expect(parseListLine('fal-ai/x  $0.28 / second')).toEqual({
+      slug: 'fal-ai/x',
+      price: { unit: 'second', amount: 28 },
+    })
+  })
+
+  test('trailing noise is not read as a price, so a typo cannot invent one', () => {
+    expect(parseListLine('fal-ai/x 0.12')).toEqual({ slug: 'fal-ai/x' })
+    expect(parseListLine('fal-ai/x per image')).toEqual({ slug: 'fal-ai/x' })
   })
 })

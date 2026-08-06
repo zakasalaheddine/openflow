@@ -43,6 +43,14 @@ export function formatFor(category: string | undefined): ModelFormat | null {
   }
 }
 
+/**
+ * Dollars to cents without the float dust: 0.28 * 100 is 28.000000000000004,
+ * and that lands in models.json for a person to read. Four decimal places of a
+ * cent is fal's own rounding ("the closest hundredth of a cent") with room to
+ * spare.
+ */
+const toCents = (dollars: number) => Math.round(dollars * 1_000_000) / 10_000
+
 /** Segments that qualify the thing before them rather than naming it. */
 const QUALIFIER =
   /^(v?\d+([.\-]\d+)*|pro|max|ultra|master|turbo|fast|lite|mini|plus|standard|hd|preview|beta|draft|distilled|schnell|dev|base)$/i
@@ -153,11 +161,34 @@ function centsFor(amount: string, unit: string): ModelSpec['cost'] | null {
   // Cents, like every other price in the ledger. Kept fractional rather than
   // rounded: $0.0045 an image is not zero, and rounding it to zero is how a
   // model becomes free in the estimate and expensive on the invoice.
-  return { unit: resolved, amount: dollars * 100 }
+  return { unit: resolved, amount: toCents(dollars) }
+}
+
+/**
+ * `openai/gpt-image-2  0.12/image` — a price you wrote next to the slug.
+ *
+ * The fallback for the models fal prices per token, or does not price at all.
+ * Everything else about the row still comes from fal; this is one number, and
+ * only when fal has none to give.
+ */
+export function parseListLine(line: string): { slug: string; price?: ModelSpec['cost'] } | null {
+  const [slug, ...rest] = line.trim().split(/\s+/)
+  if (!slug) return null
+  const priced = rest.join(' ').match(/^\$?\s*([\d.]+)\s*\/\s*(image|second|megapixel)$/i)
+  if (!priced) return { slug }
+  return {
+    slug,
+    price: {
+      unit: priced[2].toLowerCase() as ModelSpec['cost']['unit'],
+      amount: toCents(Number(priced[1])),
+    },
+  }
 }
 
 export type Candidate = {
   slug: string
+  /** A price from the list file, used only when fal publishes none. */
+  priceOverride?: ModelSpec['cost']
   entry: FalIndexEntry
   schema: FalInputSchema
   /** The `/edit` sibling's schema, when fal splits reference images onto one. */
@@ -199,14 +230,24 @@ export function buildRow(candidate: Candidate): Built {
     }
   }
 
-  // Unpriced rather than refused. fal publishes no readable price for roughly
-  // half its catalogue, and dropping those would mean "add the models you want"
-  // quietly meant "add the ones fal wrote a sentence about". The row lands with
-  // `amount: null`, which is selectable and unrunnable — Run names it and stops
-  // rather than dispatching something the spend cap cannot see.
-  const cost = priceFrom(entry.pricingInfoOverride) ?? {
-    unit: format === 'video' ? ('second' as const) : ('image' as const),
-    amount: null,
+  // Every row that lands has a price. fal's is used whenever fal publishes one;
+  // the one you wrote in the list file covers the rest — openai/gpt-image-2 is
+  // priced per million tokens, and no arithmetic turns that into a per-image
+  // figure without a token count nobody publishes.
+  //
+  // Refused rather than added at null, because a model in the picker that Run
+  // then refuses is a worse answer than a line telling you the one thing to
+  // type. `cost.amount: null` still exists for hand-edited files — this is the
+  // one path that will never create one.
+  const cost = priceFrom(entry.pricingInfoOverride) ?? candidate.priceOverride
+  if (!cost) {
+    return {
+      ok: false,
+      slug,
+      reason:
+        `fal publishes no price this can read${entry.pricingInfoOverride ? ' (it prices per token)' : ''}` +
+        `. Put one after the slug — e.g. \`${slug}  0.12/${format === 'video' ? 'second' : 'image'}\``,
+    }
   }
 
   const caps = capsFrom(candidate.schema)
