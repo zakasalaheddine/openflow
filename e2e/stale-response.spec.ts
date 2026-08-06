@@ -27,7 +27,7 @@ test('a slow poll cannot resurrect a deleted node', async ({ page, request }) =>
   // Holding the first read instead would just delay the page.
   let armed = false
   let caught = false
-  await page.route('**/api/flow?role=*', async (route) => {
+  await page.route('**/api/flow', async (route) => {
     if (route.request().method() !== 'GET' || !armed || caught) return route.continue()
     caught = true
     const response = await route.fetch()

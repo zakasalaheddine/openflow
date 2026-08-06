@@ -54,19 +54,23 @@ Read these first. They are the immune system of this project.
 - **No markup.** Bring your own fal key and pay what the models cost. Per-node cost tracking is a headline feature, not a hidden one.
 - **Not multi-provider in v1.** fal.ai only.
 
-## Models are rows, not classes
+## Models are rows in a file you edit
 
-Adding one is a pull request that edits [`src/models/registry.ts`](./src/models/registry.ts) and nothing else.
+The catalog is `models.json` in your data dir, seeded on first boot from the six rows that ship. Adding a fal model is an edit to that file — a slug, its capabilities and its price — and it appears in the picker on the next canvas reload. No rebuild, no pull request.
 
-| Role | Image | Video |
-|---|---|---|
-| draft | `flux-2-pro` | `hailuo-2-3-pro` |
-| hero | `nano-banana-pro` | `veo-3-1` |
-| specialist | `recraft-v3` (text rendering) | `kling-3-pro` (start **and** end frame) |
+| Image | Video |
+|---|---|
+| `flux-2-pro` (default) | `hailuo-2-3-pro` (default) |
+| `nano-banana-pro` | `veo-3-1` |
+| `recraft-v3` (text rendering) | `kling-3-pro` (start **and** end frame) |
 
-Each row carries its capabilities and its price. Capabilities are enforced at wiring time, not at render time: a fifth reference into a model that honours four is refused when you draw the wire, because an ignored reference produces off-brand output that reads as a model quality problem and nobody ever learns why.
+**Every node names its own model.** Three shots wired to one product photo can run three different models, priced separately on their own cards — which is how you find out which model is worth paying for. Nothing overrides that choice.
 
-Prices are estimates from public pricing pages until a live call stamps `verifiedOn`.
+Capabilities are enforced when you draw the wire and when you change the model, not at render time: a fifth reference into a model that honours four is refused, and switching a wired shot onto a model that honours none is refused with the reason. An ignored reference produces off-brand output that reads as a model quality problem, and nobody ever learns why.
+
+Prices are estimates from public pricing pages until a live call stamps `verifiedOn` — fal returns no price with a result, so the number in the file is the number the ledger uses.
+
+Upgrading a database written before per-node models: `npm run migrate:model-ids`, once. It re-points the runs that paid for your existing renders so they are not billed again.
 
 ## Architecture
 
@@ -75,7 +79,7 @@ Prices are estimates from public pricing pages until a live call stamps `verifie
 │  Next.js — single process, :3000         │
 │  /app     canvas GUI + API routes        │
 │  /core    node types, executor, hashing  │  ← zero framework imports
-│  /models  registry rows + fal adapter    │
+│  /models  catalog + rules + fal adapter  │
 │  /worker  claim loop, fal polling        │  ← in-process
 └───────────────┬──────────────────────────┘
         ./data/app.db       SQLite, WAL
@@ -101,7 +105,7 @@ Every render is keyed by an input hash chained through the graph, so a second ru
 
 ## Contributing
 
-**Model rows are welcome** — add a row, note where the price came from, and say whether you have made a live call against the endpoint.
+**Model rows are welcome.** A row you add to your own `models.json` needs nothing from anyone; to ship one as a default, add it to `SEED` in [`src/models/registry.ts`](./src/models/registry.ts), note where the price came from, and say whether you have made a live call against the endpoint.
 
 **Node types need a written case.** Four is the budget. Open an issue showing why the thing you want cannot be expressed by `source`, `image`, `video` and `export` before writing code.
 

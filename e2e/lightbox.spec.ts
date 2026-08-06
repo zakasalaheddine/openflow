@@ -76,7 +76,7 @@ test('opening a frame does not run it, wire it, or fan it out', async ({ page, r
   await expect(page.getByTestId('lightbox')).toBeVisible()
   await page.keyboard.press('Escape')
 
-  const graph = await (await request.get('/api/flow?role=draft')).json()
+  const graph = await (await request.get('/api/flow')).json()
   expect(graph.graph.nodes).toHaveLength(1)
   expect(graph.graph.edges).toHaveLength(0)
 })

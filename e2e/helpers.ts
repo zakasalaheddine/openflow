@@ -16,7 +16,7 @@ export const PNG = Buffer.from(
  * fails later on an unrelated timeout, nowhere near the actual cause.
  */
 export async function setGraph(request: APIRequestContext, graph: unknown) {
-  const { updatedAt } = await (await request.get('/api/flow?role=draft')).json()
+  const { updatedAt } = await (await request.get('/api/flow')).json()
   const response = await request.patch('/api/flow', { data: { graph, updatedAt } })
   if (!response.ok()) {
     throw new Error(`PATCH /api/flow failed: ${response.status()} ${await response.text()}`)
@@ -110,4 +110,4 @@ export async function wire(
 }
 
 export const graphOf = async (request: APIRequestContext) =>
-  (await (await request.get('/api/flow?role=draft')).json()).graph
+  (await (await request.get('/api/flow')).json()).graph
