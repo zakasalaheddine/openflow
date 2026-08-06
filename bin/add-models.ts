@@ -95,6 +95,7 @@ export async function addModels(file: string) {
 
   const added: ModelSpec[] = []
   const skipped: string[] = []
+  const assumed: string[] = []
 
   for (const slug of wanted) {
     // Two ways to already have it: the same endpoint under any name, or the
@@ -139,17 +140,18 @@ export async function addModels(file: string) {
     }
 
     added.push(built.row)
+    if (built.assumedRefLimit) assumed.push(built.row.id)
   }
 
   if (added.length > 0) {
     writeFileSync(modelsPath(), `${JSON.stringify([...existing, ...added], null, 2)}\n`)
   }
 
-  return { added, skipped }
+  return { added, skipped, assumed }
 }
 
 if (process.argv[1]?.endsWith('add-models.ts')) {
-  const { added, skipped } = await addModels(listPath())
+  const { added, skipped, assumed } = await addModels(listPath())
 
   for (const row of added) {
     const caps = [
@@ -176,6 +178,13 @@ if (process.argv[1]?.endsWith('add-models.ts')) {
         `${unpriced.length} of them have no price: fal publishes none, so they are selectable and` +
           ' Run refuses them until you set cost.amount. ' +
           unpriced.map((row) => row.id).join(', '),
+      )
+    }
+    if (assumed.length > 0) {
+      console.log(
+        `${assumed.length} accept references but fal declares no limit, so they were given 1:` +
+          ` ${assumed.join(', ')}. Raise caps.refImages if the model takes more —` +
+          ' the wiring gate enforces whatever is in the file.',
       )
     }
     // Said every time, because it is the one number nothing else can check: the

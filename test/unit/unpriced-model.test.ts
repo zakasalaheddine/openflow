@@ -1,7 +1,8 @@
 import { describe, test, expect } from 'vitest'
 import { writeFileSync } from 'node:fs'
 import { planRun, enqueueRun } from '@/core/executor'
-import { UnpricedModelError, SEED } from '@/models/registry'
+import { UnpricedModelError, SEED, estimateCostCents, isPriced } from '@/models/registry'
+import { byId } from '@/models/catalog'
 import { modelsPath } from '@/env'
 import { tempDb, seedProject, seedFlow } from '../helpers/db'
 import type { Flow } from '@/core/types'
@@ -62,5 +63,19 @@ describe('a model nobody has priced', () => {
     // node and price it.
     const { db, flowId } = setup()
     expect(() => planRun(db, flowId)).not.toThrow()
+  })
+})
+
+describe('a price blanked after a render was already paid for', () => {
+  test('records as zero spend rather than throwing inside the worker', () => {
+    // The worker resolves the model of a run that already succeeded and was
+    // already billed. If pricing threw there it would kill the claim loop while
+    // writing down a success, and the render would look like it never finished.
+    setup()
+    const model = byId('brand-new-thing')!
+    expect(isPriced(model)).toBe(false)
+    // Which is why worker/loop.ts checks isPriced before asking for a number,
+    // exactly as it already checked the model resolved at all.
+    expect(() => estimateCostCents(model, { images: 1 })).toThrow(UnpricedModelError)
   })
 })

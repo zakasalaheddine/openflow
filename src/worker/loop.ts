@@ -4,7 +4,7 @@ import path from 'node:path'
 import { eq, and, desc, inArray, sql } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { nodeRuns, assets, flows, sources, projects, type NodeRun } from '../db/schema'
-import { estimateCostCents, type ModelSpec } from '../models/registry'
+import { estimateCostCents, isPriced, type ModelSpec } from '../models/registry'
 import { byId } from '../models/catalog'
 import { buildModelInput } from '../models/input'
 import { localStore, storeFor } from '../core/assets'
@@ -383,7 +383,13 @@ async function persistOutputs(
   }
 
   const model = byId(run.modelId)
-  const exact = model
+  // `isPriced`, for the same reason `byId` does not throw: this records a render
+  // that already happened and was already billed. A row someone blanked the
+  // price on afterwards must not throw here — that would kill the claim loop
+  // while writing down a success, and the render would look like it never
+  // finished. Unpriced records as 0 spend, exactly like an unknown model.
+  const exact =
+    model && isPriced(model)
     ? estimateCostCents(model, {
         images: outputs.length,
         width: outputs[0]?.width,

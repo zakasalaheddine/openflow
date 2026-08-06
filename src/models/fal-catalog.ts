@@ -159,8 +159,12 @@ export type Candidate = {
 }
 
 export type Built =
-  | { ok: true; row: ModelSpec }
+  | { ok: true; row: ModelSpec; assumedRefLimit: boolean }
   | { ok: false; slug: string; reason: string }
+
+/** True when fal declared `image_urls` but no `maxItems`, so the 1 is ours. */
+const declaresRefLimit = (schema: FalInputSchema | undefined) =>
+  typeof schema?.image_urls?.maxItems === 'number'
 
 /**
  * A catalog row from what fal published, or a refusal naming what was missing.
@@ -201,8 +205,13 @@ export function buildRow(candidate: Candidate): Built {
   const caps = capsFrom(candidate.schema)
   const editCaps = candidate.editSchema ? capsFrom(candidate.editSchema) : null
 
+  const refSchema = candidate.editSchema ?? candidate.schema
   return {
     ok: true,
+    // Surfaced by the caller, because the wiring gate enforces this number: a
+    // second reference refused against an assumed 1 reads as the model's limit
+    // rather than as a line you can raise in models.json.
+    assumedRefLimit: Object.hasOwn(refSchema, 'image_urls') && !declaresRefLimit(refSchema),
     row: {
       id: shortIdFor(slug),
       format,

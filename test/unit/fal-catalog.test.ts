@@ -180,6 +180,25 @@ describe('buildRow', () => {
     })
   })
 
+  test('says when the reference limit is ours rather than fal\'s', () => {
+    // The wiring gate enforces this number. A second reference refused against
+    // an assumed 1 reads as the model's limit, not as a line you can raise.
+    expect(
+      buildRow({ ...candidate, editSlug: 'x/edit', editSchema: { image_urls: { type: 'array' } } }),
+    ).toMatchObject({ ok: true, assumedRefLimit: true })
+
+    expect(
+      buildRow({
+        ...candidate,
+        editSlug: 'x/edit',
+        editSchema: { image_urls: { type: 'array', maxItems: 6 } },
+      }),
+    ).toMatchObject({ ok: true, assumedRefLimit: false })
+
+    // A model with no reference field at all assumes nothing.
+    expect(buildRow(candidate)).toMatchObject({ ok: true, assumedRefLimit: false })
+  })
+
   test('takes the reference limit from whichever endpoint accepts references', () => {
     // fal splits these: the plain endpoint has no image_urls field at all, and
     // the /edit one requires it. The row keeps one id and both URLs.
