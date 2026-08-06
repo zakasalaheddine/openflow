@@ -162,6 +162,15 @@ describe('applyWire', () => {
     expect(next.edges[0]).toMatchObject({ from: 'a', to: 'b', role: 'start_frame' })
   })
 
+  test('derives the edge id from its endpoints, not randomly', () => {
+    // Deterministic so a chat conversation that wires nodes can be recorded as
+    // an LLM_MODE=replay fixture and replayed — a random id changes on every
+    // run, so it can never match a recorded fixture and made every wiring
+    // conversation unrecordable. See wiring.ts's edgeFor for the full reasoning.
+    const next = applyWire(flowOf(image('a'), video('b')), 'a', 'b')
+    expect(next.edges[0].id).toBe('a->b')
+  })
+
   test('leaves position null in v1', () => {
     // Reserved for v2 sequence ordering. Present so v2 needs no migration.
     const next = applyWire(flowOf(image('a'), video('b')), 'a', 'b')
