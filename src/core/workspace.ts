@@ -46,11 +46,46 @@ export function ensureWorkspace(db: Db) {
   return { projectId: DEFAULT_PROJECT_ID, flowId: DEFAULT_FLOW_ID }
 }
 
+export class StaleGraphError extends Error {
+  constructor() {
+    super('Someone else changed this flow while you were editing. Reloading.')
+    this.name = 'StaleGraphError'
+  }
+}
+
+/**
+ * Strictly increasing, because `updated_at` is the write token.
+ *
+ * `new Date().toISOString()` has millisecond resolution, and an agent turn
+ * lands several tool calls inside one. Two writes sharing a stamp would let a
+ * PATCH built on the *first* one pass the guard against the second, which is
+ * exactly the lost update the guard exists to prevent.
+ */
+const stamp = (previous?: string) => {
+  const now = new Date().toISOString()
+  if (!previous || now > previous) return now
+  return new Date(new Date(previous).getTime() + 1).toISOString()
+}
+
+/** Returns the new write token. Every caller that will write again must keep it. */
 export function saveGraph(db: Db, flowId: string, graph: Flow) {
-  db.update(flows)
-    .set({ graphJson: graph, updatedAt: new Date().toISOString() })
-    .where(eq(flows.id, flowId))
-    .run()
+  const previous = db.select().from(flows).where(eq(flows.id, flowId)).get()?.updatedAt
+  const updatedAt = stamp(previous)
+  db.update(flows).set({ graphJson: graph, updatedAt }).where(eq(flows.id, flowId)).run()
+  return updatedAt
+}
+
+/**
+ * The guarded write, for callers that hold a whole graph assembled from a read.
+ *
+ * The canvas is one: it PATCHes every node it has, so a write built on a stale
+ * read does not merge badly — it erases whatever arrived in between.
+ */
+export function saveGraphIfCurrent(db: Db, flowId: string, graph: Flow, expected: string) {
+  const row = db.select().from(flows).where(eq(flows.id, flowId)).get()
+  if (!row) throw new Error(`No flow ${flowId}`)
+  if (row.updatedAt !== expected) throw new StaleGraphError()
+  return saveGraph(db, flowId, graph)
 }
 
 export type SourceKind = 'image' | 'video' | 'text'

@@ -1,0 +1,9 @@
+{
+  "chunks": [
+    { "type": "stream-start", "warnings": [] },
+    { "type": "text-start", "id": "t" },
+    { "type": "text-delta", "id": "t", "delta": "One shot on the canvas. Press Run when you want it." },
+    { "type": "text-end", "id": "t" },
+    { "type": "finish", "finishReason": "stop", "usage": { "inputTokens": 1, "outputTokens": 1, "totalTokens": 2 } }
+  ]
+}

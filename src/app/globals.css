@@ -180,9 +180,44 @@ button {
 
 /* ---------- canvas ---------- */
 
+/*
+ * The positioning root for `.canvas` and `.chat`.
+ *
+ * `.chat` used to be a flex sibling here, taking real width from `.canvas`.
+ * That meant `.canvas` was narrower than before this panel existed, and
+ * `fitView` — which frames the graph once, at mount, before the inspector's
+ * column exists — had less room to work with. Opening the inspector later
+ * costs the canvas `var(--inspector)` that the fit never budgeted for either
+ * way; the flex layout just made that pre-existing shortfall run out, and a
+ * card's resize handle landed under the chat panel instead of on screen.
+ *
+ * `.chat` is an overlay instead: `.canvas` is exactly as wide as it was
+ * before this panel existed, so `fitView` sees the same width it always did
+ * and the inspector reproduces the same (harmless) shortfall it always did.
+ * `isolation: isolate` gives `.chat` one stacking context to out-rank —
+ * React Flow's panes, controls and connection line all carry their own
+ * z-index, and without this they would compare against `.chat` at whatever
+ * context the page happens to establish above it instead of this one.
+ */
+.canvas-row {
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+}
+
 .canvas {
   position: relative;
   min-width: 0;
+  /*
+   * `.canvas-row`'s own height comes from the grid's stretch alignment (it's
+   * the grid item `.shell` lays out) — but that doesn't reach `.canvas`, a
+   * plain block child, the way it used to reach it via flex cross-axis
+   * stretch when `.canvas-row` was `display: flex`. Without an explicit
+   * height here `.canvas` collapses to its content's height (near zero,
+   * before React Flow measures anything), taking every click coordinate in
+   * it with it.
+   */
+  height: 100%;
 }
 
 .react-flow__background {
@@ -919,4 +954,93 @@ button {
   color: var(--ink);
   font-family: var(--sans);
   font-size: 12px;
+}
+
+/* ---------- chat panel ---------- */
+
+/*
+ * Floats over the right edge of the canvas rather than sharing its row, so
+ * `.canvas` keeps exactly the width it had before this panel existed (see
+ * `.canvas-row` above). `right: 0` inside `.canvas-row`, not the viewport —
+ * the inspector is a separate grid column next to `.canvas-row`, never under
+ * this panel, so the two are never fighting for the same pixels.
+ *
+ * `resize: horizontal` was dropped, not added back now that it would no
+ * longer fight a `display: none` rule (that rule is gone — see the comment
+ * above `.canvas-row`). A live drag-resized width is still the wrong fit for
+ * a `right`-anchored box: the browser's resize handle sets an explicit
+ * `width` while `right: 0` also pins the box, and an absolutely positioned
+ * element with both `left`/`right` implied and `width` set is over-constrained
+ * — one of them silently loses. Fixed width sidesteps that outright.
+ */
+.chat {
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  width: 22rem;
+  min-width: 16rem;
+  max-width: 40vw;
+  overflow: auto;
+  border-left: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: 0 12px 28px rgb(0 0 0 / 0.45);
+}
+.chat__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+.chat__log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.chat__empty {
+  opacity: 0.6;
+  font-size: 0.85rem;
+  color: var(--slate);
+}
+.chat__line {
+  white-space: pre-wrap;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.chat__line--user {
+  opacity: 0.7;
+}
+/* The house's error colour is `--fault` — `.chip--danger` uses the same
+   token — so chat errors match every other fault-coloured line. */
+.chat__error {
+  padding: 0 0.75rem;
+  color: var(--fault);
+  font-size: 0.85rem;
+}
+.chat__compose {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+.chat__compose textarea {
+  resize: vertical;
+  width: 100%;
+  background: var(--ground);
+  border: 1px solid var(--line-bright);
+  border-radius: 2px;
+  color: var(--ink);
+  padding: 8px;
+  font-family: var(--sans);
+  font-size: 13px;
+}
+.chat__compose textarea:disabled {
+  opacity: 0.5;
 }

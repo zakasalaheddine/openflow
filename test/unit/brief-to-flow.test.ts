@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { buildFlowFromBrief, briefPrompt, loadTemplates, BriefError, type FlowTemplate } from '@/core/brief'
+import { buildFlowFromBrief, loadTemplates, BriefError, type FlowTemplate } from '@/core/brief'
 import { flowSchema } from '@/core/schema'
 
 // LLM output is untrusted input. It picks and fills a template; it never
@@ -101,26 +101,6 @@ describe('parsing a response', () => {
       templates,
     )
     expect(JSON.stringify(flow)).not.toContain('ignored')
-  })
-})
-
-describe('the prompt sent to the model', () => {
-  test('carries the brand profile text, not the raw assets', () => {
-    const prompt = briefPrompt('launch the serum', 'Warm, editorial, never clinical.', templates)
-    expect(prompt).toContain('Warm, editorial, never clinical.')
-    expect(prompt).toContain('launch the serum')
-    // The profile is a short description a person confirmed. Sending the files
-    // themselves would ship a product photo to an LLM that cannot use it, on
-    // every brief.
-    expect(prompt).not.toMatch(/\.png|\.jpg|base64/i)
-  })
-
-  test('lists every template and its slots, so the model can only choose', () => {
-    const prompt = briefPrompt('anything', 'a profile', templates)
-    for (const template of templates) {
-      expect(prompt).toContain(template.id)
-      for (const slot of template.slots) expect(prompt).toContain(slot)
-    }
   })
 
   test('refuses a template directory containing an invalid template', () => {

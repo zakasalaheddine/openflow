@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import path from 'node:path'
-import { resetWorkspace, waitForLedger } from './helpers'
+import { resetWorkspace, setGraph, waitForLedger } from './helpers'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -32,7 +32,7 @@ test.beforeEach(async ({ request }) => {
 })
 
 test('exports every project format to ./exports with a manifest', async ({ page, request }) => {
-  await request.patch('/api/flow', { data: shotThenExport() })
+  await setGraph(request, shotThenExport())
   await renderAndExport(page)
 
   const files = readdirSync(EXPORTS)
@@ -49,9 +49,7 @@ test('exports every project format to ./exports with a manifest', async ({ page,
 test('a custom format exports at its own dimensions', async ({ page, request }) => {
   // Agencies carry client-specific placements; a fixed list blocks them on day
   // one, so this is a real requirement rather than a setting nobody changes.
-  await request.patch('/api/flow', {
-    data: shotThenExport(undefined, [{ name: 'DOOH 4:5', w: 864, h: 1080 }]),
-  })
+  await setGraph(request, shotThenExport(undefined, [{ name: 'DOOH 4:5', w: 864, h: 1080 }]))
   await renderAndExport(page)
 
   const manifest = JSON.parse(readFileSync(path.join(EXPORTS, 'manifest.json'), 'utf8'))
@@ -66,7 +64,7 @@ test('the manifest price agrees with what the inspector shows for that node', as
   // Not the toolbar ledger: that sums every run on the flow, including ones
   // from graphs this spec never built. The per-node figure is the one a client
   // is actually shown beside the file.
-  await request.patch('/api/flow', { data: shotThenExport() })
+  await setGraph(request, shotThenExport())
   await renderAndExport(page)
 
   const manifest = JSON.parse(readFileSync(path.join(EXPORTS, 'manifest.json'), 'utf8'))

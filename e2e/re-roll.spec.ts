@@ -1,18 +1,16 @@
 import { test, expect } from '@playwright/test'
-import { resetWorkspace, waitForLedger, graphOf } from './helpers'
+import { resetWorkspace, setGraph, waitForLedger, graphOf } from './helpers'
 
 test.describe.configure({ mode: 'serial' })
 
 test.beforeEach(async ({ request }) => {
   await resetWorkspace(request)
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [
         { id: 'marble', type: 'image', position: { x: 60, y: 80 }, prompt: 'bottle on marble', modelRole: 'draft', seed: 7 },
       ],
       edges: [],
-    },
-  })
+    })
 })
 
 test('re-roll keeps the prompt and changes the seed', async ({ page, request }) => {

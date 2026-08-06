@@ -1,5 +1,5 @@
 import { test, expect, type APIRequestContext } from '@playwright/test'
-import { resetWorkspace, waitForLedger } from './helpers'
+import { resetWorkspace, setGraph, waitForLedger } from './helpers'
 
 // Reviewing one shot is not committing to twelve. A card renders itself and
 // whatever upstream it still needs — and nothing beside it.
@@ -13,16 +13,14 @@ test.describe.configure({ mode: 'serial' })
  */
 async function callSheet(request: APIRequestContext, take: number) {
   await resetWorkspace(request)
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [
         { id: 'marble', type: 'image', position: { x: 60, y: 80 }, prompt: 'bottle on marble', modelRole: 'draft', seed: take * 100 + 1 },
         { id: 'slate', type: 'image', position: { x: 320, y: 80 }, prompt: 'bottle on slate', modelRole: 'draft', seed: take * 100 + 2 },
         { id: 'turn', type: 'video', position: { x: 580, y: 80 }, prompt: 'slow turn', durationSec: 5, audio: false, modelRole: 'draft', seed: take * 100 + 3 },
       ],
       edges: [{ id: 'g1', from: 'marble', to: 'turn', role: 'start_frame', position: null }],
-    },
-  })
+    })
 }
 
 test('a card renders on its own and leaves the rest of the call sheet alone', async ({ page, request }) => {

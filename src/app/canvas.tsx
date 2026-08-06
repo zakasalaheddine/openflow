@@ -14,6 +14,7 @@ import {
   type Edge as RfEdge,
 } from '@xyflow/react'
 import { applyWire, removeNode, WiringError } from '@/core/wiring'
+import { newNode } from '@/core/node-defaults'
 import { UnsupportedCapabilityError } from '@/models/registry'
 import type { Flow, FlowNode, ModelRole, NodeId } from '@/core/types'
 import { NodeCard } from './node-card'
@@ -21,14 +22,15 @@ import { Inspector } from './inspector'
 import { CARD_SOURCE, COLUMN, MIN_CARD, ROW, freeSlot, sizeOf, slotFor } from './slots'
 import { Lightbox, type Preview } from './lightbox'
 import { AssetMenu } from './asset-menu'
+import { ChatPanel } from './chat-panel'
 import {
   fetchFlow,
   saveGraph,
+  StaleGraphError,
   startRun,
   startExport,
   fetchBrief,
   saveBrandProfile,
-  submitBrief,
   uploadFile,
   createTextSource,
   previewReplace,
@@ -71,6 +73,9 @@ function CanvasInner() {
   const [role, setRole] = useState<ModelRole>('draft')
   const [state, setState] = useState<FlowState | null>(null)
   const [selectedId, setSelectedId] = useState<NodeId | null>(null)
+  // Open on load — chat is the primary way in, not a drawer someone has to
+  // find first. Closing it reclaims the canvas the panel overlays.
+  const [chatOpen, setChatOpen] = useState(true)
   const [notice, setNotice] = useState<string | null>(null)
   // Carries the node so "Render anyway" repeats the click that was refused,
   // rather than silently widening one shot into the whole flow.
@@ -86,14 +91,14 @@ function CanvasInner() {
   } | null>(null)
   const [dropping, setDropping] = useState(false)
   const [exported, setExported] = useState<{ written: number; refusals: string[] } | null>(null)
-  const [brief, setBrief] = useState<{ text: string; profile: string } | null>(null)
-  const [briefing, setBriefing] = useState(false)
+  const [brief, setBrief] = useState<{ profile: string } | null>(null)
   const [preview, setPreview] = useState<Preview | null>(null)
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<RfNode>([])
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<RfEdge>([])
 
   const graphRef = useRef<Flow>({ nodes: [], edges: [] })
+  const stampRef = useRef<string>('')
   const nodeShapeRef = useRef<string>('')
   const edgeShapeRef = useRef<string>('')
   const queueRef = useRef<Promise<void>>(Promise.resolve())
@@ -110,6 +115,7 @@ function CanvasInner() {
     (next: FlowState) => {
       setState(next)
       graphRef.current = next.graph
+      stampRef.current = next.updatedAt
 
       const edgeShape = edgeShapeOf(next.graph)
       if (edgeShape !== edgeShapeRef.current) {
@@ -213,9 +219,15 @@ function CanvasInner() {
     (update: (current: Flow) => Flow) => {
       queueRef.current = queueRef.current
         .then(async () => {
+          const apply = () => {
+            const next = update(graphRef.current)
+            graphRef.current = next
+            return next
+          }
+
           let next: Flow
           try {
-            next = update(graphRef.current)
+            next = apply()
           } catch (error) {
             setNotice(
               error instanceof WiringError || error instanceof UnsupportedCapabilityError
@@ -225,11 +237,22 @@ function CanvasInner() {
             return
           }
 
-          graphRef.current = next
           try {
-            await saveGraph(next)
+            await saveGraph(next, stampRef.current)
           } catch (error) {
-            setNotice(error instanceof Error ? error.message : 'Could not save')
+            // Someone else — the agent — wrote while this edit was in hand. Take
+            // their graph and re-apply this one change on top of it, once. A
+            // second failure is a real problem, not a race.
+            if (error instanceof StaleGraphError) {
+              await load()
+              try {
+                await saveGraph(apply(), stampRef.current)
+              } catch (retry) {
+                setNotice(retry instanceof Error ? retry.message : 'Could not save')
+              }
+            } else {
+              setNotice(error instanceof Error ? error.message : 'Could not save')
+            }
           }
           await load()
         })
@@ -419,16 +442,11 @@ function CanvasInner() {
   function addNode(type: 'image' | 'video' | 'export') {
     const id = newId(type)
     const position = freeSlot(graphRef.current.nodes)
-    const node =
-      type === 'image'
-        ? { id, type, position, prompt: '', modelRole: 'draft' as const, seed: 1 }
-        : type === 'video'
-          ? { id, type, position, prompt: '', durationSec: 5, audio: false, modelRole: 'draft' as const, seed: 1 }
-          : { id, type, position, formats: [] }
+    const node = newNode(type, { id, position })
 
-    void commit((current) => ({ ...current, nodes: [...current.nodes, node as FlowNode] }))
+    void commit((current) => ({ ...current, nodes: [...current.nodes, node] }))
     setSelectedId(id)
-    reveal(position, sizeOf(node as FlowNode))
+    reveal(position, sizeOf(node))
   }
 
   /**
@@ -454,16 +472,14 @@ function CanvasInner() {
     const anchor = from.position ?? slotFor(current.nodes.indexOf(from))
 
     const id = newId('video')
-    const node: FlowNode = {
+    const node = newNode('video', {
       id,
-      type: 'video',
       position: { x: anchor.x + COLUMN, y: anchor.y + siblings.length * ROW },
       prompt: previous && 'prompt' in previous ? previous.prompt : '',
-      durationSec: 5,
-      audio: false,
-      modelRole: 'draft',
+      // A fresh seed, not the default: an identical sibling would be a re-roll,
+      // not a fan-out.
       seed: Math.floor(Math.random() * 1_000_000),
-    }
+    })
 
     void commit((graph) => applyWire({ ...graph, nodes: [...graph.nodes, node] }, fromId, id, { role }))
     setSelectedId(id)
@@ -592,26 +608,18 @@ function CanvasInner() {
     }
   }
 
-  async function openBrief() {
-    setNotice(null)
+  async function openBrand() {
     const { brandProfile } = await fetchBrief()
-    setBrief({ text: '', profile: brandProfile })
+    setBrief({ profile: brandProfile })
   }
 
-  async function runBrief() {
+  async function saveBrand() {
     if (!brief) return
-    setBriefing(true)
     try {
-      // The profile is saved first and separately: it is a thing a person
-      // confirmed about their brand, and it should survive a brief that fails.
       await saveBrandProfile(brief.profile)
-      await submitBrief(brief.text)
       setBrief(null)
-      await load()
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Brief failed')
-    } finally {
-      setBriefing(false)
+      setNotice(error instanceof Error ? error.message : 'Could not save the brand profile')
     }
   }
 
@@ -688,12 +696,21 @@ function CanvasInner() {
           </span>
         )}
 
-        <button className="chip" onClick={() => void openBrief()} data-testid="brief">
-          Brief
+        <button className="chip" onClick={() => void openBrand()} data-testid="brand">
+          Brand
         </button>
 
         <button className="chip" onClick={() => void exportAll()} data-testid="export">
           Export
+        </button>
+
+        <button
+          className="chip"
+          aria-pressed={chatOpen}
+          onClick={() => setChatOpen((open) => !open)}
+          data-testid="chat-toggle"
+        >
+          Chat
         </button>
 
         <button className="run" onClick={() => void run()} data-testid="run">
@@ -701,6 +718,7 @@ function CanvasInner() {
         </button>
       </header>
 
+      <div className="canvas-row">
       <main className="canvas" data-dropping={dropping}>
         <ReactFlow
           nodes={decorated}
@@ -825,7 +843,7 @@ function CanvasInner() {
 
         {brief && (
           <div className="floating">
-            <div className="banner" role="dialog" aria-label="Brief">
+            <div className="banner" role="dialog" aria-label="Brand">
               <label className="field">
                 <span className="slate">Brand profile</span>
                 <textarea
@@ -836,27 +854,9 @@ function CanvasInner() {
                   onChange={(e) => setBrief({ ...brief, profile: e.target.value })}
                 />
               </label>
-              <label className="field">
-                <span className="slate">Brief</span>
-                <textarea
-                  rows={3}
-                  value={brief.text}
-                  placeholder="Launch the serum. Three scenes for a feed test."
-                  data-testid="brief-text"
-                  onChange={(e) => setBrief({ ...brief, text: e.target.value })}
-                />
-              </label>
-              {/* It writes a graph and stops. Nothing is dispatched — what comes
-                  back is a starting point, and Run stays a deliberate act. */}
-              <span className="hint">Fills a template. Nothing renders until you press Run.</span>
               <div className="banner__actions">
-                <button
-                  className="chip"
-                  disabled={briefing || !brief.text.trim()}
-                  onClick={() => void runBrief()}
-                  data-testid="brief-submit"
-                >
-                  {briefing ? 'Writing…' : 'Build the graph'}
+                <button className="run" onClick={() => void saveBrand()} data-testid="brand-save">
+                  Save
                 </button>
                 <button className="chip" onClick={() => setBrief(null)}>
                   Cancel
@@ -960,6 +960,9 @@ function CanvasInner() {
           </div>
         )}
       </main>
+
+      {chatOpen && <ChatPanel />}
+      </div>
 
       <Lightbox item={preview} onClose={() => setPreview(null)} />
 

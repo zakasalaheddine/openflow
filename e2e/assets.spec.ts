@@ -1,5 +1,15 @@
 import { test, expect } from '@playwright/test'
-import { resetWorkspace, waitForLedger, uploadSource, uploadText, wire, graphOf, PNG } from './helpers'
+import {
+  closeChat,
+  resetWorkspace,
+  setGraph,
+  waitForLedger,
+  uploadSource,
+  uploadText,
+  wire,
+  graphOf,
+  PNG,
+} from './helpers'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -9,12 +19,10 @@ test.beforeEach(async ({ request }) => {
 
 test('an uploaded asset becomes a node on the canvas', async ({ page, request }) => {
   const sourceId = await uploadSource(request)
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [{ id: 'bottle', type: 'source', sourceId, position: { x: 60, y: 80 } }],
       edges: [],
-    },
-  })
+    })
 
   await page.goto('/')
   await waitForLedger(page)
@@ -27,8 +35,7 @@ test('one asset feeds many shots, each wire a reference', async ({ page, request
   // Twelve shots on one product is the normal case. The readability answer is
   // how the edges are drawn, never a cap on how many there may be.
   const sourceId = await uploadSource(request)
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [
         { id: 'bottle', type: 'source', sourceId, position: { x: 40, y: 200 } },
         { id: 'marble', type: 'image', position: { x: 360, y: 20 }, prompt: 'on marble', modelRole: 'draft', seed: 1 },
@@ -36,8 +43,7 @@ test('one asset feeds many shots, each wire a reference', async ({ page, request
         { id: 'linen', type: 'image', position: { x: 360, y: 580 }, prompt: 'on linen', modelRole: 'draft', seed: 3 },
       ],
       edges: [],
-    },
-  })
+    })
 
   await page.goto('/')
   await waitForLedger(page)
@@ -56,8 +62,7 @@ test('reference edges can be taken off screen, and the toolbar says how many', a
   // A hidden edge that looks like no edge is how someone concludes a connection
   // vanished, so the count is always on screen.
   const sourceId = await uploadSource(request)
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [
         { id: 'bottle', type: 'source', sourceId, position: { x: 40, y: 80 } },
         { id: 'marble', type: 'image', position: { x: 360, y: 20 }, prompt: 'on marble', modelRole: 'draft', seed: 1 },
@@ -67,8 +72,7 @@ test('reference edges can be taken off screen, and the toolbar says how many', a
         { id: 'r1', from: 'bottle', to: 'marble', role: 'reference', position: null },
         { id: 'g1', from: 'marble', to: 'clip', role: 'start_frame', position: null },
       ],
-    },
-  })
+    })
 
   await page.goto('/')
   await waitForLedger(page)
@@ -88,16 +92,14 @@ test('reference edges can be taken off screen, and the toolbar says how many', a
 test('hovering an asset lights up everything it feeds', async ({ page, request }) => {
   // The thing the chip design could never do: see what a product touches.
   const sourceId = await uploadSource(request)
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [
         { id: 'bottle', type: 'source', sourceId, position: { x: 40, y: 80 } },
         { id: 'marble', type: 'image', position: { x: 360, y: 20 }, prompt: 'on marble', modelRole: 'draft', seed: 1 },
         { id: 'other', type: 'image', position: { x: 360, y: 320 }, prompt: 'unrelated', modelRole: 'draft', seed: 2 },
       ],
       edges: [{ id: 'r1', from: 'bottle', to: 'marble', role: 'reference', position: null }],
-    },
-  })
+    })
 
   await page.goto('/')
   await waitForLedger(page)
@@ -109,8 +111,7 @@ test('hovering an asset lights up everything it feeds', async ({ page, request }
 
 test('replacing an asset prices the blast radius before committing', async ({ page, request }) => {
   const sourceId = await uploadSource(request)
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [
         { id: 'bottle', type: 'source', sourceId, position: { x: 40, y: 80 } },
         { id: 'marble', type: 'image', position: { x: 360, y: 20 }, prompt: 'on marble', modelRole: 'draft', seed: 1 },
@@ -120,8 +121,7 @@ test('replacing an asset prices the blast radius before committing', async ({ pa
         { id: 'r1', from: 'bottle', to: 'marble', role: 'reference', position: null },
         { id: 'g1', from: 'marble', to: 'clip', role: 'start_frame', position: null },
       ],
-    },
-  })
+    })
 
   await page.goto('/')
   await waitForLedger(page)
@@ -147,15 +147,13 @@ test('replacing an asset prices the blast radius before committing', async ({ pa
 
 test('a text asset composes ahead of the shot prompt', async ({ page, request }) => {
   const voice = await uploadText(request, 'warm, unfussy, no hard sell')
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [
         { id: 'tone', type: 'source', sourceId: voice, position: { x: 40, y: 80 } },
         { id: 'marble', type: 'image', position: { x: 360, y: 20 }, prompt: 'a serum bottle on marble', modelRole: 'draft', seed: 1 },
       ],
       edges: [{ id: 'r1', from: 'tone', to: 'marble', role: 'reference', position: null }],
-    },
-  })
+    })
 
   await page.goto('/')
   await waitForLedger(page)
@@ -168,17 +166,16 @@ test('a text asset composes ahead of the shot prompt', async ({ page, request })
 })
 
 test('double-clicking a prompt edits it in place and stales the shot', async ({ page, request }) => {
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [
         { id: 'marble', type: 'image', position: { x: 60, y: 60 }, prompt: 'on marble', modelRole: 'draft', seed: 1 },
       ],
       edges: [],
-    },
-  })
+    })
 
   await page.goto('/')
   await waitForLedger(page)
+  await closeChat(page)
   await page.getByTestId('run').click()
   const confirm = page.getByTestId('confirm-spend')
   if (await confirm.isVisible().catch(() => false)) await confirm.click()
@@ -204,8 +201,7 @@ test('refuses a sixth reference into a model that accepts four', async ({ page, 
   const ids = []
   for (let i = 0; i < 5; i++) ids.push(await uploadSource(request, `ref-${i}.png`))
 
-  await request.patch('/api/flow', {
-    data: {
+  await setGraph(request, {
       nodes: [
         ...ids.map((sourceId, i) => ({
           id: `asset-${i}`,
@@ -222,8 +218,7 @@ test('refuses a sixth reference into a model that accepts four', async ({ page, 
         role: 'reference',
         position: null,
       })),
-    },
-  })
+    })
 
   await page.goto('/')
   await waitForLedger(page)

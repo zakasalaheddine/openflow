@@ -18,6 +18,8 @@ npm run studio
 
 `npm run studio` boots the server, builds on first run, creates the database, opens a browser, and asks for a fal key. An empty answer is a valid answer — the canvas opens and Run asks again when you need it.
 
+Chat needs an OpenRouter key. Put `OPENROUTER_API_KEY` in `.env` and, if you want a different model, `OPENROUTER_MODEL` (default `anthropic/claude-opus-5`). Without a key the panel says so and the canvas works as before.
+
 **There is no `npx openflow-studio`, and this README used to claim otherwise.** A Next app cannot be built from inside a `node_modules` directory, which is all `npx` is; the details, and the two other ways it fails, are in [`docs/phases/phase-3-video-export-ship.md`](./docs/phases/phase-3-video-export-ship.md). Cloning is the path this project actually tests.
 
 **Node 22.16.0 or newer is required** (`.nvmrc` pins it). Older 22.x patch releases ship a `better-sqlite3` prebuild that segfaults on macOS arm64: you get exit code 139 and no error message, so the launcher refuses to start on one.
@@ -48,7 +50,7 @@ Read these first. They are the immune system of this project.
 
 - **Not a general AI workflow engine.** That's ComfyUI. Four node types in v1 — `source`, `image`, `video`, `export`. Adding a fifth requires a written case showing it can't be expressed by the existing four.
 - **Not a SaaS.** No accounts, no cloud, no credit packs. The SQLite file, the generated assets, and your fal key stay on your machine.
-- **No agent loop.** LLMs sit at the edges — brand profile, brief→flow — never in the execution path.
+- **No agent in the execution path.** The chat agent authors the graph — it adds nodes, wires them, rewords prompts. It has no way to render anything: there is no run tool, and Run is a button a person presses after reading the price.
 - **No markup.** Bring your own fal key and pay what the models cost. Per-node cost tracking is a headline feature, not a hidden one.
 - **Not multi-provider in v1.** fal.ai only.
 

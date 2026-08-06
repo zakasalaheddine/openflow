@@ -106,6 +106,35 @@ export const exports = sqliteTable('exports', {
   createdAt: text('created_at').notNull().$defaultFn(now),
 })
 
+/**
+ * The chat thread. One row per model message, in order.
+ *
+ * Stored as ModelMessage JSON rather than rendered text: the next turn resends
+ * the whole history to the model, and a tool call that has already run must be
+ * in it or the model repeats the work.
+ *
+ * `seq` is the ordering column, not `createdAt`. The thread is replayed to the
+ * model on every turn, and `onStepFinish` can write several rows inside one
+ * millisecond — an ISO timestamp cannot tell those apart, and a history that
+ * plays back out of order makes the model re-run tool calls it already ran.
+ * An autoincrement integer is monotonic by construction, so it is the ordering
+ * key and the primary key both; there is no separate `id` to keep in sync.
+ */
+export const messages = sqliteTable(
+  'messages',
+  {
+    seq: integer('seq').primaryKey({ autoIncrement: true }),
+    flowId: text('flow_id').notNull(),
+    /** 'user' | 'assistant' | 'tool' */
+    role: text('role').notNull(),
+    content: text('content', { mode: 'json' }).notNull(),
+    createdAt: text('created_at').notNull().$defaultFn(now),
+  },
+  (table) => [index('messages_flow_idx').on(table.flowId, table.seq)],
+)
+
+export type ChatMessage = typeof messages.$inferSelect
+
 export type Source = typeof sources.$inferSelect
 export type NodeRun = typeof nodeRuns.$inferSelect
 export type Asset = typeof assets.$inferSelect

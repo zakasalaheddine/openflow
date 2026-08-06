@@ -3,8 +3,9 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { seedDemo } from '@/core/demo'
 import { previewRun } from '@/core/preview'
-import { assets, nodeRuns } from '@/db/schema'
+import { assets, nodeRuns, messages } from '@/db/schema'
 import { falMode } from '@/env'
+import { POST as chatPost } from '@/app/api/chat/route'
 import { tempDb } from '../helpers/db'
 
 // A hosted demo that bills per visitor is a demo you take down. This suite is
@@ -25,6 +26,45 @@ describe('DEMO=1', () => {
     vi.stubEnv('DEMO', '')
     vi.stubEnv('FAL_MODE', 'live')
     expect(falMode()).toBe('live')
+  })
+})
+
+describe('DEMO=1 on /api/chat', () => {
+  // OpenRouter is a cost path exactly like fal: a public demo that reaches it
+  // is billed to whoever deployed the page, per visitor.
+  test('refuses a turn with 403, and never touches the model or the thread', async () => {
+    const { db } = tempDb()
+    vi.stubEnv('DEMO', '1')
+
+    const response = await chatPost(
+      new Request('http://localhost/api/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message: 'add a hero shot' }),
+      }),
+    )
+
+    expect(response.status).toBe(403)
+    // The guard is only a guard in name unless nothing downstream ran: no
+    // model was constructed, and nothing was written to the thread.
+    expect(db.select().from(messages).all()).toEqual([])
+  })
+
+  test('LLM_MODE=off refuses a turn with 422, before any model is constructed', async () => {
+    const { db } = tempDb()
+    vi.stubEnv('DEMO', '')
+    vi.stubEnv('LLM_MODE', 'off')
+
+    const response = await chatPost(
+      new Request('http://localhost/api/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message: 'add a hero shot' }),
+      }),
+    )
+
+    expect(response.status).toBe(422)
+    expect(db.select().from(messages).all()).toEqual([])
   })
 })
 

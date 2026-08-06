@@ -121,32 +121,3 @@ export function buildFlowFromBrief(raw: unknown, templates: FlowTemplate[]): Flo
     edges: template.flow.edges,
   }
 }
-
-/**
- * The prompt sent to the model.
- *
- * The brand profile is sent as text, never the assets themselves. The profile
- * is a short description a person confirmed; shipping the raw files would send
- * a product photo to an LLM that cannot use it, on every brief.
- */
-export function briefPrompt(
-  brief: string,
-  brandProfile: string,
-  templates: FlowTemplate[],
-): string {
-  const menu = templates
-    .map((t) => `- ${t.id}: ${t.description} (slots: ${t.slots.join(', ')})`)
-    .join('\n')
-
-  return [
-    'Pick one template and write the prompts that fill its slots.',
-    'Reply with JSON only: {"templateId": "...", "prompts": {"slot": "text"}}.',
-    'Do not invent a template id and do not add nodes.',
-    '',
-    `Brand profile:\n${brandProfile}`,
-    '',
-    `Brief:\n${brief}`,
-    '',
-    `Templates:\n${menu}`,
-  ].join('\n')
-}

@@ -71,11 +71,11 @@ export const falMode = (): FalMode =>
   isDemo() ? 'replay' : ((process.env.FAL_MODE as FalMode | undefined) ?? 'live')
 
 /**
- * The same seam as FAL_MODE, for the one LLM call in the product.
+ * The same seam as FAL_MODE, for the chat agent.
  *
- * live   — a real Claude call. Needs ANTHROPIC_API_KEY.
- * replay — serve a recorded response from test/fixtures/llm. Tests, CI, DEMO=1.
- * off    — throw on any call. The default, because unlike generating, briefing
+ * live   — a real OpenRouter call. Needs OPENROUTER_API_KEY.
+ * replay — serve recorded turns from test/fixtures/llm. Tests, CI, DEMO=1.
+ * off    — throw on any call. The default, because unlike generating, chatting
  *          is optional: a canvas that works without a second API key should not
  *          fail differently depending on whether one happens to be exported.
  */
@@ -87,6 +87,9 @@ export const llmMode = (): LlmMode => {
   // cleared, not a mode called "".
   return (
     (process.env.LLM_MODE as LlmMode | undefined) ||
-    (process.env.ANTHROPIC_API_KEY ? 'live' : 'off')
+    (process.env.OPENROUTER_API_KEY ? 'live' : 'off')
   )
 }
+
+/** One line to change which model reads your briefs. No picker, no per-model UI. */
+export const openrouterModel = () => process.env.OPENROUTER_MODEL || 'anthropic/claude-opus-5'

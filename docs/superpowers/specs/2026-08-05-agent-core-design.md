@@ -304,3 +304,42 @@ nothing to do with the agent.
 Skills loading, chat file upload, vision descriptions, a model picker,
 multi-flow, and any agent-initiated run. The first two have their own
 sub-projects; the rest are not planned.
+
+## Follow-ups left open when this shipped
+
+Recorded here because the execution ledger they came from is scratch and does
+not survive the branch. None of them cost money or block anything; each was
+judged, deferred deliberately, and is written down so the next person finds a
+note instead of a surprise.
+
+- **`DELETE /api/chat` has no `isDemo()` guard**, unlike POST. A visitor to a
+  public demo can wipe the conversation. Nothing is billed and the graph is
+  untouched, so it is vandalism at worst — but the asymmetry with POST is not
+  deliberate.
+- **`/api/flow` GET's per-card contract has no test at any level.** Status,
+  cost, error and outputs for every node come out of that handler, and two of
+  this branch's bugs lived there. `test/acceptance/demo-mode.test.ts` is the
+  only file that touches the route at all.
+- **`exporter.ts` filters its run on `status === 'succeeded'` and
+  `/api/flow` GET does not.** A retry-in-place that kept the same hash and
+  failed could make the canvas and the exporter disagree again. Unreachable
+  through re-roll, since `seed` is hashed and re-roll always bumps it; other
+  dispatch paths were not audited.
+- **The agent cannot set `seed`, `fps`, `codec` or `overlay`.** All four are
+  hashed, and the canvas or a template can set them, so there is work the
+  agent can start and then never edit — burned-in headline copy from
+  `apply_template` most obviously. A capability gap, not a parity break:
+  everything both doors *can* express hashes identically.
+- **`wire` resolves the capability gate against the node's own `modelRole`;
+  the canvas passes the Draft·Hero toggle's override.** With the toolbar on
+  Hero, the agent can draw a reference the canvas would refuse. `planRun`
+  re-asserts before anything dispatches, so it cannot cost money — but the two
+  doors do disagree about what is legal, which is the one thing this layer
+  exists not to do.
+- **`e2e/chat.spec.ts` runs on hand-written fixtures.** No OpenRouter key was
+  available when this was built, so nothing was recorded live. `fixtureKey`
+  hashes the whole request, so any edit to `src/agent/prompt.ts` invalidates
+  them and they must be re-recorded — `LLM_MODE=live OPENFLOW_RECORD_LLM=1`.
+- **`src/agent/ops.ts`'s `newId` comment** says it "only ever looks at what
+  comes after the last `-`". It slices after the prefix, so `image-3-a4f2`
+  yields `3-a4f2`. The conclusion it draws is right; the sentence is not.

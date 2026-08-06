@@ -28,9 +28,10 @@
     "sharp": "$sharp"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.115.0",
     "@fal-ai/client": "^1.10.1",
+    "@openrouter/ai-sdk-provider": "^3.0.0",
     "@xyflow/react": "^12.11.2",
+    "ai": "^7.0.52",
     "better-sqlite3": "^13.0.2",
     "drizzle-orm": "^0.45.2",
     "next": "^16.2.12",

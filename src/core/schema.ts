@@ -38,7 +38,7 @@ const textOverlay = z
   })
   .optional()
 
-const nodeSchema = z.discriminatedUnion('type', [
+export const nodeSchema = z.discriminatedUnion('type', [
   z.object({
     id: z.string().min(1),
     type: z.literal('source'),
@@ -110,12 +110,21 @@ export const flowSchema = z
       }
       ids.add(node.id)
     }
+    const edgeIds = new Set<string>()
     for (const edge of flow.edges) {
       // A dangling edge would be dropped by the graph walks anyway, but
       // accepting one lets the stored graph disagree with what the user sees.
       if (!ids.has(edge.from) || !ids.has(edge.to)) {
         ctx.addIssue({ code: 'custom', message: `Edge ${edge.id} references a node that does not exist` })
       }
+      // Edge ids are now derived from their endpoints (core/wiring.ts), so a
+      // duplicate id can only arrive here from outside applyWire — a hand-built
+      // PATCH body. This is the trust boundary; the guard belongs here, next
+      // to the node one it mirrors.
+      if (edgeIds.has(edge.id)) {
+        ctx.addIssue({ code: 'custom', message: `Duplicate edge id ${edge.id}` })
+      }
+      edgeIds.add(edge.id)
     }
   })
 
