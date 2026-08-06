@@ -131,6 +131,21 @@ const edgeFor = (from: NodeId, to: NodeId, role: Edge['role']): Edge => ({
   position: null,
 })
 
+/**
+ * The same gate applyWire runs, aimed the other way.
+ *
+ * Wiring asks "may this edge join a node on that model"; changing a model asks
+ * "may this model take the edges this node already has". Both refuse rather
+ * than absorb: dropping the wires would silently delete graph you drew, and
+ * letting it through would buy a render that ignored your anchors at full price.
+ */
+export function assertModelFits(flow: Flow, nodeId: NodeId, model: ModelLike) {
+  assertAnchorsSupported(model, referencesOf(flow, nodeId))
+  if (flow.edges.some((e) => e.to === nodeId && e.role === 'start_frame')) {
+    assertStartFrameSupported(model)
+  }
+}
+
 /** Returns a new flow. The canvas re-reads graph_json, so mutating would desync the view. */
 export function applyWire(flow: Flow, fromId: NodeId, toId: NodeId, options: WireOptions = {}): Flow {
   const role = validateWire(flow, fromId, toId, options)

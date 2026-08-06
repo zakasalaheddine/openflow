@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { inferRole, validateWire, applyWire, WiringError } from '@/core/wiring'
+import { inferRole, validateWire, applyWire, assertModelFits, WiringError } from '@/core/wiring'
 import { UnsupportedCapabilityError, type ModelSpec } from '@/models/registry'
 import { modelById } from '@/models/catalog'
 import type { Flow, FlowNode } from '@/core/types'
@@ -15,11 +15,11 @@ const withoutStartFrame = (id: string): ModelSpec => {
   return { ...model, caps: { ...model.caps, startEndFrame: false } }
 }
 
-const image = (id: string): FlowNode => ({
+const image = (id: string, modelId = 'flux-2-pro'): FlowNode => ({
   id,
   type: 'image',
   prompt: 'bottle',
-  modelId: 'flux-2-pro',
+  modelId,
 })
 
 const video = (id: string, modelId = 'kling-3-pro'): FlowNode => ({
@@ -199,5 +199,46 @@ describe('applyWire', () => {
     expect(() =>
       applyWire(flowOf(image('a'), video('b')), 'a', 'b', { resolve: withoutStartFrame }),
     ).toThrow()
+  })
+})
+
+describe('assertModelFits', () => {
+  // Changing a model is the same question wiring asks, aimed the other way:
+  // wiring asks whether an edge may join a node on that model, this asks
+  // whether a model may take the edges the node already has.
+  // Built on the six-reference row, so the wires exist before the model that
+  // cannot take them is tried against them.
+  const withRefs = (count: number) => {
+    let flow = flowOf(
+      ...Array.from({ length: count }, (_, i) => source(`s${i}`)),
+      image('shot', 'nano-banana-pro'),
+    )
+    for (let i = 0; i < count; i++) flow = applyWire(flow, `s${i}`, 'shot', { resolve: modelById })
+    return flow
+  }
+
+  test('a model that honours none of them is refused, and says so by name', () => {
+    expect(() => assertModelFits(withRefs(3), 'shot', modelById('recraft-v3'))).toThrow(
+      /recraft-v3 cannot honour reference images/,
+    )
+  })
+
+  test('a model that honours fewer than are wired is refused with the count', () => {
+    // flux-2-pro takes four. nano-banana-pro takes six, so five is fine on one
+    // and refused on the other — the number is the whole point of the message.
+    const five = withRefs(5)
+    expect(() => assertModelFits(five, 'shot', modelById('flux-2-pro'))).toThrow(/at most 4/)
+    expect(() => assertModelFits(five, 'shot', modelById('nano-banana-pro'))).not.toThrow()
+  })
+
+  test('a clip with a start frame refuses a model that cannot take one', () => {
+    const flow = applyWire(flowOf(image('a'), video('b')), 'a', 'b', { resolve: modelById })
+    expect(() => assertModelFits(flow, 'b', withoutStartFrame('kling-3-pro'))).toThrow(
+      /cannot accept a start frame/,
+    )
+  })
+
+  test('a node with no wires takes any model of its format', () => {
+    expect(() => assertModelFits(flowOf(image('lonely')), 'lonely', modelById('recraft-v3'))).not.toThrow()
   })
 })

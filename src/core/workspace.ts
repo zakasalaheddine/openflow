@@ -3,6 +3,8 @@ import { eq } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { projects, flows, sources } from '../db/schema'
 import { DEFAULT_SETTINGS } from './settings'
+import { assertModelFits } from './wiring'
+import { modelById } from '../models/catalog'
 import type { Flow } from './types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -68,7 +70,23 @@ const stamp = (previous?: string) => {
 }
 
 /** Returns the new write token. Every caller that will write again must keep it. */
+/**
+ * Every write goes through here, so the capability gate does too.
+ *
+ * Not only in the inspector: the agent sets modelId, and a rule that lives in a
+ * React component is not a rule. A graph whose model cannot take the wires
+ * drawn into it never reaches the database, where Run would find it and bill
+ * for output that ignored them.
+ */
+function assertModelsFit(graph: Flow) {
+  for (const node of graph.nodes) {
+    if (node.type !== 'image' && node.type !== 'video') continue
+    assertModelFits(graph, node.id, modelById(node.modelId))
+  }
+}
+
 export function saveGraph(db: Db, flowId: string, graph: Flow) {
+  assertModelsFit(graph)
   const previous = db.select().from(flows).where(eq(flows.id, flowId)).get()?.updatedAt
   const updatedAt = stamp(previous)
   db.update(flows).set({ graphJson: graph, updatedAt }).where(eq(flows.id, flowId)).run()

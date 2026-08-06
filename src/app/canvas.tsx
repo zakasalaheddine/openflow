@@ -13,7 +13,7 @@ import {
   type Node as RfNode,
   type Edge as RfEdge,
 } from '@xyflow/react'
-import { applyWire, removeNode, WiringError } from '@/core/wiring'
+import { applyWire, assertModelFits, removeNode, WiringError } from '@/core/wiring'
 import { newNode } from '@/core/node-defaults'
 import { UnsupportedCapabilityError } from '@/models/registry'
 import type { Flow, FlowNode, NodeId } from '@/core/types'
@@ -987,10 +987,17 @@ function CanvasInner() {
           state={state?.nodes[selected.id]}
           models={state?.models ?? []}
           onChange={(next) =>
-            void commit((current) => ({
-              ...current,
-              nodes: current.nodes.map((n) => (n.id === next.id ? next : n)),
-            }))
+            void commit((current) => {
+              const graph = {
+                ...current,
+                nodes: current.nodes.map((n) => (n.id === next.id ? next : n)),
+              }
+              // Refused under the cursor rather than after a round trip. The
+              // server refuses it too — this is the fast copy of that rule, not
+              // the only one.
+              if ('modelId' in next) assertModelFits(graph, next.id, resolveModel(next.modelId))
+              return graph
+            })
           }
           onDelete={() => {
             void commit((current) => removeNode(current, selected.id))

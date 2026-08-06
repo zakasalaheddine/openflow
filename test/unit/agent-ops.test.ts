@@ -201,3 +201,37 @@ describe('apply_template', () => {
     expect(() => o.applyTemplate({ templateId: first.id, prompts: {} })).toThrow(/needs/)
   })
 })
+
+describe('the model a node names', () => {
+  test('an id the catalog does not have is refused, so the model is told rather than the person', () => {
+    const { ops: o } = ops()
+    expect(() => o.addNode({ type: 'image', prompt: 'x', modelId: 'not-a-model' })).toThrow(
+      /not-a-model/,
+    )
+  })
+
+  test('a fresh node without one lands on the catalog default, same as the canvas', () => {
+    const { ops: o } = ops()
+    const { id } = o.addNode({ type: 'video', prompt: 'push in' })
+    expect(o.listGraph().nodes.find((n) => n.id === id)).toMatchObject({
+      modelId: 'hailuo-2-3-pro',
+    })
+  })
+
+  test('switching to a model that cannot honour the wires already drawn is refused on save', () => {
+    // The agent sets modelId too, so the rule cannot live in the inspector. It
+    // is enforced where every write goes through: saveGraph.
+    const { db, projectId, ops: o } = ops()
+    const sourceId = seedSource(db, projectId)
+    const asset = o.addNode({ type: 'source', sourceId }).id
+    const shot = o.addNode({ type: 'image', prompt: 'on marble', modelId: 'flux-2-pro' }).id
+    o.wire({ from: asset, to: shot })
+
+    expect(() => o.updateNode({ id: shot, modelId: 'recraft-v3' })).toThrow(
+      UnsupportedCapabilityError,
+    )
+    // Refused, not absorbed: the wire is still there and the model is unchanged.
+    expect(o.listGraph().edges).toHaveLength(1)
+    expect(o.listGraph().nodes.find((n) => n.id === shot)).toMatchObject({ modelId: 'flux-2-pro' })
+  })
+})

@@ -6,6 +6,7 @@ import { ensureWorkspace, saveGraphIfCurrent, StaleGraphError, listSources } fro
 import { previewRun } from '@/core/preview'
 import { flowSchema } from '@/core/schema'
 import { catalog } from '@/models/catalog'
+import { UnsupportedCapabilityError } from '@/models/registry'
 import type { Flow } from '@/core/types'
 
 export const dynamic = 'force-dynamic'
@@ -128,6 +129,12 @@ export async function PATCH(request: Request) {
     // built on the newest state. Re-read and re-apply is the whole recovery.
     if (error instanceof StaleGraphError) {
       return NextResponse.json({ error: error.message }, { status: 409 })
+    }
+    // A model that cannot take the wires drawn into it, or one the catalog no
+    // longer has. The graph is well formed and current — it just cannot run —
+    // so it is a 400 with the sentence naming which node and why.
+    if (error instanceof UnsupportedCapabilityError) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
     throw error
   }
