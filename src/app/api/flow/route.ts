@@ -31,12 +31,17 @@ export async function GET(request: Request) {
     : []
   const assetById = new Map(outputs.map((a) => [a.id, a]))
 
-  // Latest run per node, so a retried node shows its current state rather than
-  // whichever row the database happened to return first.
+  // Latest run per (node, hash), not per node alone: the newest row for a
+  // node can belong to a different config than the one on screen (Draft/Hero
+  // flipped back after a newer Hero render), and picking newest-by-node-only
+  // then filtering on hash left nothing — the card read "succeeded"
+  // (previewRun matches hashes across all runs) while showing no image and no
+  // cost, because the run this map returned was for the wrong hash entirely.
   const latest = new Map<string, (typeof runs)[number]>()
   for (const run of runs) {
-    const current = latest.get(run.nodeId)
-    if (!current || run.createdAt > current.createdAt) latest.set(run.nodeId, run)
+    const key = `${run.nodeId}:${run.inputHash}`
+    const current = latest.get(key)
+    if (!current || run.createdAt > current.createdAt) latest.set(key, run)
   }
 
   return NextResponse.json({
@@ -55,8 +60,7 @@ export async function GET(request: Request) {
         // newId recycles a freed suffix), so a stale run for a deleted node can
         // otherwise resurface under the next node built with that same id: its
         // render, its cost and its error, on a card that never rendered.
-        const run = latest.get(node.id)
-        const currentRun = run && run.inputHash === planned?.inputHash ? run : undefined
+        const currentRun = latest.get(`${node.id}:${planned?.inputHash}`)
         return [
           node.id,
           {
