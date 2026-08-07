@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, real, index } from 'drizzle-orm/sqlite-core'
 
 const now = () => new Date().toISOString()
 
@@ -61,6 +61,13 @@ export const nodeRuns = sqliteTable(
     // Persisted the instant fal accepts, so a crash cannot orphan a paid run.
     falRequestId: text('fal_request_id'),
     costCents: integer('cost_cents').notNull().default(0),
+    /**
+     * What fal's meter reported for this render, in the model's billing unit —
+     * megapixels, images or seconds. Null when nothing reported one, which is
+     * what separates a cost fal measured from a cost we derived from the file.
+     * Fractional on purpose: fal bills `2.5` megapixels.
+     */
+    billableUnits: real('billable_units'),
     outputRefs: text('output_refs', { mode: 'json' }),
     error: text('error'),
     attempt: integer('attempt').notNull().default(0),

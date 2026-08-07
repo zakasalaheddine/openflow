@@ -116,6 +116,13 @@ describe('estimateCostCents', () => {
     expect(estimateCostCents(model, { width: 1024, height: 1024 })).toBeCloseTo(3.15, 1)
   })
 
+  test('prices every image in a batch, not just the first', () => {
+    // A megapixel row that ignored the count priced four frames as one — and
+    // flux-2-pro, the default image row, is priced per megapixel.
+    const model = spec({ cost: { unit: 'megapixel', amount: 3 } })
+    expect(estimateCostCents(model, { images: 4, width: 1024, height: 1024 })).toBeCloseTo(12.6, 1)
+  })
+
   test('prices per second of video', () => {
     const model = spec({ format: 'video', cost: { unit: 'second', amount: 49 } })
     expect(estimateCostCents(model, { durationSec: 5 })).toBe(245)
