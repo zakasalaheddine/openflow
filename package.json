@@ -22,6 +22,7 @@
     "spike": "tsx spike/spike.ts",
     "run": "tsx bin/run.ts",
     "record-fixtures": "tsx bin/record-fixtures.ts",
+    "record-chat": "tsx bin/record-chat-fixtures.ts",
     "migrate:model-ids": "tsx bin/migrate-model-ids.ts",
     "models:add": "tsx bin/add-models.ts",
     "costs:sync": "tsx bin/sync-costs.ts"
