@@ -171,7 +171,9 @@ export function NodeCard({ data }: NodeProps) {
             renders itself and whatever upstream it still needs — nothing else.
             `nodrag` and the stopped propagation keep the click off React Flow's
             drag handler and off the canvas's alt-click fan-out. */}
-        {node.type !== 'export' && (
+        {/* A cut is assembled at Export from clips already paid for, so there is
+            nothing here to run — the same reason an export node has no button. */}
+        {node.type !== 'export' && node.type !== 'sequence' && (
           <button
             className="node__run nodrag"
             data-testid={`run-${node.id}`}

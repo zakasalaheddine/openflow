@@ -1,0 +1,278 @@
+{
+  "chunks": [
+    {
+      "type": "stream-start",
+      "warnings": []
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-start",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "text-delta",
+      "delta": "There",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": "'s one",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": " node on",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": " the canvas now: a h",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": "ero still, \"",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": "Hero — serum on marble,\" on flux-2-pro — a glass dropper bottle upright on honed white marble, soft window light from the left, clean p",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": "ale background, no props or copy. Running it as it stands would cost about 3 cents. Nothing has been rendered; that happens when you press Run.\n\nI wrote the bottle gener",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": "ically because I don't know the brand yet. Before you spend anything, a few things would change the prompt materially:\n\n- **Whose serum is it, and what does",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": " the bottle actually look like?** Glass or frosted, amber or clear, dropper or pump, cap colour, label treatment. If you up",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": "load a pack shot I'll wire it in as a reference so the render honours the real bottle inst",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": "ead of inventing one.\n- **What's the brand's visual register?** Cool clinical white, warm spa, or something mo",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": "odier — marble reads very differently across those.\n- **What is this hero for?** If it's the anchor for motion later, I'd ke",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": "ep it as a still and hang clips off it so the product can't drift. If it needs a headline, that gets burned in",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": " at export instead.\n\nTell me the brand and I'll tighten the prompt and build out from here.",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-end",
+      "id": "gen-1786130138-uOB8aYFu1d5PqiLgJnOX"
+    },
+    {
+      "type": "finish",
+      "finishReason": {
+        "unified": "stop",
+        "raw": "stop"
+      },
+      "usage": {
+        "inputTokens": {
+          "total": 4096,
+          "noCache": 4096,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        },
+        "outputTokens": {
+          "total": 381,
+          "text": 381,
+          "reasoning": 0
+        },
+        "raw": {
+          "prompt_tokens": 4096,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "audio_tokens": 0,
+            "video_tokens": 0
+          },
+          "completion_tokens": 381,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "image_tokens": 0,
+            "audio_tokens": 0
+          },
+          "total_tokens": 4477,
+          "cost": 0.030005,
+          "cost_details": {
+            "upstream_inference_cost": 0.030005,
+            "upstream_inference_prompt_cost": 0.02048,
+            "upstream_inference_completions_cost": 0.009525
+          },
+          "is_byok": false
+        }
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "usage": {
+            "promptTokens": 4096,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 381,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "cost": 0.030005,
+            "totalTokens": 4477,
+            "costDetails": {
+              "upstreamInferenceCost": 0.030005
+            }
+          },
+          "provider": "Amazon Bedrock",
+          "reasoning_details": []
+        }
+      }
+    }
+  ]
+}

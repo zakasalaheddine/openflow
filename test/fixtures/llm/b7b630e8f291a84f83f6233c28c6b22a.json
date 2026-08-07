@@ -1,0 +1,348 @@
+{
+  "chunks": [
+    {
+      "type": "stream-start",
+      "warnings": []
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130124-RjumllWbYmvySCgHi9Pa"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-start",
+      "id": "u2XIejp884C7ZOvI"
+    },
+    {
+      "type": "reasoning-delta",
+      "delta": "I",
+      "id": "u2XIejp884C7ZOvI"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130124-RjumllWbYmvySCgHi9Pa"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-delta",
+      "delta": "'ll start with a neutral hero image node since I don't have brand details yet—keeping the prompt generic about the",
+      "id": "u2XIejp884C7ZOvI"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130124-RjumllWbYmvySCgHi9Pa"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-delta",
+      "delta": " product without inventing specifics like bottle shape or brand colors, then I can",
+      "id": "u2XIejp884C7ZOvI"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130124-RjumllWbYmvySCgHi9Pa"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-delta",
+      "delta": " ask clarifying questions. I'm using flux-2-pro for this at $0.030 per megapixel.",
+      "id": "u2XIejp884C7ZOvI"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130124-RjumllWbYmvySCgHi9Pa"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-delta",
+      "delta": "",
+      "id": "u2XIejp884C7ZOvI"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130124-RjumllWbYmvySCgHi9Pa"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130124-RjumllWbYmvySCgHi9Pa"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-start",
+      "id": "toolu_01Bv6LzwfJ8onUxUdFbmnYdj",
+      "toolName": "add_node"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01Bv6LzwfJ8onUxUdFbmnYdj",
+      "delta": ""
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130124-RjumllWbYmvySCgHi9Pa"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01Bv6LzwfJ8onUxUdFbmnYdj",
+      "delta": "{\"type\": \"image"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130124-RjumllWbYmvySCgHi9Pa"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01Bv6LzwfJ8onUxUdFbmnYdj",
+      "delta": "\", \"label\": \"Hero — serum on marble"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130124-RjumllWbYmvySCgHi9Pa"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01Bv6LzwfJ8onUxUdFbmnYdj",
+      "delta": "\", \"modelId\": \"flux-2-pro"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130124-RjumllWbYmvySCgHi9Pa"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01Bv6LzwfJ8onUxUdFbmnYdj",
+      "delta": "\", \"prompt\": \"Hero product still: a single glass serum bottle with dropper cap standing upright, centred, on a hon"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130124-RjumllWbYmvySCgHi9Pa"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01Bv6LzwfJ8onUxUdFbmnYdj",
+      "delta": "ed white Carrara marble slab with soft grey veining. Single soft window light from the upper left, gentle falloff to a cl"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130124-RjumllWbYmvySCgHi9Pa"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01Bv6LzwfJ8onUxUdFbmnYdj",
+      "delta": "ean pale background, faint reflection and a soft shadow to the right. Shallow depth of field, product"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130124-RjumllWbYmvySCgHi9Pa"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01Bv6LzwfJ8onUxUdFbmnYdj",
+      "delta": " tack-sharp, no props, no text, no hands. Editorial skincare advertising photography, "
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130124-RjumllWbYmvySCgHi9Pa"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01Bv6LzwfJ8onUxUdFbmnYdj",
+      "delta": "85mm look."
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130124-RjumllWbYmvySCgHi9Pa"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01Bv6LzwfJ8onUxUdFbmnYdj",
+      "delta": "\"}"
+    },
+    {
+      "type": "tool-input-end",
+      "id": "toolu_01Bv6LzwfJ8onUxUdFbmnYdj"
+    },
+    {
+      "type": "tool-call",
+      "toolCallId": "toolu_01Bv6LzwfJ8onUxUdFbmnYdj",
+      "toolName": "add_node",
+      "input": "{\"type\": \"image\", \"label\": \"Hero — serum on marble\", \"modelId\": \"flux-2-pro\", \"prompt\": \"Hero product still: a single glass serum bottle with dropper cap standing upright, centred, on a honed white Carrara marble slab with soft grey veining. Single soft window light from the upper left, gentle falloff to a clean pale background, faint reflection and a soft shadow to the right. Shallow depth of field, product tack-sharp, no props, no text, no hands. Editorial skincare advertising photography, 85mm look.\"}",
+      "providerMetadata": {
+        "openrouter": {
+          "reasoning_details": [
+            {
+              "type": "reasoning.text",
+              "text": "I'll start with a neutral hero image node since I don't have brand details yet—keeping the prompt generic about the product without inventing specifics like bottle shape or brand colors, then I can ask clarifying questions. I'm using flux-2-pro for this at $0.030 per megapixel.",
+              "format": "anthropic-claude-v1",
+              "index": 0,
+              "signature": "CAISggcKhwEIEBgCKkCwZ7wz7Qzf7y0ZKt512ZM4rJhXgd0dPmntXjRxae5USHcP2i/P6SFhFiRGP8E65+g3an77zTBsZ9P9KRvKk7GUMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiQ0YzBmMDQ2Zi0yNWZkLTQ1ZmItYmZiMy1hMDhhOGUyNDljYTcSDE2KfXRmPNOKB/wjrRoMjK8OqkbjdVDFRj62IjC7qih/SocfgyshHus+FMu04M7tDl4t8JUg2MYPd/y4jAwGyAC6hkroVxfxBtWwbY4qpwVHIIA+J0i7hWkv9ktbNp4OUZrozS8M4hwtnzoOiaetsnFqcXIDKTw5qhD4n0eTs7fc94QTwPq0W5hkfPBWUO0/d/PWZaPBW0NO4wzUa2EwRCBqbsD/V8/MkZ42ZpHLHno0yNu2ayC5R6ECIeph6LgAitbckK+1UD/fWALN0nSs60MPO+j2WHidXPtqZ9vAQmSj36QT2JOay7GSdVbp/EnFOKrRmAXTD6Mx8N5UX1UY0Qm3uxEjB7sHXEn8tXu6ZO8wv8ifBXiJ0OraN/kVpZzPURjpKIYGh1fn2qNnPIyFkjGuI9i8aNAqIQ27JSIys5YlXOfXEH91OBAqAzLKdh9VIR2k1m0yIoE6X4GAL8YW4yKw6ZuBEN6CIO8L/adlofSmeTWTvgvoBimV3EBF0YEgzTrzdzDl02hKENdnWaeDuxNj0eGtwrmtdfH9nOuL1e1yn7DFlGkO+ZTuilQdQ3G3RaAy/1P+lyLqiHww7x9ciIKswOosJGlgKOHIrYiYx5Wg2Pc6dasjlRthmFE+RrXH7UQiKQ1erFgjOooxSQG3MESCxK+56HXg+nkdYEiHaoP4O1oYBu4/h3uM/F8RdiQK+7fJvwe0Y0rHhc5BadA+PkAeRdNiLMVz+1jt79i6FGFWtHjwLeqtp0HWVWMVG+gg3TsThZ7X6Nm75KH82aaZUxZIwhiBmE/aOXRtVQz6Ow8w61WBC9afmtZv2BvRWHoRiSPT/Nw5MK+GKvF6aKQTOQDhLNWtB7bL9kVL+PdYRYN3zbcRaE+mdzGO771c4bLPIDfpuF/HDTgMitGNfRXR0XD0/LS4phGpEqg5W0V3bSbZpJaSM6e65i7fBzwBmbmC0b5UVgDkermzBH/+tMZQdSAzMoVT7E8CrAX1QO9iHUrhmduKGEy9GAE="
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130124-RjumllWbYmvySCgHi9Pa"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786130124-RjumllWbYmvySCgHi9Pa"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-end",
+      "id": "u2XIejp884C7ZOvI",
+      "providerMetadata": {
+        "openrouter": {
+          "reasoning_details": [
+            {
+              "type": "reasoning.text",
+              "text": "I'll start with a neutral hero image node since I don't have brand details yet—keeping the prompt generic about the product without inventing specifics like bottle shape or brand colors, then I can ask clarifying questions. I'm using flux-2-pro for this at $0.030 per megapixel.",
+              "format": "anthropic-claude-v1",
+              "index": 0,
+              "signature": "CAISggcKhwEIEBgCKkCwZ7wz7Qzf7y0ZKt512ZM4rJhXgd0dPmntXjRxae5USHcP2i/P6SFhFiRGP8E65+g3an77zTBsZ9P9KRvKk7GUMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiQ0YzBmMDQ2Zi0yNWZkLTQ1ZmItYmZiMy1hMDhhOGUyNDljYTcSDE2KfXRmPNOKB/wjrRoMjK8OqkbjdVDFRj62IjC7qih/SocfgyshHus+FMu04M7tDl4t8JUg2MYPd/y4jAwGyAC6hkroVxfxBtWwbY4qpwVHIIA+J0i7hWkv9ktbNp4OUZrozS8M4hwtnzoOiaetsnFqcXIDKTw5qhD4n0eTs7fc94QTwPq0W5hkfPBWUO0/d/PWZaPBW0NO4wzUa2EwRCBqbsD/V8/MkZ42ZpHLHno0yNu2ayC5R6ECIeph6LgAitbckK+1UD/fWALN0nSs60MPO+j2WHidXPtqZ9vAQmSj36QT2JOay7GSdVbp/EnFOKrRmAXTD6Mx8N5UX1UY0Qm3uxEjB7sHXEn8tXu6ZO8wv8ifBXiJ0OraN/kVpZzPURjpKIYGh1fn2qNnPIyFkjGuI9i8aNAqIQ27JSIys5YlXOfXEH91OBAqAzLKdh9VIR2k1m0yIoE6X4GAL8YW4yKw6ZuBEN6CIO8L/adlofSmeTWTvgvoBimV3EBF0YEgzTrzdzDl02hKENdnWaeDuxNj0eGtwrmtdfH9nOuL1e1yn7DFlGkO+ZTuilQdQ3G3RaAy/1P+lyLqiHww7x9ciIKswOosJGlgKOHIrYiYx5Wg2Pc6dasjlRthmFE+RrXH7UQiKQ1erFgjOooxSQG3MESCxK+56HXg+nkdYEiHaoP4O1oYBu4/h3uM/F8RdiQK+7fJvwe0Y0rHhc5BadA+PkAeRdNiLMVz+1jt79i6FGFWtHjwLeqtp0HWVWMVG+gg3TsThZ7X6Nm75KH82aaZUxZIwhiBmE/aOXRtVQz6Ow8w61WBC9afmtZv2BvRWHoRiSPT/Nw5MK+GKvF6aKQTOQDhLNWtB7bL9kVL+PdYRYN3zbcRaE+mdzGO771c4bLPIDfpuF/HDTgMitGNfRXR0XD0/LS4phGpEqg5W0V3bSbZpJaSM6e65i7fBzwBmbmC0b5UVgDkermzBH/+tMZQdSAzMoVT7E8CrAX1QO9iHUrhmduKGEy9GAE="
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "finish",
+      "finishReason": {
+        "unified": "tool-calls",
+        "raw": "tool_calls"
+      },
+      "usage": {
+        "inputTokens": {
+          "total": 3270,
+          "noCache": 3270,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        },
+        "outputTokens": {
+          "total": 515,
+          "text": 444,
+          "reasoning": 71
+        },
+        "raw": {
+          "prompt_tokens": 3270,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "audio_tokens": 0,
+            "video_tokens": 0
+          },
+          "completion_tokens": 515,
+          "completion_tokens_details": {
+            "reasoning_tokens": 71,
+            "image_tokens": 0,
+            "audio_tokens": 0
+          },
+          "total_tokens": 3785,
+          "cost": 0.029225,
+          "cost_details": {
+            "upstream_inference_cost": 0.029225,
+            "upstream_inference_prompt_cost": 0.01635,
+            "upstream_inference_completions_cost": 0.012875
+          },
+          "is_byok": false
+        }
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "usage": {
+            "promptTokens": 3270,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 515,
+            "completionTokensDetails": {
+              "reasoningTokens": 71
+            },
+            "cost": 0.029225,
+            "totalTokens": 3785,
+            "costDetails": {
+              "upstreamInferenceCost": 0.029225
+            }
+          },
+          "provider": "Amazon Bedrock",
+          "reasoning_details": [
+            {
+              "type": "reasoning.text",
+              "text": "I'll start with a neutral hero image node since I don't have brand details yet—keeping the prompt generic about the product without inventing specifics like bottle shape or brand colors, then I can ask clarifying questions. I'm using flux-2-pro for this at $0.030 per megapixel.",
+              "format": "anthropic-claude-v1",
+              "index": 0,
+              "signature": "CAISggcKhwEIEBgCKkCwZ7wz7Qzf7y0ZKt512ZM4rJhXgd0dPmntXjRxae5USHcP2i/P6SFhFiRGP8E65+g3an77zTBsZ9P9KRvKk7GUMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiQ0YzBmMDQ2Zi0yNWZkLTQ1ZmItYmZiMy1hMDhhOGUyNDljYTcSDE2KfXRmPNOKB/wjrRoMjK8OqkbjdVDFRj62IjC7qih/SocfgyshHus+FMu04M7tDl4t8JUg2MYPd/y4jAwGyAC6hkroVxfxBtWwbY4qpwVHIIA+J0i7hWkv9ktbNp4OUZrozS8M4hwtnzoOiaetsnFqcXIDKTw5qhD4n0eTs7fc94QTwPq0W5hkfPBWUO0/d/PWZaPBW0NO4wzUa2EwRCBqbsD/V8/MkZ42ZpHLHno0yNu2ayC5R6ECIeph6LgAitbckK+1UD/fWALN0nSs60MPO+j2WHidXPtqZ9vAQmSj36QT2JOay7GSdVbp/EnFOKrRmAXTD6Mx8N5UX1UY0Qm3uxEjB7sHXEn8tXu6ZO8wv8ifBXiJ0OraN/kVpZzPURjpKIYGh1fn2qNnPIyFkjGuI9i8aNAqIQ27JSIys5YlXOfXEH91OBAqAzLKdh9VIR2k1m0yIoE6X4GAL8YW4yKw6ZuBEN6CIO8L/adlofSmeTWTvgvoBimV3EBF0YEgzTrzdzDl02hKENdnWaeDuxNj0eGtwrmtdfH9nOuL1e1yn7DFlGkO+ZTuilQdQ3G3RaAy/1P+lyLqiHww7x9ciIKswOosJGlgKOHIrYiYx5Wg2Pc6dasjlRthmFE+RrXH7UQiKQ1erFgjOooxSQG3MESCxK+56HXg+nkdYEiHaoP4O1oYBu4/h3uM/F8RdiQK+7fJvwe0Y0rHhc5BadA+PkAeRdNiLMVz+1jt79i6FGFWtHjwLeqtp0HWVWMVG+gg3TsThZ7X6Nm75KH82aaZUxZIwhiBmE/aOXRtVQz6Ow8w61WBC9afmtZv2BvRWHoRiSPT/Nw5MK+GKvF6aKQTOQDhLNWtB7bL9kVL+PdYRYN3zbcRaE+mdzGO771c4bLPIDfpuF/HDTgMitGNfRXR0XD0/LS4phGpEqg5W0V3bSbZpJaSM6e65i7fBzwBmbmC0b5UVgDkermzBH/+tMZQdSAzMoVT7E8CrAX1QO9iHUrhmduKGEy9GAE="
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

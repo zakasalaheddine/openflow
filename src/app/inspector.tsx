@@ -9,7 +9,10 @@ type Props = {
   node: FlowNode
   state: NodeState | undefined
   models: ModelRow[]
+  /** For a sequence: the clips it cuts, in the order they play. Empty otherwise. */
+  clips?: { id: string; label: string }[]
   onChange: (next: FlowNode) => void
+  onReorder?: (order: string[]) => void
   onDelete: () => void
   onReroll: () => void
 }
@@ -62,6 +65,13 @@ function Field({
       />
     </label>
   )
+}
+
+/** The whole order, with two entries exchanged — `reorderSequence` wants every clip. */
+const swap = (clips: { id: string }[], a: number, b: number) => {
+  const order = clips.map((clip) => clip.id)
+  ;[order[a], order[b]] = [order[b], order[a]]
+  return order
 }
 
 const perUnit = (cost: ModelRow['cost']) =>
@@ -134,7 +144,7 @@ function ModelField({
  * re-roll keeps the direction and changes the dice, editing changes the
  * direction. Confusing the two means re-rolling a bad idea forever.
  */
-export function Inspector({ node, state, models, onChange, onDelete, onReroll }: Props) {
+export function Inspector({ node, state, models, clips, onChange, onReorder, onDelete, onReroll }: Props) {
 
   return (
     <aside className="inspector" aria-label={`Inspector for ${node.id}`}>
@@ -187,6 +197,50 @@ export function Inspector({ node, state, models, onChange, onDelete, onReroll }:
               <option value="on">On</option>
             </select>
           </label>
+        </>
+      )}
+
+      {node.type === 'sequence' && (
+        <>
+          {/* The order is the whole content of this node, so it is the whole
+              inspector. Arrows rather than drag-to-reorder: a list of twelve
+              shots is read, not dragged, and a misdrop here re-cuts the film. */}
+          <span className="slate">Cut order</span>
+          {(clips ?? []).length === 0 ? (
+            <span className="hint">
+              Wire clips into this node. They cut together in the order you wire them.
+            </span>
+          ) : (
+            <ol className="cut" data-testid="cut-order">
+              {(clips ?? []).map((clip, index) => (
+                <li key={clip.id} className="cut__item" data-testid={`cut-${clip.id}`}>
+                  <span className="cut__index">{index + 1}</span>
+                  <span className="cut__label">{clip.label}</span>
+                  <button
+                    className="workspaces__action"
+                    title="Earlier"
+                    disabled={index === 0}
+                    data-testid={`cut-up-${clip.id}`}
+                    onClick={() => onReorder?.(swap(clips ?? [], index, index - 1))}
+                  >
+                    ▲
+                  </button>
+                  <button
+                    className="workspaces__action"
+                    title="Later"
+                    disabled={index === (clips ?? []).length - 1}
+                    data-testid={`cut-down-${clip.id}`}
+                    onClick={() => onReorder?.(swap(clips ?? [], index, index + 1))}
+                  >
+                    ▼
+                  </button>
+                </li>
+              ))}
+            </ol>
+          )}
+          <span className="hint">
+            The cut is made at Export from clips you have already rendered. It costs nothing to run.
+          </span>
         </>
       )}
 

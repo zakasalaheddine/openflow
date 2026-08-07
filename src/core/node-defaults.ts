@@ -86,5 +86,8 @@ export function newNode(type: NodeType, overrides: NewNodeOverrides): FlowNode {
         ...(overrides.codec !== undefined ? { codec: overrides.codec } : {}),
         ...(overrides.overlay !== undefined ? { overlay: overrides.overlay } : {}),
       }
+    case 'sequence':
+      // Nothing to default. The cut is its incoming edges and their order.
+      return { ...base, type }
   }
 }

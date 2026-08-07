@@ -35,7 +35,7 @@ export const listGraphInput = z.object({})
 export const listSourcesInput = z.object({})
 
 export const addNodeInput = z.object({
-  type: z.enum(['source', 'image', 'video', 'export']),
+  type: z.enum(['source', 'image', 'video', 'export', 'sequence']),
   label: z.string().optional(),
   /** Required for image and video. */
   prompt: z.string().optional(),

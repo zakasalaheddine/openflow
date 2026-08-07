@@ -13,7 +13,7 @@ import {
   type Node as RfNode,
   type Edge as RfEdge,
 } from '@xyflow/react'
-import { applyWire, assertModelFits, removeNode, WiringError } from '@/core/wiring'
+import { applyWire, assertModelFits, removeNode, reorderSequence, sequenceInputs, WiringError } from '@/core/wiring'
 import { newNode } from '@/core/node-defaults'
 import { UnsupportedCapabilityError } from '@/models/registry'
 import type { Flow, FlowNode, NodeId } from '@/core/types'
@@ -461,13 +461,16 @@ function CanvasInner({ flow }: { flow: string }) {
     return (rows.find((m) => m.default) ?? rows[0])?.id
   }
 
-  function addNode(type: 'image' | 'video' | 'export') {
+  function addNode(type: 'image' | 'video' | 'sequence' | 'export') {
     const id = newId(type)
     const position = freeSlot(graphRef.current.nodes)
+    // Only generators name a model. Export writes files and sequence cuts them;
+    // neither dispatches, and asking the catalog for one would throw.
+    const generates = type === 'image' || type === 'video'
     const node = newNode(type, {
       id,
       position,
-      ...(type === 'export' ? {} : { modelId: defaultModelId(type) }),
+      ...(generates ? { modelId: defaultModelId(type) } : {}),
     })
 
     void commit((current) => ({ ...current, nodes: [...current.nodes, node] }))
@@ -670,7 +673,7 @@ function CanvasInner({ flow }: { flow: string }) {
 
         <FlowMenu current={flow} onError={setNotice} />
 
-        {(['image', 'video', 'export'] as const).map((type) => (
+        {(['image', 'video', 'sequence', 'export'] as const).map((type) => (
           <button key={type} className="chip" onClick={() => addNode(type)} data-testid={`add-${type}`}>
             + {type}
           </button>
@@ -990,6 +993,15 @@ function CanvasInner({ flow }: { flow: string }) {
           node={selected}
           state={state?.nodes[selected.id]}
           models={state?.models ?? []}
+          clips={
+            selected.type === 'sequence' && graph
+              ? sequenceInputs(graph, selected.id).map((id) => ({
+                  id,
+                  label: graph.nodes.find((n) => n.id === id)?.label ?? id,
+                }))
+              : undefined
+          }
+          onReorder={(order) => void commit((current) => reorderSequence(current, selected.id, order))}
           onChange={(next) =>
             void commit((current) => {
               const graph = {

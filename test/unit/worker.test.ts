@@ -33,6 +33,15 @@ const clipFlow: Flow = {
   edges: [{ id: 'e1', from: 'img', to: 'clip', role: 'start_frame', position: null }],
 }
 
+/** A character sheet, and the shot that must show the same person. */
+const sheetFlow: Flow = {
+  nodes: [
+    { id: 'sheet', type: 'image', prompt: 'her, three-quarter left', modelId: 'flux-2-pro', seed: 1 },
+    { id: 'shot', type: 'image', prompt: 'her at the window', modelId: 'flux-2-pro', seed: 2 },
+  ],
+  edges: [{ id: 'e1', from: 'sheet', to: 'shot', role: 'reference', position: null }],
+}
+
 function setup(graph: Flow = flow) {
   const { db, dir } = tempDb()
   const projectId = seedProject(db)
@@ -344,6 +353,85 @@ describe('tick', () => {
     expect(dispatched.input.image_url).toBe(
       `data:image/png;base64,${Buffer.from('frame-latest').toString('base64')}`,
     )
+  })
+
+  test('a shot is dispatched with the rendered sheet as a reference image', async () => {
+    // The character sheet, end to end. Before this the edge existed, the hash
+    // chained and the file was never sent — the shot came back as a different
+    // person, at full price, and read as the model ignoring its references.
+    const { db, dir, flowId } = setup(sheetFlow)
+    const storeRoot = path.join(dir, 'assets')
+    enqueueRun(db, flowId)
+    const shotRun = db.select().from(nodeRuns).where(eq(nodeRuns.nodeId, 'shot')).get()!
+
+    const file = path.join(storeRoot, 'frames', 'sheet.png')
+    mkdirSync(path.dirname(file), { recursive: true })
+    writeFileSync(file, Buffer.from('sheet-bytes'))
+    db.delete(nodeRuns).where(eq(nodeRuns.nodeId, 'sheet')).run()
+    db.insert(assets)
+      .values({
+        id: 'sheet-asset',
+        path: file,
+        mime: 'image/png',
+        sourceRunId: 'sheet-run',
+        createdAt: '2026-01-01T00:00:00.000Z',
+      })
+      .run()
+    db.insert(nodeRuns)
+      .values({
+        id: 'sheet-run',
+        flowId,
+        nodeId: 'sheet',
+        inputHash: 'sheet-hash',
+        status: 'succeeded',
+        modelId: 'flux-2-pro',
+        costCents: 3,
+        attempt: 0,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        outputRefs: ['sheet-asset'],
+      })
+      .run()
+
+    const adapter = fakeAdapter()
+    await tick(db, { adapter, download: fakeDownload, storeRoot })
+
+    const dispatched = adapter.requests.find((r) => r.hash === shotRun.inputHash)!
+    expect(dispatched.input.image_urls).toEqual([
+      `data:image/png;base64,${Buffer.from('sheet-bytes').toString('base64')}`,
+    ])
+  })
+
+  test('never dispatches a shot whose reference was never rendered', async () => {
+    // Same refusal a missing start frame gets, for the same reason: the graph
+    // promises this shot has that face in front of it, and buildModelInput would
+    // drop `image_urls` and let fal bill a full render of somebody else.
+    const { db, flowId } = setup(sheetFlow)
+    enqueueRun(db, flowId)
+    db.update(nodeRuns).set({ status: 'failed', attempt: MAX_ATTEMPTS }).where(eq(nodeRuns.nodeId, 'sheet')).run()
+
+    const adapter = fakeAdapter()
+    for (let i = 0; i < MAX_ATTEMPTS + 2; i++) await tick(db, { adapter, download: fakeDownload })
+
+    const shot = db.select().from(nodeRuns).where(eq(nodeRuns.nodeId, 'shot')).get()!
+    expect(shot.status).toBe('failed')
+    expect(shot.error).toContain('has not rendered anything')
+    expect(adapter.submitted).not.toContain(shot.inputHash)
+  })
+
+  test('re-rendering the sheet stales every shot built on it', async () => {
+    // The reason a live link beats promoting the render to an uploaded asset:
+    // `planRun` chains `upstreamHashes` through every edge, so a new face
+    // invalidates the whole film without anyone re-wiring anything.
+    const { db, flowId } = setup(sheetFlow)
+    const before = enqueueRun(db, flowId).enqueued.find((p) => p.nodeId === 'shot')!.inputHash
+
+    const graph = db.select().from(flows).where(eq(flows.id, flowId)).get()!.graphJson as Flow
+    const sheet = graph.nodes.find((n) => n.id === 'sheet')!
+    if (sheet.type === 'image') sheet.prompt = 'her, straight on'
+    db.update(flows).set({ graphJson: graph }).where(eq(flows.id, flowId)).run()
+
+    const after = enqueueRun(db, flowId).enqueued.find((p) => p.nodeId === 'shot')!.inputHash
+    expect(after).not.toBe(before)
   })
 
   test('completes a run, writes an asset row and records the cost', async () => {

@@ -87,6 +87,13 @@ export const nodeSchema = z.discriminatedUnion('type', [
     // the platform's own chrome.
     overlay: textOverlay,
   }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal('sequence'),
+    position,
+    size,
+    label: z.string().optional(),
+  }),
 ])
 
 const edgeSchema = z.object({
