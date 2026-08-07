@@ -103,10 +103,11 @@ export class UnknownModelError extends UnsupportedCapabilityError {
  * answered `Path … not found`, which is precisely what `verifiedOn: null` was
  * there to warn about.
  *
- * ponytail: resolving is not rendering. Only `flux-2-pro` has completed a real
- * render end to end; the rest are known to exist and to accept the fields we
- * send, not known to come back with a file. Prices remain public-page estimates
- * on every row — fal returns no price with a result.
+ * ponytail: resolving is not rendering. Only the rows carrying a `verifiedOn`
+ * date have completed a real render end to end; the rest are known to exist and
+ * to accept the fields we send, not known to come back with a file. Prices are
+ * public-page figures — fal returns no money with a result, only a count of what
+ * it metered, which the worker prices against these numbers.
  */
 export const SEED: ModelSpec[] = [
   {
@@ -140,6 +141,28 @@ export const SEED: ModelSpec[] = [
     caps: { refImages: 0, textRendering: true, startEndFrame: false, nativeAudio: false },
     cost: { unit: 'image', amount: 4 },
     verifiedOn: null,
+  },
+  {
+    id: 'gpt-image-2',
+    format: 'image',
+    falEndpoint: 'openai/gpt-image-2',
+    editEndpoint: 'openai/gpt-image-2/edit',
+    caps: { refImages: 16, textRendering: false, startEndFrame: false, nativeAudio: false },
+    // The one row here fal publishes no unit price for: it meters this model per
+    // token, so `amount` is the per-image figure its metered renders actually
+    // came to (15 and 19 cents), good enough to quote a graph and hold the spend
+    // cap. What it charged is never guessed from it — that comes off fal's meter
+    // through `centsPerBillableUnit`.
+    cost: { unit: 'image', amount: 15, centsPerBillableUnit: 100 },
+    pricingNote:
+      'Text tokens (per 1M): $5.00 input, $1.25 cached, $10.00 output.\n' +
+      'Image tokens (per 1M): $8.00 input, $2.00 cached, $30.00 output. Changing the quality ' +
+      'parameter significantly affects cost; by default we use high. Adjust it to your preference.\n' +
+      'See the description at the bottom of this page for more details on how much canonical ' +
+      'image sizes cost. Total cost is rounded up to the closest hundredth of a cent ($0.0001.)',
+    // Two live renders, 2026-08-06: one text-to-image and one through the edit
+    // endpoint, both submitted, polled, downloaded and billed.
+    verifiedOn: '2026-08-06',
   },
 
   // Video rows land in Phase 2 rather than Phase 3 because the canvas needs
