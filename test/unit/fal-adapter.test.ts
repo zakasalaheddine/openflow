@@ -199,7 +199,14 @@ describe('adapter in `live` mode', () => {
               // The sub-path fal drops. `flux-2-pro` has none, so name one that does.
               response_url: 'https://queue.fal.run/fal-ai/minimax/requests/req-1',
             }
-      return { ok: true, status: 200, json: async () => body } as Response
+      return {
+        ok: true,
+        status: 200,
+        json: async () => body,
+        // What fal metered rides on the result's headers, so a stand-in for a
+        // Response has to have them.
+        headers: new Headers({ 'x-fal-billable-units': '2.5' }),
+      } as Response
     })
     vi.stubGlobal('fetch', fetchMock)
 
@@ -209,6 +216,9 @@ describe('adapter in `live` mode', () => {
     const result = await adapter.poll(requestId)
 
     expect(result.status).toBe('COMPLETED')
+    // Read off the result fetch's header — the only place fal states what it
+    // charged for, and the difference between the ledger and a guess.
+    expect(result.billableUnits).toBe(2.5)
     expect(seen[1]).toBe('https://queue.fal.run/fal-ai/minimax/requests/req-1/status')
     expect(seen[2]).toBe('https://queue.fal.run/fal-ai/minimax/requests/req-1')
     expect(seen.some((url) => url.includes('/image-to-video/requests/'))).toBe(false)

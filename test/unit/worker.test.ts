@@ -363,6 +363,42 @@ describe('tick', () => {
     expect(asset.sourceRunId).toBe(run.id)
   })
 
+  test('bills what fal metered, not what the output measures', async () => {
+    // The response body is an 8x8 thumbnail — 0.000064 MP, which derives to
+    // nothing. fal says it billed 2.5 megapixels, and fal is the one charging.
+    // flux-2-pro is 3 cents a megapixel: 2.5 * 3 = 7.5 -> 8.
+    const { db, flowId } = setup(flow)
+    enqueueRun(db, flowId)
+
+    const adapter = fakeAdapter({
+      async poll() {
+        return {
+          status: 'COMPLETED',
+          outputs: [{ url: 'https://fal.media/a.png', mime: 'image/png', width: 8, height: 8 }],
+          billableUnits: 2.5,
+        }
+      },
+    })
+    await tick(db, { adapter, download: fakeDownload })
+    await tick(db, { adapter, download: fakeDownload })
+
+    const run = db.select().from(nodeRuns).get()!
+    expect(run.costCents).toBe(8)
+    // Kept so the number can be told apart from a derived one afterwards.
+    expect(run.billableUnits).toBe(2.5)
+  })
+
+  test('derives the cost, and says it derived it, when fal reports no units', async () => {
+    const { db, flowId } = setup(flow)
+    enqueueRun(db, flowId)
+
+    const adapter = fakeAdapter()
+    await tick(db, { adapter, download: fakeDownload })
+    await tick(db, { adapter, download: fakeDownload })
+
+    expect(db.select().from(nodeRuns).get()?.billableUnits).toBeNull()
+  })
+
   test('resumes a submitted run after a restart without re-dispatching', async () => {
     // The crash-resume guarantee: re-adopt by fal_request_id, never re-submit.
     const { db, flowId } = setup(flow)

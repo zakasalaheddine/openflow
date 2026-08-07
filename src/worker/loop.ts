@@ -4,7 +4,7 @@ import path from 'node:path'
 import { eq, and, desc, inArray, sql } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { nodeRuns, assets, flows, sources, projects, type NodeRun } from '../db/schema'
-import { estimateCostCents, isPriced, type ModelSpec } from '../models/registry'
+import { estimateCostCents, costCentsForUnits, isPriced, type ModelSpec } from '../models/registry'
 import { byId } from '../models/catalog'
 import { buildModelInput } from '../models/input'
 import { localStore, storeFor } from '../core/assets'
@@ -339,6 +339,7 @@ async function persistOutputs(
   outputs: ParsedOutput[],
   download: (url: string) => Promise<Buffer>,
   storeRoot: string,
+  billableUnits?: number,
 ) {
   const local = localStore(storeRoot)
   const store = storeFor(storeRoot)
@@ -388,28 +389,66 @@ async function persistOutputs(
   // price on afterwards must not throw here — that would kill the claim loop
   // while writing down a success, and the render would look like it never
   // finished. Unpriced records as 0 spend, exactly like an unknown model.
-  const exact =
-    model && isPriced(model)
-    ? estimateCostCents(model, {
-        images: outputs.length,
-        width: outputs[0]?.width,
-        height: outputs[0]?.height,
-        durationSec: outputs[0]?.durationMs ? outputs[0].durationMs / 1000 : undefined,
-      })
-    : 0
+  //
+  // fal's own meter first. `billableUnits` is what fal says it charged for, in
+  // the model's billing unit, so pricing it is the catalog's per-unit number and
+  // nothing else — no guessing at dimensions the response may not carry. The
+  // measured fallback is for adapters that cannot report it (stub, older
+  // fixtures) and for anything fal returned no header on.
+  //
+  // Measured, not requested: a model that quietly returns 1024×1024 when asked
+  // for 2048 was billed for what it sent, and the ledger has to agree with the
+  // file on disk.
+  const measured = (priced: ModelSpec) => {
+    // Every clip in the result, not the first: a multi-output video response
+    // billed for all of them and charging for one is the same undercount the
+    // megapixel branch used to have.
+    const durationMs = outputs.reduce((sum, output) => sum + (output.durationMs ?? 0), 0)
+    return estimateCostCents(priced, {
+      images: outputs.length,
+      width: outputs[0]?.width,
+      height: outputs[0]?.height,
+      ...(durationMs > 0 ? { durationSec: durationMs / 1000 } : {}),
+    })
+  }
+  const exact = !model || !isPriced(model)
+    ? 0
+    : billableUnits === undefined
+      ? measured(model)
+      : costCentsForUnits(model, billableUnits)
   // Rounds to the nearest cent, but a real spend never rounds down to zero:
   // a ledger that reports $0.00 for a run fal charged for defeats the whole
   // "see exactly what this creative cost" feature.
   //
-  // ponytail: this is the registry's ESTIMATE, not an invoiced amount — fal
-  // does not return a price with the result. Good enough to price a graph and
-  // enforce a cap; reconcile against a real invoice before the README claims
-  // the number is what you were charged. Integer cents also drift by up to half
-  // a cent per node on a large graph.
+  // `billableUnits * amount` is fal's own arithmetic: a unit is one of whatever
+  // the row is priced in, so what fal metered times what the row charges is what
+  // fal charged. Checked against two live flux-2-pro renders (2026-08-06), whose
+  // published tiers are $0.03 for the first megapixel and $0.015 per extra:
+  //
+  //   019fd6c4  1024x768 text-to-image      -> 1 MP  = $0.030 = 1.0 units
+  //   019fd6c5  1000x1200 in, 992x1200 out  -> 4 MP  = $0.075 = 2.5 units
+  //
+  // Note the second: 2.5 is not a count of megapixels — fal rounds those up to
+  // whole ones — it is $0.075 expressed in the row's own $0.03 unit, tiers
+  // already applied. Deriving that render from its output alone said 4 cents.
+  //
+  // ponytail: a row whose price was hand-written because fal meters it per token
+  // (`gpt-image-2`) has no such guarantee — a real quantity times a guessed unit
+  // price is still a guess, so reconcile those against an invoice. Integer cents
+  // also drift by up to half a cent per node on a large graph.
   const costCents = exact > 0 ? Math.max(1, Math.round(exact)) : 0
 
   db.update(nodeRuns)
-    .set({ status: 'succeeded', outputRefs: refs, costCents, error: null, claimedAt: null })
+    .set({
+      status: 'succeeded',
+      outputRefs: refs,
+      costCents,
+      // Stored so a number can be told apart from a guess after the fact —
+      // null is "we derived this", a value is "fal metered it".
+      billableUnits: billableUnits ?? null,
+      error: null,
+      claimedAt: null,
+    })
     .where(eq(nodeRuns.id, run.id))
     .run()
 }
@@ -448,7 +487,7 @@ export async function tick(db: Db, options: TickOptions): Promise<void> {
     try {
       const result = await adapter.poll(run.falRequestId)
       if (result.status === 'COMPLETED' && result.outputs) {
-        await persistOutputs(db, run, result.outputs, download, storeRoot)
+        await persistOutputs(db, run, result.outputs, download, storeRoot, result.billableUnits)
       } else if (result.status === 'FAILED') {
         fail(db, run, result.error ?? 'fal reported FAILED')
       } else {

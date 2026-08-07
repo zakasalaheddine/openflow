@@ -29,7 +29,25 @@ export type ModelSpec = {
    * refuses it by name, because a render whose cost the ledger cannot see is a
    * spend cap that cannot do its job.
    */
-  cost: { unit: 'image' | 'megapixel' | 'second'; amount: number | null }
+  cost: {
+    unit: 'image' | 'megapixel' | 'second'
+    amount: number | null
+    /**
+     * Cents per unit on *fal's* meter, when that is not `amount`.
+     *
+     * fal reports what it billed as a count of its own units, and for every row
+     * it publishes a price for that count is in this row's unit — so `amount`
+     * prices it and this field stays absent. It exists for the rows fal meters
+     * per token, where `unit`/`amount` is a per-image figure someone wrote down
+     * and fal's count is in something else entirely.
+     *
+     * `gpt-image-2` carries `100` — its counts come back as fractions (0.1463
+     * for a render, 0.1933 for an edit), which is fal reporting dollars for a
+     * model it has no unit price for. UNVERIFIED against an invoice: check one
+     * request on fal's billing page and correct the number if it disagrees.
+     */
+    centsPerBillableUnit?: number
+  }
   /**
    * The sentence fal published the price in, kept verbatim for rows added by
    * `npm run models:add`. The number above was read out of it by a regex, and
@@ -231,16 +249,20 @@ export type CostQuantity = {
 
 /** Gives the pre-run estimate, and therefore the spend cap, for free. */
 export function estimateCostCents(model: ModelSpec, quantity: CostQuantity): number {
-  const { unit, amount } = model.cost
-  if (amount === null) throw new UnpricedModelError(model.id)
+  const { unit } = model.cost
+  const images = quantity.images ?? 1
   let units: number
   switch (unit) {
     case 'image':
-      units = quantity.images ?? 1
+      units = images
       break
     case 'megapixel':
+      // Times the image count, not instead of it. Four 1024×1024 frames are four
+      // megapixels of billable output, and dropping the count here priced a
+      // whole batch as one frame — on `flux-2-pro`, which is the default row.
       units =
-        quantity.width && quantity.height ? (quantity.width * quantity.height) / 1_000_000 : 1
+        images *
+        (quantity.width && quantity.height ? (quantity.width * quantity.height) / 1_000_000 : 1)
       break
     case 'second':
       units = quantity.durationSec ?? 1
@@ -248,7 +270,25 @@ export function estimateCostCents(model: ModelSpec, quantity: CostQuantity): num
   }
   // Clamped: a negative estimate from a bad row would let a run slip past the
   // spend cap by cancelling out a real cost.
-  return Math.max(0, units * amount)
+  return Math.max(0, units * priceOf(model))
+}
+
+const priceOf = (model: ModelSpec) => {
+  if (model.cost.amount === null) throw new UnpricedModelError(model.id)
+  return model.cost.amount
+}
+
+/**
+ * What fal's own meter reading costs.
+ *
+ * Separate from the estimate because the two count different things: the
+ * estimate counts units of `cost.unit` derived from the output, this counts
+ * units of whatever fal billed in. They are the same unit on every row fal
+ * priced itself, and `centsPerBillableUnit` is there for the rows where they
+ * are not.
+ */
+export function costCentsForUnits(model: ModelSpec, units: number): number {
+  return Math.max(0, units * (model.cost.centsPerBillableUnit ?? priceOf(model)))
 }
 
 /** A row nobody has put a number on yet. Selectable, never runnable. */

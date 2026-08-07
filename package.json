@@ -23,7 +23,8 @@
     "run": "tsx bin/run.ts",
     "record-fixtures": "tsx bin/record-fixtures.ts",
     "migrate:model-ids": "tsx bin/migrate-model-ids.ts",
-    "models:add": "tsx bin/add-models.ts"
+    "models:add": "tsx bin/add-models.ts",
+    "costs:sync": "tsx bin/sync-costs.ts"
   },
   "overrides": {
     "postcss": "^8.5.25",

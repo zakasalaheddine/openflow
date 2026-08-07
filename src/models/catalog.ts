@@ -35,6 +35,7 @@ const modelSpecSchema = z.object({
     // Cents, and never negative: a negative row would let a run cancel out real
     // cost and slip past the spend cap. Null means unpriced — see ModelSpec.
     amount: z.number().min(0).nullable(),
+    centsPerBillableUnit: z.number().min(0).optional(),
   }),
   pricingNote: z.string().optional(),
   verifiedOn: z.string().nullable(),

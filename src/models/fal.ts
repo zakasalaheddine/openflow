@@ -29,6 +29,13 @@ export type FalRawResult = {
   video?: FalOutputEntry
   audio?: FalOutputEntry
   error?: { message?: string }
+  /**
+   * Not fal's — ours. fal reports what it metered in the `x-fal-billable-units`
+   * response *header*, and a recorded fixture is the body only. Recording it
+   * under this key keeps one file per response instead of a body/header pair,
+   * and fal's own parser ignores keys it does not know.
+   */
+  billable_units?: number
 }
 
 export type ParsedOutput = {
@@ -54,6 +61,13 @@ export class MissingFixtureError extends Error {
     this.name = 'MissingFixtureError'
   }
 }
+
+/**
+ * fal's meter reading for a completed request, in the model's own billing unit.
+ * Undocumented but present on every result fetch checked against the live queue
+ * (2026-08-06: `2.5` for a flux-2-pro render, `1` for nano-banana-pro).
+ */
+const BILLABLE_UNITS_HEADER = 'x-fal-billable-units'
 
 const MIME_BY_EXT: Record<string, string> = {
   '.png': 'image/png',
@@ -100,6 +114,17 @@ export type PollResult = {
   status: 'IN_PROGRESS' | 'COMPLETED' | 'FAILED'
   outputs?: ParsedOutput[]
   error?: string
+  /**
+   * What fal says it billed, in the model's own unit — megapixels for
+   * `flux-2-pro`, images for `nano-banana-pro`, seconds for a clip. Undefined
+   * when the adapter cannot know (a stub, an old fixture), which is what makes
+   * the ledger fall back to deriving the quantity from the output itself.
+   *
+   * This is a *quantity*, never money: fal publishes no price with a result and
+   * the `cost` field on its requests API stays null. Dollars still come from the
+   * catalog row.
+   */
+  billableUnits?: number
 }
 
 export type Adapter = {
@@ -144,9 +169,19 @@ function replayAdapter(fixtureDir: string): Adapter {
       // A recorded fal error replays as a failure, so the retry path has a
       // fixture and is actually exercised.
       if (raw.error) return { status: 'FAILED', error: raw.error.message ?? 'fal error' }
-      return { status: 'COMPLETED', outputs: parseOutputs(raw) }
+      return { status: 'COMPLETED', outputs: parseOutputs(raw), ...unitsOf(raw.billable_units) }
     },
   }
+}
+
+/** A number fal actually reported, or nothing at all — never a zero. */
+const unitsOf = (value: unknown): { billableUnits?: number } => {
+  const units = typeof value === 'string' ? Number(value) : value
+  // A blank header parses as 0, and 0 billable units would write a free render
+  // into the ledger for something fal charged for.
+  return typeof units === 'number' && Number.isFinite(units) && units > 0
+    ? { billableUnits: units }
+    : {}
 }
 
 function liveAdapter(): Adapter {
@@ -172,7 +207,9 @@ function liveAdapter(): Adapter {
     if (!response.ok) {
       throw new Error(`fal ${response.status}: ${(await response.text()).slice(0, 300)}`)
     }
-    return response.json()
+    // Headers alongside the body, because what fal billed is a header and
+    // nothing else in the response says it.
+    return { body: await response.json(), headers: response.headers }
   }
 
   const queueBase = (endpoint: string) => `https://queue.fal.run/${endpoint}`
@@ -200,21 +237,28 @@ function liveAdapter(): Adapter {
   return {
     async submit(request) {
       requireKey()
-      const body = (await call(queueBase(endpointOf(request)), {
+      const { body } = (await call(queueBase(endpointOf(request)), {
         method: 'POST',
         body: JSON.stringify(request.input),
-      })) as { request_id: string; response_url?: string }
+      })) as { body: { request_id: string; response_url?: string } }
       // fal's own URL when it gives one; the derived form is the fallback, not
       // the rule, so a future change to how fal shapes these follows for free.
       return { requestId: body.response_url ?? `${endpointOf(request)}#${body.request_id}` }
     },
     async poll(requestId) {
       const url = resultUrl(requestId)
-      const status = (await call(`${url}/status`)) as { status: string }
+      const { body: status } = (await call(`${url}/status`)) as { body: { status: string } }
       if (status.status === 'COMPLETED') {
-        const raw = (await call(url)) as FalRawResult
-        if (raw.error) return { status: 'FAILED', error: raw.error.message ?? 'fal error' }
-        return { status: 'COMPLETED', outputs: parseOutputs(raw) }
+        const { body, headers } = (await call(url)) as { body: FalRawResult; headers: Headers }
+        if (body.error) return { status: 'FAILED', error: body.error.message ?? 'fal error' }
+        return {
+          status: 'COMPLETED',
+          outputs: parseOutputs(body),
+          // Off the result fetch, not the status fetch: only the result carries
+          // this header, and it is the one number fal publishes about what the
+          // render actually cost to run.
+          ...unitsOf(headers.get(BILLABLE_UNITS_HEADER)),
+        }
       }
       if (status.status === 'FAILED') return { status: 'FAILED', error: 'fal reported FAILED' }
       return { status: 'IN_PROGRESS' }
@@ -270,6 +314,48 @@ function stubAdapter(mediaDir: string): Adapter {
     },
   }
 }
+
+/**
+ * What fal billed for a request that already happened.
+ *
+ * A second way to ask the same question the poll header answers, for the runs
+ * that finished before anything was reading that header. `queue.fal.run` expires
+ * its results; this record outlives them, which is what makes a backfill over
+ * old runs possible at all.
+ *
+ * ponytail: `rest.alpha.fal.ai` is undocumented and says `alpha` in its own
+ * hostname. Only the backfill uses it — the worker reads the header on the
+ * response it was already fetching — so if it moves, history stops being
+ * correctable and nothing else breaks.
+ */
+export async function fetchBillableUnits(requestId: string): Promise<number | undefined> {
+  const key = process.env.FAL_KEY
+  if (!key) throw new Error('FAL_KEY is required to read what fal billed.')
+
+  const id = uuidOf(requestId)
+  if (!id) return undefined
+
+  const response = await fetch(`https://rest.alpha.fal.ai/requests/${id}`, {
+    headers: { Authorization: `Key ${key}` },
+  })
+  if (!response.ok) {
+    throw new Error(`fal ${response.status}: ${(await response.text()).slice(0, 200)}`)
+  }
+  // `cost` and `cost_estimate_nano_usd` are also on this record and were null on
+  // every request checked, with `billing_status: PENDING` — the unit count is
+  // the only thing fal actually fills in.
+  const { billable_units } = (await response.json()) as { billable_units?: number }
+  return unitsOf(billable_units).billableUnits
+}
+
+/**
+ * fal's request id out of whatever we stored: a result URL, an `endpoint#id`
+ * pair, or nothing at all for a run a fixture or the stub served.
+ */
+const uuidOf = (requestId: string) =>
+  /^(replay|stub):/.test(requestId)
+    ? undefined
+    : (requestId.split('#').pop()?.split('/').pop() || undefined)
 
 export function createAdapter(options: {
   mode: FalMode

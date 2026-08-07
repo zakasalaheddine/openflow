@@ -80,6 +80,7 @@ function migrate(sqlite: Database.Database) {
       model_id TEXT NOT NULL,
       fal_request_id TEXT,
       cost_cents INTEGER NOT NULL DEFAULT 0,
+      billable_units REAL,
       output_refs TEXT,
       error TEXT,
       attempt INTEGER NOT NULL DEFAULT 0,
@@ -120,7 +121,10 @@ function migrate(sqlite: Database.Database) {
   // a database created before a column was added never gets it. Added here, and
   // tolerated when already present, because the alternative is a shipped
   // database that reads fine until the first query naming the new column.
-  for (const alter of ['ALTER TABLE assets ADD COLUMN hosted_url TEXT']) {
+  for (const alter of [
+    'ALTER TABLE assets ADD COLUMN hosted_url TEXT',
+    'ALTER TABLE node_runs ADD COLUMN billable_units REAL',
+  ]) {
     try {
       sqlite.exec(alter)
     } catch (error) {
