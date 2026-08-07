@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { eq, inArray } from 'drizzle-orm'
-import { getDb } from '@/db'
 import { flows, nodeRuns, assets } from '@/db/schema'
-import { ensureWorkspace, saveGraphIfCurrent, StaleGraphError, listSources } from '@/core/workspace'
+import { saveGraphIfCurrent, StaleGraphError, listSources } from '@/core/workspace'
+import { scope } from '../scope'
 import { previewRun } from '@/core/preview'
 import { flowSchema } from '@/core/schema'
 import { catalog } from '@/models/catalog'
@@ -17,9 +17,10 @@ export const dynamic = 'force-dynamic'
  * Derived state (stale set, prices, run status) is never sent by the client —
  * a client that could set its own prices could quote whatever it liked.
  */
-export async function GET() {
-  const db = getDb()
-  const { projectId, flowId } = ensureWorkspace(db)
+export async function GET(request: Request) {
+  const scoped = scope(request)
+  if (scoped instanceof NextResponse) return scoped
+  const { db, projectId, flowId } = scoped
   const flow = db.select().from(flows).where(eq(flows.id, flowId)).get()!
   const graph = flow.graphJson as Flow
   const preview = previewRun(db, flowId)
@@ -123,8 +124,9 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  const db = getDb()
-  const { flowId } = ensureWorkspace(db)
+  const scoped = scope(request)
+  if (scoped instanceof NextResponse) return scoped
+  const { db, flowId } = scoped
   const body = (await request.json().catch(() => ({}))) as { graph?: unknown; updatedAt?: string }
 
   // Validated, not trusted. graph_json is the source of truth for what gets

@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server'
-import { getDb } from '@/db'
-import { ensureWorkspace } from '@/core/workspace'
+import { scope } from '../scope'
 import { exportFlow } from '@/core/exporter'
 import { FfmpegMissingError } from '@/core/ffmpeg'
 import { exportsDir } from '@/env'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST() {
-  const db = getDb()
-  const { flowId } = ensureWorkspace(db)
+export async function POST(request: Request) {
+  const scoped = scope(request)
+  if (scoped instanceof NextResponse) return scoped
+  const { db, flowId } = scoped
 
   try {
     const result = await exportFlow(db, flowId, { dir: exportsDir() })

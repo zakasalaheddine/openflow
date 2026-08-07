@@ -20,7 +20,8 @@ function toLines(messages: { role: string; content: unknown }[]): Line[] {
   })
 }
 
-export function ChatPanel() {
+/** `flow` is the workspace slug: each one keeps its own thread, so switching does not carry a conversation across. */
+export function ChatPanel({ flow }: { flow: string }) {
   const [lines, setLines] = useState<Line[]>([])
   const [enabled, setEnabled] = useState(true)
   const [demo, setDemo] = useState(false)
@@ -30,12 +31,12 @@ export function ChatPanel() {
   const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    void fetchChat().then((state) => {
+    void fetchChat(flow).then((state) => {
       setEnabled(state.enabled)
       setDemo(state.demo)
       setLines(toLines(state.messages))
     })
-  }, [])
+  }, [flow])
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' })
@@ -51,7 +52,7 @@ export function ChatPanel() {
     setLines((current) => [...current, { role: 'user', text: message }, { role: 'assistant', text: '' }])
 
     try {
-      await sendChat(message, (chunk) =>
+      await sendChat(flow, message, (chunk) =>
         setLines((current) => {
           const next = [...current]
           const last = next.at(-1)!
@@ -74,7 +75,7 @@ export function ChatPanel() {
         <button
           className="chip"
           data-testid="chat-clear"
-          onClick={() => void clearChat().then(() => setLines([]))}
+          onClick={() => void clearChat(flow).then(() => setLines([]))}
         >
           Start over
         </button>

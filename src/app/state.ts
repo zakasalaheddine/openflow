@@ -53,8 +53,16 @@ export type FlowState = {
 
 export const money = (cents: number) => `$${(cents / 100).toFixed(2)}`
 
-export async function fetchFlow(): Promise<FlowState> {
-  const response = await fetch('/api/flow', { cache: 'no-store' })
+/**
+ * Which workspace a call is for. Every flow-scoped endpoint takes it; the
+ * project-scoped ones (sources, brand) do not, because one asset library and
+ * one brand profile are shared across every workspace — that sharing is the
+ * whole reason a product replaced once greys out every campaign built on it.
+ */
+const scoped = (path: string, flow: string) => `${path}?flow=${encodeURIComponent(flow)}`
+
+export async function fetchFlow(flow: string): Promise<FlowState> {
+  const response = await fetch(scoped('/api/flow', flow), { cache: 'no-store' })
   if (!response.ok) throw new Error('Could not load the flow')
   return response.json()
 }
@@ -67,8 +75,8 @@ export class StaleGraphError extends Error {
 }
 
 /** `updatedAt` is the read this write was built on. A 409 means re-read and re-apply. */
-export async function saveGraph(graph: Flow, updatedAt: string) {
-  const response = await fetch('/api/flow', {
+export async function saveGraph(flow: string, graph: Flow, updatedAt: string) {
+  const response = await fetch(scoped('/api/flow', flow), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ graph, updatedAt }),
@@ -129,8 +137,8 @@ export type ExportOutcome = {
   rejected: { nodeId: string; format: string; reasons: string[] }[]
 }
 
-export async function startExport(): Promise<ExportOutcome> {
-  const response = await fetch('/api/export', { method: 'POST' })
+export async function startExport(flow: string): Promise<ExportOutcome> {
+  const response = await fetch(scoped('/api/export', flow), { method: 'POST' })
   const body = await response.json()
   if (!response.ok) throw new Error(body.error ?? 'Export failed')
   return body as ExportOutcome
@@ -158,8 +166,12 @@ export type RunOutcome =
   | { kind: 'refused'; message: string }
 
 /** `nodeId` renders that one node plus any upstream it still needs; omit it for the whole flow. */
-export async function startRun(confirmOverspend = false, nodeId?: string): Promise<RunOutcome> {
-  const response = await fetch('/api/run', {
+export async function startRun(
+  flow: string,
+  confirmOverspend = false,
+  nodeId?: string,
+): Promise<RunOutcome> {
+  const response = await fetch(scoped('/api/run', flow), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ confirmOverspend, nodeId }),
@@ -175,10 +187,41 @@ export async function startRun(confirmOverspend = false, nodeId?: string): Promi
 
 export type ChatState = { enabled: boolean; demo: boolean; messages: { role: string; content: unknown }[] }
 
-export const fetchChat = async (): Promise<ChatState> =>
-  (await fetch('/api/chat', { cache: 'no-store' })).json()
+export const fetchChat = async (flow: string): Promise<ChatState> =>
+  (await fetch(scoped('/api/chat', flow), { cache: 'no-store' })).json()
 
-export const clearChat = () => fetch('/api/chat', { method: 'DELETE' })
+export const clearChat = (flow: string) => fetch(scoped('/api/chat', flow), { method: 'DELETE' })
+
+export type WorkspaceRow = { slug: string; name: string; updatedAt: string }
+
+export const fetchWorkspaces = async (): Promise<WorkspaceRow[]> =>
+  (await fetch('/api/flows', { cache: 'no-store' }).then((r) => r.json())).flows
+
+const flowsCall = async (init: RequestInit & { query?: string }) => {
+  const response = await fetch(`/api/flows${init.query ?? ''}`, init)
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error((body as { error?: string }).error ?? 'Could not do that')
+  return body
+}
+
+export const createWorkspace = async (name: string): Promise<string> =>
+  (
+    await flowsCall({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    })
+  ).slug
+
+export const renameWorkspace = (slug: string, name: string) =>
+  flowsCall({
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ slug, name }),
+  })
+
+export const deleteWorkspace = (slug: string) =>
+  flowsCall({ method: 'DELETE', query: `?flow=${encodeURIComponent(slug)}` })
 
 /**
  * Streams the reply. `onText` is called with each chunk as it arrives.
@@ -191,8 +234,8 @@ export const clearChat = () => fetch('/api/chat', { method: 'DELETE' })
  * error, so it arrives through `onText` like any other chunk and is read by
  * whoever is looking at the transcript, same as the rest of the reply.
  */
-export async function sendChat(message: string, onText: (chunk: string) => void) {
-  const response = await fetch('/api/chat', {
+export async function sendChat(flow: string, message: string, onText: (chunk: string) => void) {
+  const response = await fetch(scoped('/api/chat', flow), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message }),
