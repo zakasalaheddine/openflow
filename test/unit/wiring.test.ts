@@ -6,6 +6,7 @@ import {
   assertModelFits,
   reorderSequence,
   sequenceInputs,
+  sequenceRuntime,
   WiringError,
 } from '@/core/wiring'
 import { UnsupportedCapabilityError, type ModelSpec } from '@/models/registry'
@@ -259,6 +260,17 @@ describe('sequence order', () => {
       ],
     }
     expect(sequenceInputs(flow, 'film')).toEqual(['a'])
+  })
+
+  test('reports how long the film would be, and out of how many shots', () => {
+    // Before anything renders, which is the point: every video row caps out at
+    // eight or ten seconds, so reaching sixty is arithmetic, not a feeling.
+    const flow = filmOf('a', 'b', 'c')
+    expect(sequenceRuntime(flow, 'film')).toEqual({ clipCount: 3, seconds: 15 })
+  })
+
+  test('an empty cut is nought seconds, not an error', () => {
+    expect(sequenceRuntime(flowOf(cut('film')), 'film')).toEqual({ clipCount: 0, seconds: 0 })
   })
 
   test('only a clip may feed a cut', () => {

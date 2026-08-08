@@ -1,8 +1,10 @@
 # A one-minute short, with a character who stays the same person
 
-Status: **phases 1 and 2 built** (A2, then B1). Phase 0 — the spike — has not been
-run; it is still the thing that decides whether the rest is worth having, and
-nothing below has been proved against a real face or a real clip.
+Status: **phases 1, 2 and 4 built** (A2, B1, G). Phase 3 (C1, end frames) is
+deliberately unbuilt — it is conditional on what the spike finds. Phase 0, the
+spike itself, has not been run; it is still the thing that decides whether the
+rest is worth having, and nothing below has been proved against a real face or a
+real clip.
 
 What you described: a ~60-second piece made of several clips; each clip planned
 through several candidate keyframe images; one character who has to be
@@ -361,7 +363,7 @@ F2 designed before that is F2 designed against a guess.
 | **1** | **A2** — a rendered image works as a reference | The blocker. Phase 0 step 2 needs it too, by hand until it exists. |
 | **2** | **B1** — the `sequence` node, ordered inputs, ffmpeg concat | Turns clips into a film. First point at which you have the actual deliverable. |
 | **3** | **C1** — explicit roles, end frames reachable | Only if phase 0 showed drift. Otherwise skip. |
-| **4** | **G** — runtime totals on the sequence node | Cheap once B1 exists; the node already knows every clip's duration. |
+| **4** | **G** — runtime totals on the sequence node | Cheap once B1 exists; the node already knows every clip's duration. **Built:** the card reads `12 shots · 60s`, the inspector totals it and lists each clip's seconds. From the clips' own `durationSec`, so it answers before anything has rendered — which is the only time the number is useful. |
 | **5** | **D2 / F2 / E2** | Only when the first real film has shown which one hurts most. |
 
 Phases 1 and 2 are independent and could be built in either order — but a film

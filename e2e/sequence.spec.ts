@@ -56,6 +56,10 @@ test('the cut can be reordered, and the new order is what is saved', async ({ pa
 
   await page.getByTestId('node-cut').click()
   await expect(page.getByTestId('cut-order')).toContainText('one')
+  // The number you are working towards, before anything has rendered: two
+  // five-second clips is ten seconds of film.
+  await expect(page.getByTestId('cut-total')).toHaveText('10s in 2 shots')
+  await expect(page.getByTestId('runtime-cut')).toHaveText('2 shots · 10s')
 
   await page.getByTestId('cut-down-one').click()
 

@@ -1054,6 +1054,18 @@ button {
   white-space: nowrap;
 }
 
+.cut__seconds {
+  flex: none;
+  color: var(--slate-dim);
+}
+
+.cut__total {
+  padding: 2px 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--safelight);
+}
+
 .cut__item .workspaces__action:disabled {
   opacity: 0.3;
 }

@@ -10,7 +10,7 @@ type Props = {
   state: NodeState | undefined
   models: ModelRow[]
   /** For a sequence: the clips it cuts, in the order they play. Empty otherwise. */
-  clips?: { id: string; label: string }[]
+  clips?: { id: string; label: string; seconds: number }[]
   onChange: (next: FlowNode) => void
   onReorder?: (order: string[]) => void
   onDelete: () => void
@@ -216,6 +216,7 @@ export function Inspector({ node, state, models, clips, onChange, onReorder, onD
                 <li key={clip.id} className="cut__item" data-testid={`cut-${clip.id}`}>
                   <span className="cut__index">{index + 1}</span>
                   <span className="cut__label">{clip.label}</span>
+                  <span className="cut__seconds">{clip.seconds}s</span>
                   <button
                     className="workspaces__action"
                     title="Earlier"
@@ -237,6 +238,15 @@ export function Inspector({ node, state, models, clips, onChange, onReorder, onD
                 </li>
               ))}
             </ol>
+          )}
+          {(clips ?? []).length > 0 && (
+            // The number you are actually working towards. Every video row caps
+            // out at eight or ten seconds, so a sixty-second piece is eleven or
+            // twelve shots — worth knowing before rendering any of them.
+            <span className="cut__total" data-testid="cut-total">
+              {(clips ?? []).reduce((total, clip) => total + clip.seconds, 0)}s in{' '}
+              {(clips ?? []).length} shot{(clips ?? []).length === 1 ? '' : 's'}
+            </span>
           )}
           <span className="hint">
             The cut is made at Export from clips you have already rendered. It costs nothing to run.

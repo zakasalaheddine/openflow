@@ -37,6 +37,12 @@ export type CardData = {
   state: NodeState
   selected: boolean
   source?: SourceRow
+  /**
+   * For a sequence: how long the film would be, and out of how many shots.
+   * Derived on the client from the clips' own durations — it is arithmetic on
+   * the graph, not a price, so there is nothing here a server has to vouch for.
+   */
+  runtime?: { clipCount: number; seconds: number }
   onPrompt: (nodeId: string, prompt: string) => void
   onReplace: (sourceId: string) => void
   onRun: (nodeId: string) => void
@@ -92,7 +98,7 @@ const STATUS_LABEL: Record<NodeState['status'], string> = {
  * up surprising someone with an invoice.
  */
 export function NodeCard({ data }: NodeProps) {
-  const { node, state, selected, source, onPrompt, onReplace, onRun, onPreview, onEditText } =
+  const { node, state, selected, source, runtime, onPrompt, onReplace, onRun, onPreview, onEditText } =
     data as unknown as CardData
 
   if (node.type === 'source') {
@@ -143,6 +149,16 @@ export function NodeCard({ data }: NodeProps) {
             )}
             <Peek item={{ url: output.url, mime: output.mime, label: node.id }} onPreview={onPreview} />
           </>
+        ) : node.type === 'sequence' ? (
+          // A cut has no frame of its own until Export writes one, so the card
+          // shows the thing you actually need before then: how long the film is,
+          // out of how many shots. Every video row caps at eight or ten seconds,
+          // so reaching sixty is arithmetic, not a feeling.
+          <span className="node__empty" data-testid={`runtime-${node.id}`}>
+            {runtime && runtime.clipCount > 0
+              ? `${runtime.clipCount} shot${runtime.clipCount === 1 ? '' : 's'} · ${runtime.seconds}s`
+              : 'no clips'}
+          </span>
         ) : (
           <span className="node__empty">{state.status === 'failed' ? 'no frame' : 'unexposed'}</span>
         )}

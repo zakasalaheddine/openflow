@@ -168,6 +168,27 @@ export const sequenceInputs = (flow: Flow, sequenceId: NodeId): NodeId[] =>
     .map((e) => e.from)
 
 /**
+ * How long the film would be, and out of how many shots.
+ *
+ * From the clips' own `durationSec`, not from anything rendered: the whole
+ * reason to know this is to budget a sixty-second piece before paying for it,
+ * and every video row caps out at eight or ten seconds, so the arithmetic is
+ * the difference between eleven shots and a guess. What the file actually
+ * measures is checked again at export, against the format's own limit.
+ */
+export function sequenceRuntime(flow: Flow, sequenceId: NodeId) {
+  const byId = new Map(flow.nodes.map((n) => [n.id, n]))
+  const clips = sequenceInputs(flow, sequenceId)
+    .map((id) => byId.get(id))
+    .filter((node) => node?.type === 'video')
+
+  return {
+    clipCount: clips.length,
+    seconds: clips.reduce((total, clip) => total + (clip?.type === 'video' ? clip.durationSec : 0), 0),
+  }
+}
+
+/**
  * Rewrites the order of a cut. Every clip currently feeding it must appear
  * exactly once — a partial order would silently drop a shot you paid for.
  */
