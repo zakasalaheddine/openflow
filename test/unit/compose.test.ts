@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { composePrompt, referenceFiles } from '@/core/compose'
+import { composePrompt, hasImageReference } from '@/core/compose'
 import type { Flow } from '@/core/types'
 import type { Source } from '@/db/schema'
 
@@ -87,25 +87,41 @@ describe('composePrompt', () => {
   })
 })
 
-describe('referenceFiles', () => {
-  test('collects files from image and video sources in edge order', () => {
-    const sources = new Map([
-      ['src:bottle', source('src:bottle', { files: ['front.jpg', 'angle.jpg'] })],
-      ['src:clip', source('src:clip', { kind: 'video', files: ['ref.mp4'] })],
-    ])
-    expect(referenceFiles(flow('bottle', 'clip'), 'shot', sources)).toEqual([
-      'front.jpg',
-      'angle.jpg',
-      'ref.mp4',
-    ])
+describe('hasImageReference', () => {
+  // Picks the endpoint the plan reports and the canvas shows. Dispatch
+  // re-derives it from the real payload, so this is about an honest plan.
+  test('an uploaded image or video counts', () => {
+    const sources = new Map([['src:bottle', source('src:bottle')]])
+    expect(hasImageReference(flow('bottle'), 'shot', sources)).toBe(true)
   })
 
-  test('excludes text sources', () => {
+  test('a text source does not — it contributes words, not an image', () => {
     const sources = new Map([['src:voice', text('src:voice', 'warm')]])
-    expect(referenceFiles(flow('voice'), 'shot', sources)).toEqual([])
+    expect(hasImageReference(flow('voice'), 'shot', sources)).toBe(false)
   })
 
-  test('returns nothing when no reference is wired in', () => {
-    expect(referenceFiles(flow(), 'shot', new Map())).toEqual([])
+  test('a rendered still counts, even though its file does not exist yet', () => {
+    // The character sheet case. The canvas asks this 1.2 times a second, long
+    // before the sheet has rendered — answering false until then would send the
+    // first render to the endpoint with nowhere to put a reference.
+    const graph = flow()
+    graph.nodes.push({ id: 'sheet', type: 'image', prompt: 'her, 3/4 left', modelId: 'flux-2-pro' })
+    graph.edges.push({ id: 'e', from: 'sheet', to: 'shot', role: 'reference', position: null })
+    expect(hasImageReference(graph, 'shot', new Map())).toBe(true)
+  })
+
+  test('a source row that has been deleted does not count', () => {
+    expect(hasImageReference(flow('ghost'), 'shot', new Map())).toBe(false)
+  })
+
+  test('nothing wired in is false', () => {
+    expect(hasImageReference(flow(), 'shot', new Map())).toBe(false)
+  })
+
+  test('only reference edges count', () => {
+    const graph = flow('bottle')
+    graph.edges[0].role = 'input'
+    const sources = new Map([['src:bottle', source('src:bottle')]])
+    expect(hasImageReference(graph, 'shot', sources)).toBe(false)
   })
 })

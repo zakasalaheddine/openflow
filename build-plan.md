@@ -372,7 +372,7 @@ Makes Claude an **authoring** surface, not a review surface — language for str
 
 ## 9. v2 — planned, not built
 
-- **`sequence` node** — cuts multiple clips into one spot. Takes the fifth node slot. Groundwork already in v1: normalised video on write, `duration_ms`/`fps` on assets, `position` on edges.
+- ~~**`sequence` node**~~ — **built.** Cuts multiple clips into one film, ordered by `position` on its incoming edges, assembled locally at export from clips already paid for. The groundwork listed here — normalised video on write, `duration_ms`/`fps` on assets, `position` on edges — is what made it a cut rather than a re-encode. See `docs/superpowers/plans/2026-08-07-short-film.md`.
 - **Client approval links** — shareable review URLs with comments. Contradicts local-first; needs auth and public URLs. Exactly the kind of thing an agency pays to have built for them.
 - **Optional fan-out node** — if the "4 hook variations of this exact shot" case turns out to matter.
 

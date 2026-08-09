@@ -1,16 +1,18 @@
 import { randomUUID } from 'node:crypto'
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import sharp from 'sharp'
 import { desc, eq } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { assets, exports, flows, nodeRuns, projects, sources } from '../db/schema'
 import { DEFAULT_SETTINGS, type ProjectSettings } from './settings'
-import { planRun } from './executor'
+import { nodeHashes } from './executor'
 import { checkSpec, coverCrop, type SpecCheck } from './spec'
 import { boxOf, hasText, overlaySvg } from './overlay'
-import { probe, ffmpeg, encoderFor } from './ffmpeg'
+import { probe, ffmpeg, encoderFor, concat } from './ffmpeg'
 import { composePrompt } from './compose'
+import { sequenceInputs } from './wiring'
+import { assetsDir } from '../env'
 import type { AdFormat, ExportNode, Flow, NodeId } from './types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -26,6 +28,12 @@ export type ManifestEntry = {
   /** Versions of the sources wired in, so a re-export can be reproduced. */
   sourceVersions: Record<string, number>
   runId: string
+  /**
+   * Every run this file was built from. One entry for an ordinary node; one per
+   * clip for a cut. The total is summed over the union of these, so a clip that
+   * appears in a film *and* ships on its own is paid for once.
+   */
+  runIds: string[]
   costCents: number
   specCheck: SpecCheck
   createdAt: string
@@ -80,6 +88,111 @@ const STALE_CHECK = (nodeId: NodeId, format: AdFormat): SpecCheck => ({
   ],
 })
 
+const REFUSED = (nodeId: NodeId, format: AdFormat, message: string): SpecCheck => ({
+  pass: false,
+  format: format.name,
+  findings: [{ rule: 'sequence', message: `${nodeId}: ${message}` }],
+})
+
+/** One file to export, plus the provenance that belongs to it. */
+type Exportable = {
+  assets: { id: string; path: string; mime: string }[]
+  runIds: string[]
+  costCents: number
+  modelId: string
+  seed: number | null
+  prompt: string
+}
+
+/**
+ * Cuts a sequence's clips into one file, in order.
+ *
+ * Every clip must have a render matching its *current* settings — the same bar
+ * a single node has to clear. Half a film assembled from three fresh shots and
+ * two stale ones is worse than no film: it looks finished.
+ *
+ * The cut is written into the asset store and given a row of its own, keyed by
+ * the sequence's input hash. Re-exporting an unchanged film finds that row and
+ * re-cuts nothing; changing one shot, or the order, changes the hash and
+ * produces a new one — the old file stays where it is, because it may already
+ * have been sent to somebody.
+ */
+async function assembleSequence(input: {
+  db: Db
+  flowId: string
+  graph: Flow
+  nodeId: NodeId
+  hash: string | undefined
+  settings: ProjectSettings
+  currentHash: Map<NodeId, string>
+  storeRoot: string
+}): Promise<Exportable | { refused: string }> {
+  const { db, flowId, graph, nodeId, hash, settings, currentHash, storeRoot } = input
+  const clips = sequenceInputs(graph, nodeId)
+  if (clips.length === 0) return { refused: 'no clips are wired into this sequence.' }
+  if (!hash) return { refused: 'this sequence could not be planned.' }
+
+  const byNodeId = new Map(graph.nodes.map((n) => [n.id, n]))
+  const parts: { file: string; runId: string; costCents: number; prompt: string }[] = []
+
+  for (const clipId of clips) {
+    const run = currentRun(db, flowId, clipId, currentHash.get(clipId))
+    if (!run) return { refused: `${clipId} has no render matching its current settings.` }
+
+    const assetId = ((run.outputRefs as string[] | null) ?? [])[0]
+    const asset = assetId ? db.select().from(assets).where(eq(assets.id, assetId)).get() : undefined
+    if (!asset) return { refused: `${clipId} rendered nothing to cut.` }
+    if (!asset.mime.startsWith('video/')) return { refused: `${clipId} did not render a clip.` }
+
+    const clip = byNodeId.get(clipId)
+    parts.push({
+      file: asset.path,
+      runId: run.id,
+      costCents: run.costCents,
+      prompt: clip && 'prompt' in clip ? clip.prompt : '',
+    })
+  }
+
+  const id = `sequence:${hash}`
+  const existing = db.select().from(assets).where(eq(assets.id, id)).get()
+  const file = existing?.path ?? path.join(storeRoot, 'sequences', `${hash}.mp4`)
+  // The row is not the film. A cut deleted off disk — space reclaimed, a data
+  // dir moved — would otherwise be handed to ffprobe and fail as a tool error
+  // rather than as one of the named refusals this whole function is built from.
+  const cached = existing !== undefined && existsSync(existing.path)
+
+  if (!cached) {
+    mkdirSync(path.dirname(file), { recursive: true })
+    await concat(parts.map((p) => p.file), file, settings)
+    // Written back only when there is no row yet. A row whose file went missing
+    // is re-cut in place — inserting again would collide on the primary key and
+    // turn a recovered export into a crash.
+    if (!existing) {
+      db.insert(assets)
+        .values({
+          id,
+          path: file,
+          mime: 'video/mp4',
+          // No `sourceRunId`: no single run produced this. What it was cut from
+          // is in the manifest's `runIds`, the only place it could be honest.
+          createdAt: new Date().toISOString(),
+        })
+        .run()
+    }
+  }
+
+  return {
+    assets: [{ id, path: file, mime: 'video/mp4' }],
+    runIds: parts.map((p) => p.runId),
+    costCents: parts.reduce((sum, p) => sum + p.costCents, 0),
+    modelId: 'sequence',
+    seed: null,
+    // Every shot's direction, in order. Long, and the only honest answer to
+    // "what was this film asked for".
+    prompt: parts.map((p) => p.prompt).join('\n\n'),
+  }
+}
+
 /**
  * Writes every format of every node feeding an export node, plus the manifest.
  *
@@ -110,7 +223,9 @@ export async function exportFlow(
   const rejected: ExportResult['rejected'] = []
   // The same derivation the toolbar and the executor use, so "stale" means the
   // same thing in all three places.
-  const currentHash = new Map(planRun(db, flowId).map((p) => [p.nodeId, p.inputHash]))
+  // Every node, not only the ones a Run would pay for: a sequence dispatches to
+  // nothing and is still keyed on its hash.
+  const currentHash = nodeHashes(db, flowId)
 
   for (const exportNode of graph.nodes.filter((n): n is ExportNode => n.type === 'export')) {
     const formats = resolveFormats(exportNode, settings)
@@ -120,22 +235,52 @@ export async function exportFlow(
       const node = byNodeId.get(nodeId)
       if (!node) continue
 
-      const run = currentRun(db, flowId, nodeId, currentHash.get(nodeId))
-      if (!run) {
-        // Never rendered and edited-since-rendered land here together, and are
-        // reported the same way: refused, with the reason, rather than shipping
-        // last week's pixels under this week's prompt.
-        for (const format of formats) {
-          rejected.push({ nodeId, format: format.name, specCheck: STALE_CHECK(nodeId, format) })
+      let exportable: Exportable
+
+      if (node.type === 'sequence') {
+        const cut = await assembleSequence({
+          db,
+          flowId,
+          graph,
+          nodeId,
+          hash: currentHash.get(nodeId),
+          settings,
+          currentHash,
+          storeRoot: assetsDir(),
+        })
+        if ('refused' in cut) {
+          for (const format of formats) {
+            rejected.push({ nodeId, format: format.name, specCheck: REFUSED(nodeId, format, cut.refused) })
+          }
+          continue
         }
-        continue
+        exportable = cut
+      } else {
+        const run = currentRun(db, flowId, nodeId, currentHash.get(nodeId))
+        if (!run) {
+          // Never rendered and edited-since-rendered land here together, and are
+          // reported the same way: refused, with the reason, rather than shipping
+          // last week's pixels under this week's prompt.
+          for (const format of formats) {
+            rejected.push({ nodeId, format: format.name, specCheck: STALE_CHECK(nodeId, format) })
+          }
+          continue
+        }
+        const rows = ((run.outputRefs as string[] | null) ?? [])
+          .map((assetId) => db.select().from(assets).where(eq(assets.id, assetId)).get())
+          .filter((row) => row !== undefined)
+        exportable = {
+          assets: rows.map((row) => ({ id: row.id, path: row.path, mime: row.mime })),
+          runIds: [run.id],
+          costCents: run.costCents,
+          modelId: run.modelId,
+          seed: 'seed' in node ? (node.seed ?? null) : null,
+          prompt: composePrompt(graph, nodeId, library),
+        }
       }
 
-      const refs = (run.outputRefs as string[] | null) ?? []
-      for (const [index, assetId] of refs.entries()) {
-        const asset = db.select().from(assets).where(eq(assets.id, assetId)).get()
-        if (!asset) continue
-
+      const refs = exportable.assets
+      for (const [index, asset] of refs.entries()) {
         const video = asset.mime.startsWith('video/')
         // The file, not the row: a width column written from a model's promise
         // makes every check downstream a check of our own optimism.
@@ -174,7 +319,7 @@ export async function exportFlow(
               id: randomUUID(),
               flowId,
               format: format.name,
-              assetId,
+              assetId: asset.id,
               specCheck,
               path: specCheck.pass ? file : '',
               createdAt: new Date().toISOString(),
@@ -203,12 +348,15 @@ export async function exportFlow(
             file: path.relative(outDir, file),
             format: format.name,
             nodeId,
-            prompt: composePrompt(graph, nodeId, library),
-            modelId: run.modelId,
-            seed: 'seed' in node ? (node.seed ?? null) : null,
+            prompt: exportable.prompt,
+            modelId: exportable.modelId,
+            seed: exportable.seed,
             sourceVersions: sourceVersionsFor(graph, nodeId, library),
-            runId: run.id,
-            costCents: run.costCents,
+            // The first, for readers that expect one. `runIds` is the whole
+            // truth and a cut has several.
+            runId: exportable.runIds[0],
+            runIds: exportable.runIds,
+            costCents: exportable.costCents,
             specCheck,
             createdAt: new Date().toISOString(),
           })
@@ -217,11 +365,24 @@ export async function exportFlow(
     }
   }
 
-  // Summed over distinct runs, not over files: one render feeding a 9:16 and a
-  // 1:1 export was paid for once. A manifest whose total disagrees with the
-  // ledger is worse provenance than no manifest at all.
-  const byRun = new Map(entries.map((e) => [e.runId, e.costCents]))
-  const totalCostCents = [...byRun.values()].reduce((sum, cents) => sum + cents, 0)
+  // Summed over distinct *runs*, not over files: one render feeding a 9:16 and
+  // a 1:1 export was paid for once, and a clip that ships both on its own and
+  // inside a film was paid for once too. A manifest whose total disagrees with
+  // the ledger is worse provenance than no manifest at all.
+  const perRun = new Map<string, number>()
+  for (const entry of entries) {
+    if (entry.runIds.length === 1) {
+      perRun.set(entry.runIds[0], entry.costCents)
+      continue
+    }
+    // A cut carries the sum of its clips, so the parts have to be priced from
+    // the ledger rather than from the entry.
+    for (const runId of entry.runIds) {
+      if (perRun.has(runId)) continue
+      perRun.set(runId, db.select().from(nodeRuns).where(eq(nodeRuns.id, runId)).get()?.costCents ?? 0)
+    }
+  }
+  const totalCostCents = [...perRun.values()].reduce((sum, cents) => sum + cents, 0)
 
   const manifestPath = path.join(outDir, 'manifest.json')
   writeFileSync(

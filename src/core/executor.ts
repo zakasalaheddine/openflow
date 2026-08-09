@@ -7,8 +7,8 @@ import { hashableConfig } from './hashable'
 import { topoOrder, ancestors } from './graph'
 import { previewRun } from './preview'
 import { DEFAULT_SETTINGS, type ProjectSettings } from './settings'
-import { referencesOf } from './wiring'
-import { composePrompt, referenceFiles } from './compose'
+import { referencesOf, sequenceInputs } from './wiring'
+import { composePrompt, hasImageReference } from './compose'
 import type { Flow, FlowNode, NodeId } from './types'
 import { assertAnchorsSupported, estimateCostCents, endpointFor, isPriced, UnpricedModelError } from '../models/registry'
 import { byId as modelOrNone, modelById } from '../models/catalog'
@@ -82,10 +82,26 @@ function loadContext(db: Db, flowId: string) {
  * before anything is written, so an impossible graph is refused rather than
  * half-executed.
  */
-export function planRun(
+export function planRun(db: Db, flowId: string): PlannedNode[] {
+  return walk(db, flowId).planned
+}
+
+/**
+ * Every node's input hash, including the ones that never dispatch.
+ *
+ * `planRun` returns only what a Run would pay for, so a sequence — which costs
+ * nothing and is cut locally at export — is absent from it. The exporter still
+ * needs that node's hash: it is what the assembled film is keyed on, and what
+ * makes reordering the shots produce a different cut.
+ */
+export function nodeHashes(db: Db, flowId: string): Map<NodeId, string> {
+  return walk(db, flowId).hashes
+}
+
+function walk(
   db: Db,
   flowId: string,
-): PlannedNode[] {
+): { planned: PlannedNode[]; hashes: Map<NodeId, string> } {
   const { graph, library } = loadContext(db, flowId)
   const byId = new Map(graph.nodes.map((n) => [n.id, n]))
   const order = topoOrder({ nodeIds: graph.nodes.map((n) => n.id), edges: graph.edges })
@@ -112,11 +128,20 @@ export function planRun(
       // depends on something outside graph_json. That is what makes replacing a
       // product's files invalidate every shot built from it.
       const version = node.type === 'source' ? (library.get(node.sourceId)?.version ?? 0) : 0
+      // A cut folds in its order, which lives on the edges rather than the
+      // node. `upstreamHashes` cannot carry it: it is built from the edge array
+      // and re-ordering a cut rewrites `position`, not that array — so without
+      // this, swapping shot three and shot seven would export the old film.
+      const order = node.type === 'sequence' ? sequenceInputs(graph, nodeId) : []
       hashes.set(
         nodeId,
         inputHash({
           nodeType: node.type,
-          config: { ...config, ...(node.type === 'source' ? { version } : {}) },
+          config: {
+            ...config,
+            ...(node.type === 'source' ? { version } : {}),
+            ...(node.type === 'sequence' ? { order } : {}),
+          },
           upstreamHashes,
           modelId: '',
         }),
@@ -156,7 +181,7 @@ export function planRun(
       modelId: model.id,
       endpoint: endpointFor(
         model,
-        model.caps.refImages > 0 && referenceFiles(graph, nodeId, library).length > 0,
+        model.caps.refImages > 0 && hasImageReference(graph, nodeId, library),
       ),
       estimatedCents: estimateCostCents(model, {
         ...ESTIMATE_PIXELS,
@@ -165,7 +190,7 @@ export function planRun(
     })
   }
 
-  return planned
+  return { planned, hashes }
 }
 
 export type EnqueueResult = {

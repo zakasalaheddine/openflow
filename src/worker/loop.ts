@@ -8,7 +8,8 @@ import { estimateCostCents, costCentsForUnits, isPriced, type ModelSpec } from '
 import { byId } from '../models/catalog'
 import { buildModelInput } from '../models/input'
 import { localStore, storeFor } from '../core/assets'
-import { composePrompt, referenceFiles } from '../core/compose'
+import { composePrompt } from '../core/compose'
+import { referencesOf } from '../core/wiring'
 import { DEFAULT_SETTINGS, type ProjectSettings } from '../core/settings'
 import { probe, ffmpeg, encoderFor, FfmpegMissingError, type Probe } from '../core/ffmpeg'
 import { assetsDir } from '../env'
@@ -118,42 +119,35 @@ function buildInput(
   const library = new Map(
     db.select().from(sources).where(eq(sources.projectId, flow.projectId)).all().map((r) => [r.id, r]),
   )
-  // Mapped here and nowhere earlier: `referenceFiles` is also called by
-  // planRun, which the canvas re-runs every 1.2s. Encoding every reference
-  // image on every poll would be a base64 pass per node per tick.
-  const anchorRefs = referenceFiles(graph, run.nodeId, library).map((key) =>
-    fetchableUrl(key, null, storeRoot),
-  )
   const prompt = composePrompt(graph, run.nodeId, library)
 
-  const frameFor = (role: 'start_frame' | 'end_frame'): AssetRef | undefined => {
-    const edge = graph.edges.find((e) => e.to === run.nodeId && e.role === role)
-    if (!edge) return undefined
-    // Newest first, and only then the first row. A node that has rendered more
-    // than once — edit the prompt, render again, then run the clip — has two
-    // succeeded rows, and an unordered `.get()` takes whichever the database
-    // hands back, which is the *oldest*. The clip then anchors to a frame that
-    // is no longer on the parent card, at full price, and reads as the model
-    // ignoring its start frame. Same "latest run per node" rule the canvas uses
-    // to decide which frame that card shows, so the two cannot disagree.
-    //
-    // ponytail: newest, not the one this run was hashed against — that would
-    // need the run's resolved role, which the row does not carry. The two differ
-    // only if the flow's role changed, or a prompt was edited back to an older
-    // value, between enqueue and dispatch. Persist the role on node_runs if that
-    // ever stops being exotic.
+  /**
+   * The newest file a node has rendered, or undefined if it never has.
+   *
+   * Newest first, and only then the first row. A node that has rendered more
+   * than once — edit the prompt, render again, then run the clip — has two
+   * succeeded rows, and an unordered `.get()` takes whichever the database
+   * hands back, which is the *oldest*. The clip then anchors to a frame that
+   * is no longer on the parent card, at full price, and reads as the model
+   * ignoring its start frame. Same "latest run per node" rule the canvas uses
+   * to decide which frame that card shows, so the two cannot disagree.
+   *
+   * ponytail: newest, not the one this run was hashed against — that would
+   * need the run's resolved role, which the row does not carry. The two differ
+   * only if the flow's role changed, or a prompt was edited back to an older
+   * value, between enqueue and dispatch. Persist the role on node_runs if that
+   * ever stops being exotic.
+   */
+  const renderedBy = (nodeId: string): AssetRef | undefined => {
     const source = db
       .select()
       .from(nodeRuns)
-      .where(and(eq(nodeRuns.flowId, run.flowId), eq(nodeRuns.nodeId, edge.from), eq(nodeRuns.status, 'succeeded')))
+      .where(and(eq(nodeRuns.flowId, run.flowId), eq(nodeRuns.nodeId, nodeId), eq(nodeRuns.status, 'succeeded')))
       .orderBy(desc(nodeRuns.createdAt))
       .get()
     const refs = (source?.outputRefs as string[] | null) ?? []
     const asset = refs[0] ? db.select().from(assets).where(eq(assets.id, refs[0])).get() : undefined
-    // The edge exists, so the graph promises this clip is anchored to a frame.
-    // buildModelInput would quietly omit `image_url` and fal would bill a
-    // text-to-video render at full price — refusing costs nothing.
-    if (!asset) throw new Error(`Upstream ${edge.from} has no rendered ${role} for ${run.nodeId}`)
+    if (!asset) return undefined
     return {
       id: asset.id,
       // The hosted URL when there is one — fal fetches it directly rather than
@@ -161,6 +155,54 @@ function buildInput(
       path: fetchableUrl(asset.hostedUrl ?? asset.path, asset.mime, storeRoot),
       mime: asset.mime,
     }
+  }
+
+  /**
+   * Every reference this node was wired, in edge order, resolved to something
+   * fal can fetch.
+   *
+   * Two kinds of parent, one list. An uploaded asset contributes the files on
+   * its source row; a rendered still contributes its own latest output — which
+   * is what makes a character sheet reusable, and it is resolved here rather
+   * than in `core/compose` because the file does not exist until that parent
+   * has rendered, and the canvas asks for this derivation every 1.2 seconds.
+   *
+   * Encoding happens here and nowhere earlier for the same reason: a base64
+   * pass per reference per node on every poll is work nobody asked for.
+   */
+  const anchorRefs = referencesOf(graph, run.nodeId).flatMap((parentId) => {
+    const parent = graph.nodes.find((n) => n.id === parentId)
+    if (!parent) return []
+
+    if (parent.type === 'source') {
+      const source = library.get(parent.sourceId)
+      // Text contributes a prompt fragment, never an image. A deleted asset
+      // must not blank the list and then bill for the render either.
+      if (!source || source.kind === 'text') return []
+      return ((source.files as string[]) ?? []).map((key) => fetchableUrl(key, null, storeRoot))
+    }
+
+    // A rendered still. The edge exists, so the graph promises this shot has
+    // that face in front of it — dispatching without it buys a full-price
+    // render of somebody else, which is exactly the failure the sheet exists to
+    // prevent. `waitingOnUpstream` holds the run until the parent finishes, so
+    // reaching here empty means the parent failed or was never run.
+    const rendered = renderedBy(parentId)
+    if (!rendered) {
+      throw new Error(`Reference ${parentId} has not rendered anything for ${run.nodeId}`)
+    }
+    return [rendered.path]
+  })
+
+  const frameFor = (role: 'start_frame' | 'end_frame'): AssetRef | undefined => {
+    const edge = graph.edges.find((e) => e.to === run.nodeId && e.role === role)
+    if (!edge) return undefined
+    const rendered = renderedBy(edge.from)
+    // The edge exists, so the graph promises this clip is anchored to a frame.
+    // buildModelInput would quietly omit `image_url` and fal would bill a
+    // text-to-video render at full price — refusing costs nothing.
+    if (!rendered) throw new Error(`Upstream ${edge.from} has no rendered ${role} for ${run.nodeId}`)
+    return rendered
   }
 
   return buildModelInput(node, model, {

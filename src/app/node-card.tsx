@@ -39,6 +39,12 @@ export type CardData = {
   state: NodeState
   selected: boolean
   source?: SourceRow
+  /**
+   * For a sequence: how long the film would be, and out of how many shots.
+   * Derived on the client from the clips' own durations — it is arithmetic on
+   * the graph, not a price, so there is nothing here a server has to vouch for.
+   */
+  runtime?: { clipCount: number; seconds: number }
   onPrompt: (nodeId: string, prompt: string) => void
   onReplace: (sourceId: string) => void
   onRun: (nodeId: string) => void
@@ -171,6 +177,7 @@ export function NodeCard({ data }: NodeProps) {
     state,
     selected,
     source,
+    runtime,
     onPrompt,
     onReplace,
     onRun,
@@ -252,6 +259,16 @@ export function NodeCard({ data }: NodeProps) {
             )}
             <Peek item={{ url: output.url, mime: output.mime, label: node.id }} onPreview={onPreview} />
           </>
+        ) : node.type === 'sequence' ? (
+          // A cut has no frame of its own until Export writes one, so the card
+          // shows the thing you actually need before then: how long the film is,
+          // out of how many shots. Every video row caps at eight or ten seconds,
+          // so reaching sixty is arithmetic, not a feeling.
+          <span className="node__empty" data-testid={`runtime-${node.id}`}>
+            {runtime && runtime.clipCount > 0
+              ? `${runtime.clipCount} shot${runtime.clipCount === 1 ? '' : 's'} · ${runtime.seconds}s`
+              : 'no clips'}
+          </span>
         ) : rendering ? (
           // A shimmer, not a spinner in the middle of the card: forty seconds of
           // a static grey box is indistinguishable from a shot nobody pressed.
@@ -299,7 +316,9 @@ export function NodeCard({ data }: NodeProps) {
             renders itself and whatever upstream it still needs — nothing else.
             `nodrag` and the stopped propagation keep the click off React Flow's
             drag handler and off the canvas's alt-click fan-out. */}
-        {node.type !== 'export' && (
+        {/* A cut is assembled at Export from clips already paid for, so there is
+            nothing here to run — the same reason an export node has no button. */}
+        {node.type !== 'export' && node.type !== 'sequence' && (
           <Hint
             label={
               state.status === 'succeeded'

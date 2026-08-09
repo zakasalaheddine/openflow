@@ -44,6 +44,12 @@ Assets live on your machine. Set `CLOUDINARY_URL` and uploads and rendered frame
 
 `FAL_MODE` is `live` by default and forced to `replay`/`off`/`stub` by the test configs, so a test run can never bill you. `DEMO=1` forces `replay`, pre-bakes the demo flow from recorded fixtures, and refuses every render request — that is the mode a public demo runs in. `OPENFLOW_DATA_DIR` moves the SQLite file and generated assets off `./data`; `OPENFLOW_EXPORTS_DIR` moves exported files off `./exports`.
 
+## One character, many shots, one film
+
+A rendered still can be wired into another still as a **reference**. That is how a character stays the same person: generate a sheet of them once, wire it into every shot, and the sheet arrives with each prompt. Re-roll the sheet and every shot built on it greys out — the same blast radius a replaced product gets, for the same reason.
+
+A **sequence** node cuts clips into one film. Wire the clips in the order they play, reorder them in the inspector, and Export writes the assembled cut with the rest of the deliverables. It dispatches to no model and costs nothing to run: the cut is made locally, from clips already rendered, and it is a stream copy rather than a re-encode whenever the clips share a frame size. Silent for now — a clip with native audio loses it, rather than producing a film whose sound cuts in and out depending on which model rendered which shot.
+
 ## One build per URL
 
 Each build is a workspace with an address of its own — `/f/default`, `/f/9c1a4f0e` — so two of them are two browser tabs rather than two apps. Its canvas, its render history, its costs and its chat thread belong to it alone; open the switcher in the toolbar to make one, rename it, or delete it. `/` opens the default workspace, or the most recently touched one if you have deleted it.

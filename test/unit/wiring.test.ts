@@ -1,5 +1,14 @@
 import { describe, test, expect } from 'vitest'
-import { inferRole, validateWire, applyWire, assertModelFits, WiringError } from '@/core/wiring'
+import {
+  inferRole,
+  validateWire,
+  applyWire,
+  assertModelFits,
+  reorderSequence,
+  sequenceInputs,
+  sequenceRuntime,
+  WiringError,
+} from '@/core/wiring'
 import { UnsupportedCapabilityError, type ModelSpec } from '@/models/registry'
 import { modelById } from '@/models/catalog'
 import type { Flow, FlowNode } from '@/core/types'
@@ -51,6 +60,19 @@ describe('inferRole', () => {
 
   test('source into video is a reference', () => {
     expect(inferRole(source('s'), video('v'))).toBe('reference')
+  })
+
+  test('image into image is a reference', () => {
+    // The character sheet. Generate the face once, wire it into every shot, and
+    // the same person arrives with each prompt. This edge used to be 'input',
+    // which nothing read — it drew on screen and the file was never sent.
+    expect(inferRole(image('sheet'), image('shot'))).toBe('reference')
+  })
+
+  test('image into video stays a start frame, even on a model that takes references', () => {
+    // One wire, one meaning. A still into a clip has meant frame zero since v1,
+    // and overloading it would make the meaning something you have to guess.
+    expect(inferRole(image('sheet'), video('clip', 'kling-3-pro'))).toBe('start_frame')
   })
 
   test('image into export is a plain input', () => {
@@ -153,6 +175,116 @@ describe('reference wiring', () => {
     // flux-2-pro accepts 4.
     for (let i = 0; i < 4; i++) flow = applyWire(flow, `s${i}`, 'a', { resolve: modelById })
     expect(() => validateWire(flow, 's4', 'a', { resolve: modelById })).toThrow(UnsupportedCapabilityError)
+  })
+
+  test('a sheet of rendered stills counts against the same reference budget', () => {
+    // A four-angle character sheet fills flux-2-pro exactly. The fifth angle is
+    // refused here rather than dropped at render time, where the shot would come
+    // back as a subtly different person and read as a model quality problem.
+    const sheet = Array.from({ length: 6 }, (_, i) => image(`angle-${i}`))
+    let flow = flowOf(...sheet, image('shot'))
+    for (let i = 0; i < 4; i++) flow = applyWire(flow, `angle-${i}`, 'shot', { resolve: modelById })
+    expect(flow.edges.every((e) => e.role === 'reference')).toBe(true)
+    expect(() => validateWire(flow, 'angle-4', 'shot', { resolve: modelById })).toThrow(
+      UnsupportedCapabilityError,
+    )
+  })
+
+  test('a sheet wired into a model that honours no references is refused', () => {
+    const flow: Flow = {
+      nodes: [image('sheet'), { ...image('shot'), modelId: 'recraft-v3' } as FlowNode],
+      edges: [],
+    }
+    expect(() => validateWire(flow, 'sheet', 'shot', { resolve: modelById })).toThrow(
+      UnsupportedCapabilityError,
+    )
+  })
+})
+
+describe('sequence order', () => {
+  const cut = (id: string): FlowNode => ({ id, type: 'sequence' })
+
+  const filmOf = (...clipIds: string[]) => {
+    let flow = flowOf(...clipIds.map((id) => video(id, 'hailuo-2-3-pro')), cut('film'))
+    for (const id of clipIds) flow = applyWire(flow, id, 'film', { resolve: modelById })
+    return flow
+  }
+
+  test('clips cut in the order they were wired', () => {
+    expect(sequenceInputs(filmOf('a', 'b', 'c'), 'film')).toEqual(['a', 'b', 'c'])
+  })
+
+  test('a new clip lands at the end, where a shot you just wired belongs', () => {
+    const flow = filmOf('a', 'b')
+    expect(flow.edges.map((e) => e.position)).toEqual([0, 1])
+  })
+
+  test('reordering rewrites the order and nothing else', () => {
+    const flow = reorderSequence(filmOf('a', 'b', 'c'), 'film', ['c', 'a', 'b'])
+    expect(sequenceInputs(flow, 'film')).toEqual(['c', 'a', 'b'])
+    expect(flow.edges).toHaveLength(3)
+  })
+
+  test('an order missing a clip is refused rather than silently dropping a shot', () => {
+    // Every clip in that list was paid for. Cutting a film that quietly omits
+    // one is the kind of loss you find out about from the client.
+    expect(() => reorderSequence(filmOf('a', 'b', 'c'), 'film', ['c', 'a'])).toThrow(WiringError)
+  })
+
+  test('an order naming the same clip twice is refused', () => {
+    expect(() => reorderSequence(filmOf('a', 'b'), 'film', ['a', 'a'])).toThrow(WiringError)
+  })
+
+  test('a hand-written flow with no positions still cuts in a defined order', () => {
+    // Flow files are written by hand and by templates, and neither should have
+    // to know about an ordering column to produce a film that plays.
+    const flow: Flow = {
+      nodes: [video('a'), video('b'), cut('film')],
+      edges: [
+        { id: 'e1', from: 'a', to: 'film', role: 'input', position: null },
+        { id: 'e2', from: 'b', to: 'film', role: 'input', position: null },
+      ],
+    }
+    expect(sequenceInputs(flow, 'film')).toEqual(['a', 'b'])
+  })
+
+  test('an edge wearing the wrong role does not sneak into the film', () => {
+    // `applyWire` can only make an `input` edge into a sequence, but a template
+    // writes its edges straight into graph_json and flowSchema validates that
+    // the role is one of the four, never that it suits the nodes it joins.
+    const flow: Flow = {
+      nodes: [video('a'), video('b'), cut('film')],
+      edges: [
+        { id: 'e1', from: 'a', to: 'film', role: 'input', position: 0 },
+        { id: 'e2', from: 'b', to: 'film', role: 'reference', position: 1 },
+      ],
+    }
+    expect(sequenceInputs(flow, 'film')).toEqual(['a'])
+  })
+
+  test('reports how long the film would be, and out of how many shots', () => {
+    // Before anything renders, which is the point: every video row caps out at
+    // eight or ten seconds, so reaching sixty is arithmetic, not a feeling.
+    const flow = filmOf('a', 'b', 'c')
+    expect(sequenceRuntime(flow, 'film')).toEqual({ clipCount: 3, seconds: 15 })
+  })
+
+  test('an empty cut is nought seconds, not an error', () => {
+    expect(sequenceRuntime(flowOf(cut('film')), 'film')).toEqual({ clipCount: 0, seconds: 0 })
+  })
+
+  test('only a clip may feed a cut', () => {
+    // A still would have to become a clip of some invented length, and
+    // inventing a length is a decision that belongs on a priced video node.
+    const flow = flowOf(image('still'), cut('film'))
+    expect(() => validateWire(flow, 'still', 'film', { resolve: modelById })).toThrow(WiringError)
+  })
+
+  test('every other node still treats its inputs as a set', () => {
+    // `position` is read only by a sequence. A number nobody reads is a number
+    // that will eventually be believed.
+    const flow = applyWire(flowOf(image('a'), exportNode('e')), 'a', 'e', { resolve: modelById })
+    expect(flow.edges[0].position).toBeNull()
   })
 })
 

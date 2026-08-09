@@ -35,7 +35,7 @@ export const createTools = (ops: Ops) => ({
 
   add_node: tool({
     description:
-      'Add one node and return its id. Types: source (an existing asset, needs sourceId), image (a still, needs prompt), video (a clip, needs prompt), export (the deliverable formats). Nothing renders until the person presses Run.',
+      'Add one node and return its id. Types: source (an existing asset, needs sourceId), image (a still, needs prompt), video (a clip, needs prompt), sequence (cuts several clips into one film, in the order you wire them), export (the deliverable formats). Nothing renders until the person presses Run.',
     inputSchema: addNodeInput,
     execute: async (input) => ops.addNode(input),
   }),
@@ -55,7 +55,7 @@ export const createTools = (ops: Ops) => ({
 
   wire: tool({
     description:
-      'Connect two nodes. The meaning follows from the types: an asset into a shot is a reference the model must honour, a still into a clip is that clip\'s first frame. May be refused — too many references for the chosen model, a second first frame, or a cycle. Read the refusal and adjust.',
+      'Connect two nodes. The meaning follows from the types: an asset into a shot is a reference the model must honour, a rendered still into another still is a reference too (this is how a character sheet keeps one face across every shot), and a still into a clip is that clip\'s first frame. May be refused — too many references for the chosen model, a second first frame, or a cycle. Read the refusal and adjust.',
     inputSchema: wireInput,
     execute: async (input) => ops.wire(input),
   }),

@@ -69,6 +69,11 @@ function oldHashableConfig(node: OldNode): Record<string, JsonValue> {
         codec: node.codec,
         overlay: (node.overlay ?? null) as unknown as JsonValue,
       }
+    default:
+      // Node types added after this migration was written. A database old
+      // enough to need it cannot contain one, and the frozen shape above must
+      // not grow a case for it — that would change what this recomputes.
+      return {}
   }
 }
 

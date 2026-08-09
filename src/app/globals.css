@@ -1826,6 +1826,68 @@
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--beam) 22%, transparent);
 }
 
+/* ---------- cut order ---------- */
+
+.cut {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cut__item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-1) var(--s-2);
+  border-radius: var(--r-sm);
+  background: var(--raised);
+  font-family: var(--mono);
+  font-size: var(--fs-1);
+}
+
+/* Fixed width so the labels line up whether the film is 9 shots or 90. */
+.cut__index {
+  flex: none;
+  width: 18px;
+  color: var(--slate-dim);
+  text-align: right;
+}
+
+.cut__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cut__seconds {
+  flex: none;
+  color: var(--slate-dim);
+}
+
+/*
+ * The film's running time, in ink rather than the safelight it arrived in.
+ *
+ * Amber means one thing here and it is money (see DESIGN.md). A runtime is a
+ * fact about the cut, not a bill — and a sequence is assembled at Export from
+ * clips already paid for, so this figure is the one number on screen that
+ * cannot cost anything. Amber on it teaches the eye to stop trusting amber.
+ */
+.cut__total {
+  padding: 2px var(--s-2);
+  font-family: var(--mono);
+  font-size: var(--fs-1);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.cut__item .workspaces__action:disabled {
+  opacity: 0.3;
+}
+
 /* ---------- chat panel ---------- */
 
 /*

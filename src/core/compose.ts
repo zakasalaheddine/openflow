@@ -44,13 +44,38 @@ export function composePrompt(
   return [...fragments, own].filter((part) => part.length > 0).join('\n\n')
 }
 
-/** Files from image and video sources wired in as references, in edge order. */
-export function referenceFiles(
+/**
+ * Whether this node has any reference that will arrive as an image.
+ *
+ * Not `referenceFiles(...).length > 0`, which sees uploaded assets only. A
+ * rendered still wired in as a reference contributes a file the worker resolves
+ * from its parent's latest run — invisible here, because the file does not exist
+ * until that parent has rendered.
+ *
+ * This is the *planned* endpoint — what the canvas shows and what the plan
+ * records. Dispatch does not trust it: `models/fal.ts` re-derives the endpoint
+ * from the payload it is actually sending, so a wrong answer here misreports a
+ * plan rather than buying a render that ignored its references.
+ *
+ * It answers from the graph alone for the same reason `planRun` does — the
+ * canvas re-derives it every 1.2 seconds, long before anything has rendered.
+ */
+export function hasImageReference(
   flow: Flow,
   nodeId: NodeId,
   sources: Map<string, Source>,
-): string[] {
-  return referencedSources(flow, nodeId, sources)
-    .filter((source) => source.kind !== 'text')
-    .flatMap((source) => (source.files as string[]) ?? [])
+): boolean {
+  const byNodeId = new Map(flow.nodes.map((n) => [n.id, n]))
+
+  return flow.edges
+    .filter((e) => e.to === nodeId && e.role === 'reference')
+    .some((e) => {
+      const parent = byNodeId.get(e.from)
+      if (!parent) return false
+      // A rendered still. Its file arrives at dispatch, not now.
+      if (parent.type === 'image') return true
+      if (parent.type !== 'source') return false
+      const source = sources.get(parent.sourceId)
+      return source !== undefined && source.kind !== 'text'
+    })
 }

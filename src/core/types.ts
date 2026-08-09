@@ -1,8 +1,16 @@
 export type NodeId = string
 export type SourceId = string
 
-/** Scarce by design. Four in v1; a fifth requires a written case. */
-export type NodeType = 'source' | 'image' | 'video' | 'export'
+/**
+ * Scarce by design. Four in v1; a sixth requires a written case.
+ *
+ * `sequence` is the fifth, and the written case was made before it was built:
+ * `build-plan.md` reserves this slot for it by name, listing the groundwork
+ * that was laid for it in v1 — clips normalised on arrival, `duration_ms`/`fps`
+ * /`codec` on assets, and `position` on edges, which is where a cut's order
+ * lives because every other node treats its inputs as a set.
+ */
+export type NodeType = 'source' | 'image' | 'video' | 'export' | 'sequence'
 
 export type AssetRef = {
   id: string
@@ -129,7 +137,21 @@ export type ExportNode = NodeBase & {
   overlay?: TextOverlay
 }
 
-export type FlowNode = SourceNode | ImageNode | VideoNode | ExportNode
+/**
+ * Several clips, cut into one film, in order.
+ *
+ * Carries no configuration of its own on purpose. The order is the whole
+ * content of this node and it lives on the incoming edges' `position`, because
+ * an ordering stored twice is an ordering that will disagree with itself.
+ *
+ * It dispatches to no model and costs nothing to run: the cut happens locally
+ * at export, from clips that have already been paid for.
+ */
+export type SequenceNode = NodeBase & {
+  type: 'sequence'
+}
+
+export type FlowNode = SourceNode | ImageNode | VideoNode | ExportNode | SequenceNode
 
 /**
  * Edges carry meaning. An image → video edge with `role: 'start_frame'`

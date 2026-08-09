@@ -33,6 +33,11 @@ export function hashableConfig(node: FlowNode): Record<string, JsonValue> {
         durationSec: node.durationSec,
         audio: node.audio,
       }
+    case 'sequence':
+      // Empty on purpose: a cut has no settings, only an order, and the order
+      // lives on the edges. `planRun` folds it in — the same shape as a source
+      // node's `version`, which also lives outside the node.
+      return {}
     case 'export':
       return {
         formats: node.formats as unknown as JsonValue,
