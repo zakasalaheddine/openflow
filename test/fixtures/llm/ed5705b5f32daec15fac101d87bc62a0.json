@@ -1,0 +1,259 @@
+{
+  "chunks": [
+    {
+      "type": "stream-start",
+      "warnings": []
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127214-o68DeLYJh1vDTHeH4llG"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-start",
+      "id": "Pz3sUYLsGoZfxajk"
+    },
+    {
+      "type": "reasoning-delta",
+      "delta": "",
+      "id": "Pz3sUYLsGoZfxajk"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127214-o68DeLYJh1vDTHeH4llG"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-end",
+      "id": "Pz3sUYLsGoZfxajk",
+      "providerMetadata": {
+        "openrouter": {
+          "reasoning_details": [
+            {
+              "type": "reasoning.text",
+              "signature": "CAISqQUKhwEIEBgCKkCqyWu6O5ED2M6bQceUPvR4kwl+f0rfTK0h9b8XGvCCP/ZxkZZSQd+xfwWQklGU3vu/1zcbIOL4DxQM09jBtILVMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiQ0YzBmMDQ2Zi0yNWZkLTQ1ZmItYmZiMy1hMDhhOGUyNDljYTcSDGq7nSVVQmJA5s77nRoMF9rXNg7qQri2GF+eIjCChmdIFlC1h2xHFflETOEm5Njs/guyRECtENr9BPFJGqI5+bPYN6RiH+X4CtL2p84qzgO/bMPpp8bwxjVE8e7KUvAmw1QOz3iNo8xLllWzEUxD9BfSd/LJfiDZQbLnvkYzgMl2Yguj/i+jonOpBsErXnczGQS1PXgqcGTSIItOywoTI7l0zYaD5V/WDJlAqYgfR+pBYhyrupY5oJsEgBEadAIds9HmIGi/lGo+b1ep9TyqaH7VnVwEXlXSFEexZU3+XsFvBQhaeIsmV6hLB8qgHN2umIOxDgkyzU0+Yt5Fl5XXWWi4zNVjc++zNdKehjffmAyPACA9Lzp/9Sz74E+eVkcPKIS2WYvK5DbbNGKZPUHd49lX5J7WuVvsW/KIcAh6ZijJtoGUCmrFRqjJVMqA4iJ1F5oydUoqTsSebA+Ud3ycwW6K9A3NC3fEfyuzMGa8qWeVbG8e/ReXwoQAZHi+Mx1eDu56meHrgGb9erxOhQuve8SUw03Ow1W58dog3lQTBKvkyJzRiuV3ft8kcUhIsb4ysig3aZqW3AFdrXT7zpVn+gRArHavp7JG0TpaO99EnPcZvpWhYralLCYbslvkkwMmdRAhUFE4b9DAP5g5eLwpVGlSrNcYyz/QAzCvB+Y5ALAGqTIk1GpvjS3XP7BK06TaofepKxn/2DyOW7uwi4MYAQ==",
+              "format": "anthropic-claude-v1",
+              "index": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "text-start",
+      "id": "gen-1786127214-o68DeLYJh1vDTHeH4llG"
+    },
+    {
+      "type": "text-delta",
+      "delta": "I'll read the canvas and your uploaded assets first.",
+      "id": "gen-1786127214-o68DeLYJh1vDTHeH4llG"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127214-o68DeLYJh1vDTHeH4llG"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127214-o68DeLYJh1vDTHeH4llG"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-start",
+      "id": "toolu_018jWHUenfxk2juKP56cNUwY",
+      "toolName": "list_graph"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_018jWHUenfxk2juKP56cNUwY",
+      "delta": ""
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127214-o68DeLYJh1vDTHeH4llG"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_018jWHUenfxk2juKP56cNUwY",
+      "delta": "{}"
+    },
+    {
+      "type": "tool-input-end",
+      "id": "toolu_018jWHUenfxk2juKP56cNUwY"
+    },
+    {
+      "type": "tool-call",
+      "toolCallId": "toolu_018jWHUenfxk2juKP56cNUwY",
+      "toolName": "list_graph",
+      "input": "{}",
+      "providerMetadata": {
+        "openrouter": {
+          "reasoning_details": [
+            {
+              "type": "reasoning.text",
+              "signature": "CAISqQUKhwEIEBgCKkCqyWu6O5ED2M6bQceUPvR4kwl+f0rfTK0h9b8XGvCCP/ZxkZZSQd+xfwWQklGU3vu/1zcbIOL4DxQM09jBtILVMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiQ0YzBmMDQ2Zi0yNWZkLTQ1ZmItYmZiMy1hMDhhOGUyNDljYTcSDGq7nSVVQmJA5s77nRoMF9rXNg7qQri2GF+eIjCChmdIFlC1h2xHFflETOEm5Njs/guyRECtENr9BPFJGqI5+bPYN6RiH+X4CtL2p84qzgO/bMPpp8bwxjVE8e7KUvAmw1QOz3iNo8xLllWzEUxD9BfSd/LJfiDZQbLnvkYzgMl2Yguj/i+jonOpBsErXnczGQS1PXgqcGTSIItOywoTI7l0zYaD5V/WDJlAqYgfR+pBYhyrupY5oJsEgBEadAIds9HmIGi/lGo+b1ep9TyqaH7VnVwEXlXSFEexZU3+XsFvBQhaeIsmV6hLB8qgHN2umIOxDgkyzU0+Yt5Fl5XXWWi4zNVjc++zNdKehjffmAyPACA9Lzp/9Sz74E+eVkcPKIS2WYvK5DbbNGKZPUHd49lX5J7WuVvsW/KIcAh6ZijJtoGUCmrFRqjJVMqA4iJ1F5oydUoqTsSebA+Ud3ycwW6K9A3NC3fEfyuzMGa8qWeVbG8e/ReXwoQAZHi+Mx1eDu56meHrgGb9erxOhQuve8SUw03Ow1W58dog3lQTBKvkyJzRiuV3ft8kcUhIsb4ysig3aZqW3AFdrXT7zpVn+gRArHavp7JG0TpaO99EnPcZvpWhYralLCYbslvkkwMmdRAhUFE4b9DAP5g5eLwpVGlSrNcYyz/QAzCvB+Y5ALAGqTIk1GpvjS3XP7BK06TaofepKxn/2DyOW7uwi4MYAQ==",
+              "format": "anthropic-claude-v1",
+              "index": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127214-o68DeLYJh1vDTHeH4llG"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127214-o68DeLYJh1vDTHeH4llG"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-start",
+      "id": "toolu_01Vg6sAoCE9QLvmEA66kM3aR",
+      "toolName": "list_sources"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01Vg6sAoCE9QLvmEA66kM3aR",
+      "delta": ""
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127214-o68DeLYJh1vDTHeH4llG"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01Vg6sAoCE9QLvmEA66kM3aR",
+      "delta": "{}"
+    },
+    {
+      "type": "tool-input-end",
+      "id": "toolu_01Vg6sAoCE9QLvmEA66kM3aR"
+    },
+    {
+      "type": "tool-call",
+      "toolCallId": "toolu_01Vg6sAoCE9QLvmEA66kM3aR",
+      "toolName": "list_sources",
+      "input": "{}"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127214-o68DeLYJh1vDTHeH4llG"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127214-o68DeLYJh1vDTHeH4llG"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-end",
+      "id": "gen-1786127214-o68DeLYJh1vDTHeH4llG"
+    },
+    {
+      "type": "finish",
+      "finishReason": {
+        "unified": "tool-calls",
+        "raw": "tool_calls"
+      },
+      "usage": {
+        "inputTokens": {
+          "total": 2803,
+          "noCache": 2803,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        },
+        "outputTokens": {
+          "total": 213,
+          "text": 213,
+          "reasoning": 0
+        },
+        "raw": {
+          "prompt_tokens": 2803,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "audio_tokens": 0,
+            "video_tokens": 0
+          },
+          "completion_tokens": 213,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "image_tokens": 0,
+            "audio_tokens": 0
+          },
+          "total_tokens": 3016,
+          "cost": 0.01934,
+          "cost_details": {
+            "upstream_inference_cost": 0.01934,
+            "upstream_inference_prompt_cost": 0.014015,
+            "upstream_inference_completions_cost": 0.005325
+          },
+          "is_byok": false
+        }
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "usage": {
+            "promptTokens": 2803,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 213,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "cost": 0.01934,
+            "totalTokens": 3016,
+            "costDetails": {
+              "upstreamInferenceCost": 0.01934
+            }
+          },
+          "provider": "Amazon Bedrock",
+          "reasoning_details": [
+            {
+              "type": "reasoning.text",
+              "signature": "CAISqQUKhwEIEBgCKkCqyWu6O5ED2M6bQceUPvR4kwl+f0rfTK0h9b8XGvCCP/ZxkZZSQd+xfwWQklGU3vu/1zcbIOL4DxQM09jBtILVMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiQ0YzBmMDQ2Zi0yNWZkLTQ1ZmItYmZiMy1hMDhhOGUyNDljYTcSDGq7nSVVQmJA5s77nRoMF9rXNg7qQri2GF+eIjCChmdIFlC1h2xHFflETOEm5Njs/guyRECtENr9BPFJGqI5+bPYN6RiH+X4CtL2p84qzgO/bMPpp8bwxjVE8e7KUvAmw1QOz3iNo8xLllWzEUxD9BfSd/LJfiDZQbLnvkYzgMl2Yguj/i+jonOpBsErXnczGQS1PXgqcGTSIItOywoTI7l0zYaD5V/WDJlAqYgfR+pBYhyrupY5oJsEgBEadAIds9HmIGi/lGo+b1ep9TyqaH7VnVwEXlXSFEexZU3+XsFvBQhaeIsmV6hLB8qgHN2umIOxDgkyzU0+Yt5Fl5XXWWi4zNVjc++zNdKehjffmAyPACA9Lzp/9Sz74E+eVkcPKIS2WYvK5DbbNGKZPUHd49lX5J7WuVvsW/KIcAh6ZijJtoGUCmrFRqjJVMqA4iJ1F5oydUoqTsSebA+Ud3ycwW6K9A3NC3fEfyuzMGa8qWeVbG8e/ReXwoQAZHi+Mx1eDu56meHrgGb9erxOhQuve8SUw03Ow1W58dog3lQTBKvkyJzRiuV3ft8kcUhIsb4ysig3aZqW3AFdrXT7zpVn+gRArHavp7JG0TpaO99EnPcZvpWhYralLCYbslvkkwMmdRAhUFE4b9DAP5g5eLwpVGlSrNcYyz/QAzCvB+Y5ALAGqTIk1GpvjS3XP7BK06TaofepKxn/2DyOW7uwi4MYAQ==",
+              "format": "anthropic-claude-v1",
+              "index": 0
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

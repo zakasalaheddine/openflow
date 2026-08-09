@@ -1712,6 +1712,120 @@
   color: var(--slate-dim);
 }
 
+/* ---------- workspace switcher ---------- */
+
+/*
+ * It used to ride on `.assets__menu` and `.assets__item`, on the grounds that
+ * the switcher and the asset menu were the same dropdown on the same kind of
+ * chip. They are not any more: the asset menu is a Radix popper in the top
+ * layer, and those rules went with it. This one is still hand-rolled — it holds
+ * inline rename and delete-confirm forms, which is not what a menu is for — so
+ * it now carries its own surface rather than borrowing one that has moved.
+ *
+ * Same tokens, so the two still look like one family: `--overlay` at `--e-2`,
+ * `--r-md`, and rows at `--r-sm`.
+ */
+.workspaces {
+  position: relative;
+  display: flex;
+}
+
+.workspaces__menu {
+  position: absolute;
+  top: calc(100% + var(--s-3));
+  left: 0;
+  z-index: 20;
+  min-width: 240px;
+  max-width: 320px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: var(--s-1);
+  border: 1px solid var(--line-bright);
+  border-radius: var(--r-md);
+  background: var(--overlay);
+  box-shadow: var(--e-2);
+}
+
+.workspaces__item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-sm);
+  font-family: var(--mono);
+  font-size: var(--fs-2);
+  color: var(--ink);
+  text-align: left;
+}
+
+.workspaces__item:hover {
+  background: var(--raised);
+}
+
+.workspaces__rule {
+  height: 0;
+  margin: var(--s-1) 0;
+  border: none;
+  border-top: 1px solid var(--line);
+}
+
+.workspaces__note {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-2);
+}
+
+.workspaces__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspaces__link {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+/* The open workspace, in the safelight. It is the one place amber does not mean
+   money — and it is a link to where you already are, so it never competes with
+   a price for attention. */
+.workspaces__link[aria-current='page'] {
+  color: var(--safelight);
+}
+
+.workspaces__action {
+  flex: none;
+  padding: 2px 5px;
+  border-radius: var(--r-sm);
+  color: var(--slate-dim);
+  font-size: var(--fs-1);
+}
+
+.workspaces__action:hover {
+  color: var(--ink);
+  background: var(--line);
+}
+
+.workspaces__input {
+  width: 100%;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--line-bright);
+  border-radius: var(--r-sm);
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: var(--fs-3);
+}
+
+.workspaces__input:focus-visible {
+  outline: none;
+  border-color: var(--beam);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--beam) 22%, transparent);
+}
+
 /* ---------- chat panel ---------- */
 
 /*

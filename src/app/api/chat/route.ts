@@ -1,8 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { getDb } from '@/db'
 import { projects, messages } from '@/db/schema'
-import { ensureWorkspace } from '@/core/workspace'
+import { scope } from '../scope'
 import { runTurn, loadThread } from '@/agent/loop'
 import { createChatModel, LlmDisabledError } from '@/models/llm'
 import { llmMode, isDemo } from '@/env'
@@ -16,9 +15,10 @@ export const dynamic = 'force-dynamic'
  * a demo visitor cannot set an environment variable, and the panel needs to
  * say the true reason chat is off rather than a fix that isn't theirs to make.
  */
-export async function GET() {
-  const db = getDb()
-  const { flowId } = ensureWorkspace(db)
+export async function GET(request: Request) {
+  const scoped = scope(request)
+  if (scoped instanceof NextResponse) return scoped
+  const { db, flowId } = scoped
   const demo = isDemo()
   return NextResponse.json({
     enabled: llmMode() !== 'off' && !demo,
@@ -38,8 +38,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'This is a read-only demo.' }, { status: 403 })
   }
 
-  const db = getDb()
-  const { projectId, flowId } = ensureWorkspace(db)
+  const scoped = scope(request)
+  if (scoped instanceof NextResponse) return scoped
+  const { db, projectId, flowId } = scoped
   const body = (await request.json().catch(() => ({}))) as { message?: string }
   const message = (body.message ?? '').trim()
 
@@ -92,9 +93,10 @@ export async function POST(request: Request) {
 }
 
 /** Starting over. The graph is untouched — only the conversation is cleared. */
-export async function DELETE() {
-  const db = getDb()
-  const { flowId } = ensureWorkspace(db)
+export async function DELETE(request: Request) {
+  const scoped = scope(request)
+  if (scoped instanceof NextResponse) return scoped
+  const { db, flowId } = scoped
   db.delete(messages).where(eq(messages.flowId, flowId)).run()
   return NextResponse.json({ ok: true })
 }

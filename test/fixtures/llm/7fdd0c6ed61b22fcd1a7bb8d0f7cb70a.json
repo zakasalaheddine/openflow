@@ -1,0 +1,266 @@
+{
+  "chunks": [
+    {
+      "type": "stream-start",
+      "warnings": []
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-start",
+      "id": "clZxk45ZHedqzGeV"
+    },
+    {
+      "type": "reasoning-delta",
+      "delta": "",
+      "id": "clZxk45ZHedqzGeV"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-end",
+      "id": "clZxk45ZHedqzGeV",
+      "providerMetadata": {
+        "openrouter": {
+          "reasoning_details": [
+            {
+              "type": "reasoning.text",
+              "signature": "CAIS/gEKhwEIEBgCKkDH8bfImfMGxZP3bQtoXmedRTYqmI7Vl43+X26hQBs18fQDvjfETUgUHxMhcr3aiR9RIgGwG6SA0yC0Fdq2lY9rMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiQ0YzBmMDQ2Zi0yNWZkLTQ1ZmItYmZiMy1hMDhhOGUyNDljYTcSDBfh1X7Xipp/hPNEZhoMQNQwffNKzntCGI/YIjAtrlvVWBBzSt9RXiCoNqpNJHO9QlQYNhhD40LHKdLlSykCq9WN+7ofHVTntH0YQu0qJGY1Z9tMmEkuxlOYHYRnl4SalbIWi/t1pE5VpP6JJN6M9mYyaBgB",
+              "format": "anthropic-claude-v1",
+              "index": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "text-start",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "text-delta",
+      "delta": "Added, and it's the only thing on the canvas: one still called **Hero — serum on marble** (`image-1`), on flux-",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": "2-pro. As written it's a generic glass dropper bottle on honed white marble, soft daylight from the upper left, square with headroom for copy. At roughly ",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": "1 megapixel that's about 3 cents to run — nothing renders until you press Run.\n\nBefore I tighten the prompt, there's no brand profile on this project yet, so I've",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": " deliberately not invented one. Tell me:\n\n- **Whose serum is it** — brand name, and is there a bottle you can up",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": "load? A photo of the real thing wired in as a reference is the difference between \"a serum\" and \"your serum\" (",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": "flux-2-pro honours up to 4 references; I'd also switch models if the label text needs to be legible).\n- **Bottle and label** — glass colour, dropper or p",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": "ump, label style.\n- **Palette and mood** — warm ivory marble or cool grey, clinical or luxe",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": ".\n- **Where is this going** — feed square, story, both? And does copy get burned on at export?\n\nOnce I know that I",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": "'ll rewrite the prompt to match, and if this hero is meant to lead into motion I'd build it out as a hero-and-clips shape so the bottle can",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": "'t drift between shots.",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-end",
+      "id": "gen-1786127229-IZ3d4SCrRnDOn45CPGwg"
+    },
+    {
+      "type": "finish",
+      "finishReason": {
+        "unified": "stop",
+        "raw": "stop"
+      },
+      "usage": {
+        "inputTokens": {
+          "total": 3485,
+          "noCache": 3485,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        },
+        "outputTokens": {
+          "total": 420,
+          "text": 420,
+          "reasoning": 0
+        },
+        "raw": {
+          "prompt_tokens": 3485,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "audio_tokens": 0,
+            "video_tokens": 0
+          },
+          "completion_tokens": 420,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "image_tokens": 0,
+            "audio_tokens": 0
+          },
+          "total_tokens": 3905,
+          "cost": 0.027925,
+          "cost_details": {
+            "upstream_inference_cost": 0.027925,
+            "upstream_inference_prompt_cost": 0.017425,
+            "upstream_inference_completions_cost": 0.0105
+          },
+          "is_byok": false
+        }
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "usage": {
+            "promptTokens": 3485,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 420,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "cost": 0.027925,
+            "totalTokens": 3905,
+            "costDetails": {
+              "upstreamInferenceCost": 0.027925
+            }
+          },
+          "provider": "Amazon Bedrock",
+          "reasoning_details": [
+            {
+              "type": "reasoning.text",
+              "signature": "CAIS/gEKhwEIEBgCKkDH8bfImfMGxZP3bQtoXmedRTYqmI7Vl43+X26hQBs18fQDvjfETUgUHxMhcr3aiR9RIgGwG6SA0yC0Fdq2lY9rMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiQ0YzBmMDQ2Zi0yNWZkLTQ1ZmItYmZiMy1hMDhhOGUyNDljYTcSDBfh1X7Xipp/hPNEZhoMQNQwffNKzntCGI/YIjAtrlvVWBBzSt9RXiCoNqpNJHO9QlQYNhhD40LHKdLlSykCq9WN+7ofHVTntH0YQu0qJGY1Z9tMmEkuxlOYHYRnl4SalbIWi/t1pE5VpP6JJN6M9mYyaBgB",
+              "format": "anthropic-claude-v1",
+              "index": 0
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

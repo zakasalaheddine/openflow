@@ -44,6 +44,12 @@ Assets live on your machine. Set `CLOUDINARY_URL` and uploads and rendered frame
 
 `FAL_MODE` is `live` by default and forced to `replay`/`off`/`stub` by the test configs, so a test run can never bill you. `DEMO=1` forces `replay`, pre-bakes the demo flow from recorded fixtures, and refuses every render request — that is the mode a public demo runs in. `OPENFLOW_DATA_DIR` moves the SQLite file and generated assets off `./data`; `OPENFLOW_EXPORTS_DIR` moves exported files off `./exports`.
 
+## One build per URL
+
+Each build is a workspace with an address of its own — `/f/default`, `/f/9c1a4f0e` — so two of them are two browser tabs rather than two apps. Its canvas, its render history, its costs and its chat thread belong to it alone; open the switcher in the toolbar to make one, rename it, or delete it. `/` opens the default workspace, or the most recently touched one if you have deleted it.
+
+The asset library, the brand profile and the spend cap are shared across all of them, deliberately: upload a product once and every campaign built on it goes stale together when you replace it. Deleting a workspace deletes its runs and its conversation, and keeps the files those runs paid for.
+
 ## Non-Goals
 
 Read these first. They are the immune system of this project.

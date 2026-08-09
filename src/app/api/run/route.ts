@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getDb } from '@/db'
-import { ensureWorkspace } from '@/core/workspace'
+import { scope } from '../scope'
 import { enqueueRun, SpendCapExceededError } from '@/core/executor'
 import { UnsupportedCapabilityError } from '@/models/registry'
 import { isDemo } from '@/env'
@@ -19,8 +18,9 @@ export async function POST(request: Request) {
     )
   }
 
-  const db = getDb()
-  const { flowId } = ensureWorkspace(db)
+  const scoped = scope(request)
+  if (scoped instanceof NextResponse) return scoped
+  const { db, flowId } = scoped
   const body = (await request.json().catch(() => ({}))) as {
     confirmOverspend?: boolean
     /** Render one node and whatever upstream it still needs. */

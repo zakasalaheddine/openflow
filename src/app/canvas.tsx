@@ -49,6 +49,7 @@ import { CARD_SOURCE, COLUMN, MIN_CARD, ROW, fitToFrame, freeSlot, sizeOf, slotF
 import { Lightbox, type Preview } from './lightbox'
 import { AssetMenu } from './asset-menu'
 import { ChatPanel } from './chat-panel'
+import { FlowMenu } from './flow-menu'
 import {
   fetchFlow,
   saveGraph,
@@ -139,17 +140,18 @@ const newId = (type: string) => `${type}-${++counter}-${Math.random().toString(3
 const nodeShapeOf = (graph: Flow) => graph.nodes.map((n) => n.id).join('|')
 const edgeShapeOf = (graph: Flow) => graph.edges.map((e) => `${e.from}>${e.to}:${e.role}`).join('|')
 
-export function Canvas() {
+/** `flow` is the slug in the URL — the workspace every call on this canvas is scoped to. */
+export function Canvas({ flow }: { flow: string }) {
   return (
     <ReactFlowProvider>
       <TooltipProvider>
-        <CanvasInner />
+        <CanvasInner flow={flow} />
       </TooltipProvider>
     </ReactFlowProvider>
   )
 }
 
-function CanvasInner() {
+function CanvasInner({ flow }: { flow: string }) {
   const { fitView, screenToFlowPosition, setCenter, getZoom, getNode } = useReactFlow()
 
   const [state, setState] = useState<FlowState | null>(null)
@@ -293,7 +295,7 @@ function CanvasInner() {
   const load = useCallback(async () => {
     const read = ++readRef.current
     try {
-      const next = await fetchFlow()
+      const next = await fetchFlow(flow)
       if (read !== readRef.current || interactingRef.current) return
       absorb(next)
     } catch (error) {
@@ -301,7 +303,7 @@ function CanvasInner() {
         say(error instanceof Error ? error.message : 'Could not load the flow')
       }
     }
-  }, [absorb, say])
+  }, [absorb, say, flow])
 
   useEffect(() => {
     let alive = true
@@ -340,7 +342,7 @@ function CanvasInner() {
           }
 
           try {
-            await saveGraph(next, stampRef.current)
+            await saveGraph(flow, next, stampRef.current)
           } catch (error) {
             // Someone else — the agent — wrote while this edit was in hand. Take
             // their graph and re-apply this one change on top of it, once. A
@@ -348,7 +350,7 @@ function CanvasInner() {
             if (error instanceof StaleGraphError) {
               await load()
               try {
-                await saveGraph(apply(), stampRef.current)
+                await saveGraph(flow, apply(), stampRef.current)
               } catch (retry) {
                 say(retry instanceof Error ? retry.message : 'Could not save')
               }
@@ -361,7 +363,7 @@ function CanvasInner() {
         .catch(() => undefined)
       return queueRef.current
     },
-    [load, say],
+    [load, say, flow],
   )
 
   /**
@@ -574,7 +576,7 @@ function CanvasInner() {
    */
   const run = useCallback(
     async (options: { nodeId?: NodeId; confirmOverspend?: boolean } = {}) => {
-      const outcome = await startRun(options.confirmOverspend === true, options.nodeId)
+      const outcome = await startRun(flow, options.confirmOverspend === true, options.nodeId)
       if (outcome.kind === 'needs-confirmation') {
         setConfirming({ message: outcome.message, nodeId: options.nodeId })
         return
@@ -593,7 +595,7 @@ function CanvasInner() {
       }
       await load()
     },
-    [load, say],
+    [load, say, flow],
   )
 
   const onRun = useCallback((nodeId: NodeId) => void run({ nodeId }), [run])
@@ -869,7 +871,7 @@ function CanvasInner() {
   async function exportAll() {
     setNotice(null)
     try {
-      const outcome = await startExport()
+      const outcome = await startExport(flow)
       setExported({
         written: outcome.written.length,
         // Every refusal, named. A count alone tells you something was refused
@@ -914,6 +916,10 @@ function CanvasInner() {
     >
       <header className="topbar">
         <h1 className="topbar__title">OpenFlow</h1>
+
+        {/* `say`, not `setNotice`: a notice carries a tone now, and everything
+            this menu reports is a refusal. */}
+        <FlowMenu current={flow} onError={say} />
 
         {ADD_NODE.map(({ type, hint }) => (
           <Hint key={type} label={hint}>
@@ -1201,7 +1207,7 @@ function CanvasInner() {
         */}
       </main>
 
-      {chatOpen && <ChatPanel />}
+      {chatOpen && <ChatPanel flow={flow} />}
       </div>
 
       {selected && (

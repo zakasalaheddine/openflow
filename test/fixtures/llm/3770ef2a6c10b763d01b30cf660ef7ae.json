@@ -1,0 +1,280 @@
+{
+  "chunks": [
+    {
+      "type": "stream-start",
+      "warnings": []
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127220-xQnUPwJw92e31rabXHJK"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-start",
+      "id": "R5IxrUcaaqKowTx3"
+    },
+    {
+      "type": "reasoning-delta",
+      "delta": "",
+      "id": "R5IxrUcaaqKowTx3"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127220-xQnUPwJw92e31rabXHJK"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127220-xQnUPwJw92e31rabXHJK"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-start",
+      "id": "toolu_01TzSVCoPqpj9NjT7ubPjfEv",
+      "toolName": "add_node"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01TzSVCoPqpj9NjT7ubPjfEv",
+      "delta": ""
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127220-xQnUPwJw92e31rabXHJK"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01TzSVCoPqpj9NjT7ubPjfEv",
+      "delta": "{\"type\": \"image"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127220-xQnUPwJw92e31rabXHJK"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01TzSVCoPqpj9NjT7ubPjfEv",
+      "delta": "\", \"label\": \"Hero — serum on marble"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127220-xQnUPwJw92e31rabXHJK"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01TzSVCoPqpj9NjT7ubPjfEv",
+      "delta": "\", \"modelId\": \"flux-2-pro"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127220-xQnUPwJw92e31rabXHJK"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01TzSVCoPqpj9NjT7ubPjfEv",
+      "delta": "\", \"prompt\": \"Hero product still: a glass serum dropper bottle standing centred on a honed"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127220-xQnUPwJw92e31rabXHJK"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01TzSVCoPqpj9NjT7ubPjfEv",
+      "delta": " white marble slab, soft directional daylight from the upper left, gentle falloff to a clean pale background, subtle reflection and"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127220-xQnUPwJw92e31rabXHJK"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01TzSVCoPqpj9NjT7ubPjfEv",
+      "delta": " a single soft shadow, dewy highlight along the glass, shallow depth of field, editorial beauty-camp"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127220-xQnUPwJw92e31rabXHJK"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01TzSVCoPqpj9NjT7ubPjfEv",
+      "delta": "aign lighting, square framing with generous headroom for copy"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127220-xQnUPwJw92e31rabXHJK"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01TzSVCoPqpj9NjT7ubPjfEv",
+      "delta": "\"}"
+    },
+    {
+      "type": "tool-input-end",
+      "id": "toolu_01TzSVCoPqpj9NjT7ubPjfEv"
+    },
+    {
+      "type": "tool-call",
+      "toolCallId": "toolu_01TzSVCoPqpj9NjT7ubPjfEv",
+      "toolName": "add_node",
+      "input": "{\"type\": \"image\", \"label\": \"Hero — serum on marble\", \"modelId\": \"flux-2-pro\", \"prompt\": \"Hero product still: a glass serum dropper bottle standing centred on a honed white marble slab, soft directional daylight from the upper left, gentle falloff to a clean pale background, subtle reflection and a single soft shadow, dewy highlight along the glass, shallow depth of field, editorial beauty-campaign lighting, square framing with generous headroom for copy\"}",
+      "providerMetadata": {
+        "openrouter": {
+          "reasoning_details": [
+            {
+              "type": "reasoning.text",
+              "signature": "CAISpQQKhwEIEBgCKkA6ZtyWns8zXifbjn/wkXl6iJFeuj1aiy5tc1Z9d4+QmGkAVzx1Yn+AwoBihOvAU1eXsW4POZXikF3QYDf2s5JOMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiQ0YzBmMDQ2Zi0yNWZkLTQ1ZmItYmZiMy1hMDhhOGUyNDljYTcSDANZDDcj9oAICojDGxoM5K9n8XAfcYTvEgbEIjA+rJkOCQr4U7bGJda8kSQkzETexUxNbhinCXOgbFdSc3pUt+oGAHb1blBI5148gM0qygLmpgeJeJ6PNacU539M2AqBjRu39Er3stbtPmOQKsnBPDV0Wbwu5hqH+ml7FiHDb1t4yj4P5NZ2ht9WxLrGk57Og9rMLOVWBkeiIVsvvBl63P+Js3BunDG5oPTOlFk6Fz3PgAkaVKNtDL9VD7IXATHiCnXhnGGPM9j0ANskrWid5upSIjKBFsk8aagw7Na+Rb9kUPQo2dXMREh6K9Om87Pf+0opk8FnBNA68KtRnAAnY5/+xyCp9AvrsFg3kRoSTKiQZbZ/o2M+l33ikZIycDKP9r16RpTBWEPg+b+O27ya0xfPkgTQIXkpAM9UIAaK9MMMsvZFDj7pKgCLS0RzcGMlpw06Q5jcykhTwKtWyq+J7vG7+CsZ3XD/H5HP6WZM0tEvP8564hynTyQPDvypXG0uVjb86BPqxbBRbLzKGwe+KQrqikmUe2NKBc4YAQ==",
+              "format": "anthropic-claude-v1",
+              "index": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127220-xQnUPwJw92e31rabXHJK"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786127220-xQnUPwJw92e31rabXHJK"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-end",
+      "id": "R5IxrUcaaqKowTx3",
+      "providerMetadata": {
+        "openrouter": {
+          "reasoning_details": [
+            {
+              "type": "reasoning.text",
+              "signature": "CAISpQQKhwEIEBgCKkA6ZtyWns8zXifbjn/wkXl6iJFeuj1aiy5tc1Z9d4+QmGkAVzx1Yn+AwoBihOvAU1eXsW4POZXikF3QYDf2s5JOMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiQ0YzBmMDQ2Zi0yNWZkLTQ1ZmItYmZiMy1hMDhhOGUyNDljYTcSDANZDDcj9oAICojDGxoM5K9n8XAfcYTvEgbEIjA+rJkOCQr4U7bGJda8kSQkzETexUxNbhinCXOgbFdSc3pUt+oGAHb1blBI5148gM0qygLmpgeJeJ6PNacU539M2AqBjRu39Er3stbtPmOQKsnBPDV0Wbwu5hqH+ml7FiHDb1t4yj4P5NZ2ht9WxLrGk57Og9rMLOVWBkeiIVsvvBl63P+Js3BunDG5oPTOlFk6Fz3PgAkaVKNtDL9VD7IXATHiCnXhnGGPM9j0ANskrWid5upSIjKBFsk8aagw7Na+Rb9kUPQo2dXMREh6K9Om87Pf+0opk8FnBNA68KtRnAAnY5/+xyCp9AvrsFg3kRoSTKiQZbZ/o2M+l33ikZIycDKP9r16RpTBWEPg+b+O27ya0xfPkgTQIXkpAM9UIAaK9MMMsvZFDj7pKgCLS0RzcGMlpw06Q5jcykhTwKtWyq+J7vG7+CsZ3XD/H5HP6WZM0tEvP8564hynTyQPDvypXG0uVjb86BPqxbBRbLzKGwe+KQrqikmUe2NKBc4YAQ==",
+              "format": "anthropic-claude-v1",
+              "index": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "finish",
+      "finishReason": {
+        "unified": "tool-calls",
+        "raw": "tool_calls"
+      },
+      "usage": {
+        "inputTokens": {
+          "total": 3100,
+          "noCache": 3100,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        },
+        "outputTokens": {
+          "total": 370,
+          "text": 370,
+          "reasoning": 0
+        },
+        "raw": {
+          "prompt_tokens": 3100,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "audio_tokens": 0,
+            "video_tokens": 0
+          },
+          "completion_tokens": 370,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "image_tokens": 0,
+            "audio_tokens": 0
+          },
+          "total_tokens": 3470,
+          "cost": 0.02475,
+          "cost_details": {
+            "upstream_inference_cost": 0.02475,
+            "upstream_inference_prompt_cost": 0.0155,
+            "upstream_inference_completions_cost": 0.00925
+          },
+          "is_byok": false
+        }
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "usage": {
+            "promptTokens": 3100,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 370,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "cost": 0.02475,
+            "totalTokens": 3470,
+            "costDetails": {
+              "upstreamInferenceCost": 0.02475
+            }
+          },
+          "provider": "Amazon Bedrock",
+          "reasoning_details": [
+            {
+              "type": "reasoning.text",
+              "signature": "CAISpQQKhwEIEBgCKkA6ZtyWns8zXifbjn/wkXl6iJFeuj1aiy5tc1Z9d4+QmGkAVzx1Yn+AwoBihOvAU1eXsW4POZXikF3QYDf2s5JOMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiQ0YzBmMDQ2Zi0yNWZkLTQ1ZmItYmZiMy1hMDhhOGUyNDljYTcSDANZDDcj9oAICojDGxoM5K9n8XAfcYTvEgbEIjA+rJkOCQr4U7bGJda8kSQkzETexUxNbhinCXOgbFdSc3pUt+oGAHb1blBI5148gM0qygLmpgeJeJ6PNacU539M2AqBjRu39Er3stbtPmOQKsnBPDV0Wbwu5hqH+ml7FiHDb1t4yj4P5NZ2ht9WxLrGk57Og9rMLOVWBkeiIVsvvBl63P+Js3BunDG5oPTOlFk6Fz3PgAkaVKNtDL9VD7IXATHiCnXhnGGPM9j0ANskrWid5upSIjKBFsk8aagw7Na+Rb9kUPQo2dXMREh6K9Om87Pf+0opk8FnBNA68KtRnAAnY5/+xyCp9AvrsFg3kRoSTKiQZbZ/o2M+l33ikZIycDKP9r16RpTBWEPg+b+O27ya0xfPkgTQIXkpAM9UIAaK9MMMsvZFDj7pKgCLS0RzcGMlpw06Q5jcykhTwKtWyq+J7vG7+CsZ3XD/H5HP6WZM0tEvP8564hynTyQPDvypXG0uVjb86BPqxbBRbLzKGwe+KQrqikmUe2NKBc4YAQ==",
+              "format": "anthropic-claude-v1",
+              "index": 0
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
