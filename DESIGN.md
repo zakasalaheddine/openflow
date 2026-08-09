@@ -270,9 +270,15 @@ over a gradient scrim; they do not take rows underneath it.
   click that selects a card.
 - **Nothing on the card may be reachable only by hover.** Hover has no touch
   equivalent, and Playwright hit-tests before it moves the pointer, so a control
-  that appears on hover is a control that does not exist for either. The
-  direction is one line at rest and opens on hover, selection or editing — it is
-  never absent.
+  that appears on hover is a control that does not exist for either. Hover may
+  enlarge what is already there; it may never be the only way to reach it.
+- **The direction on the card is a peek, not the text.** One line at rest, never
+  absent, opening on hover, selection or editing to at most four lines
+  (`--prompt-open`, and no more than 45% of the card). It used to open to the
+  card's full height, which was fine until prompts got long and then meant
+  pointing at a shot was how you stopped being able to see it. The whole
+  direction is a field in the inspector, reached by selecting the card — a
+  click, which works on touch, from the keyboard and under a hit test.
 
 ## Panels
 

@@ -185,7 +185,9 @@ test('editing a note does not disturb prompt editing on a shot', async ({ page, 
   await page.getByTestId('node-prompt-input').fill('bottle on wet slate')
   await page.keyboard.press('Meta+Enter')
 
-  await expect(page.getByText('bottle on wet slate')).toBeVisible()
+  // By its testid, not by its text: the inspector carries the same direction in
+  // its own field now, so the bare text matches the card and the panel both.
+  await expect(page.getByTestId('node-prompt-text')).toHaveText('bottle on wet slate')
   await expect(page.getByText('warm, unfussy, no hard sell')).toBeVisible()
   expect((await sourceOf(request)).version).toBe(1)
 })
