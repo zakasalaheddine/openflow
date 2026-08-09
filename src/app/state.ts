@@ -7,7 +7,14 @@ export type NodeState = {
   estimatedCents: number
   modelId: string | null
   subtree: { nodeCount: number; cents: number }
-  outputs: { id: string; url: string; mime: string }[]
+  outputs: {
+    id: string
+    url: string
+    mime: string
+    /** Null for assets recorded before these columns existed. */
+    width: number | null
+    height: number | null
+  }[]
 }
 
 export type SourceRow = {

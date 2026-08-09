@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Handle, NodeResizer, Position, type NodeProps } from '@xyflow/react'
+import { Handle, NodeResizer, NodeToolbar, Position, type NodeProps } from '@xyflow/react'
+import { DicesIcon, GitBranchIcon, Trash2Icon } from 'lucide-react'
+import { Hint } from '@/ui/hint'
 import type { FlowNode } from '@/core/types'
 import { MIN_CARD } from './slots'
 import { money, type NodeState, type SourceRow } from './state'
@@ -42,6 +44,69 @@ export type CardData = {
   onRun: (nodeId: string) => void
   onPreview: (item: Preview) => void
   onEditText: (sourceId: string, text: string) => void
+  onReroll: (nodeId: string) => void
+  onFanOut: (nodeId: string) => void
+  onDelete: (nodeId: string) => void
+}
+
+/**
+ * The actions a card has that its own strip has no room for.
+ *
+ * Two of these had no home at all: Delete lived only in the inspector, so
+ * removing a card meant selecting it, reading a panel, and finding the one red
+ * chip in it; and fanning out a sibling clip was alt-click on the card body,
+ * which nothing on screen has ever mentioned.
+ *
+ * `NodeToolbar` is React Flow's own — it tracks the node through pans and zooms
+ * and stays a constant size as the canvas scales, which a hand-positioned strip
+ * does not. Visible on selection only: twelve cards each wearing a toolbar is a
+ * canvas of toolbars.
+ */
+function CardActions({
+  node,
+  visible,
+  onReroll,
+  onFanOut,
+  onDelete,
+}: {
+  node: FlowNode
+  visible: boolean
+  onReroll: (nodeId: string) => void
+  onFanOut: (nodeId: string) => void
+  onDelete: (nodeId: string) => void
+}) {
+  return (
+    <NodeToolbar isVisible={visible} position={Position.Top} offset={10}>
+      <div className="node__tools nodrag nopan">
+        {node.type === 'image' && (
+          <Hint label="Another clip off this frame, same direction, fresh seed" keys="⌥click" side="top">
+            <button data-testid={`fanout-${node.id}`} onClick={() => onFanOut(node.id)}>
+              <GitBranchIcon aria-hidden="true" />
+              Fan out
+            </button>
+          </Hint>
+        )}
+        {'seed' in node && (
+          <Hint label="Keep the direction, change the dice" side="top">
+            <button data-testid={`toolbar-reroll-${node.id}`} onClick={() => onReroll(node.id)}>
+              <DicesIcon aria-hidden="true" />
+              Re-roll
+            </button>
+          </Hint>
+        )}
+        <Hint label="Remove this card and every wire into it" side="top">
+          <button
+            className="node__tools-danger"
+            data-testid={`toolbar-delete-${node.id}`}
+            onClick={() => onDelete(node.id)}
+          >
+            <Trash2Icon aria-hidden="true" />
+            Delete
+          </button>
+        </Hint>
+      </div>
+    </NodeToolbar>
+  )
 }
 
 /**
@@ -59,20 +124,29 @@ export type CardData = {
  */
 function Peek({ item, onPreview }: { item: Preview; onPreview: (item: Preview) => void }) {
   return (
-    <button
-      className="node__peek nodrag"
-      data-testid={`preview-${item.label}`}
-      title="See it full size"
-      aria-label={`Preview ${item.label}`}
-      onClick={(event) => {
-        event.stopPropagation()
-        onPreview(item)
-      }}
-    >
-      ⤢
-    </button>
+    <Hint label="See it full size, uncropped" side="left">
+      <button
+        className="node__peek nodrag"
+        data-testid={`preview-${item.label}`}
+        aria-label={`Preview ${item.label}`}
+        onClick={(event) => {
+          event.stopPropagation()
+          onPreview(item)
+        }}
+      >
+        ⤢
+      </button>
+    </Hint>
   )
 }
+
+/** Dispatched and not yet answered — the states a skeleton is for. */
+const RENDERING: ReadonlySet<NodeState['status']> = new Set([
+  'queued',
+  'claimed',
+  'submitted',
+  'polling',
+])
 
 const STATUS_LABEL: Record<NodeState['status'], string> = {
   stale: 'stale',
@@ -92,8 +166,20 @@ const STATUS_LABEL: Record<NodeState['status'], string> = {
  * up surprising someone with an invoice.
  */
 export function NodeCard({ data }: NodeProps) {
-  const { node, state, selected, source, onPrompt, onReplace, onRun, onPreview, onEditText } =
-    data as unknown as CardData
+  const {
+    node,
+    state,
+    selected,
+    source,
+    onPrompt,
+    onReplace,
+    onRun,
+    onPreview,
+    onEditText,
+    onReroll,
+    onFanOut,
+    onDelete,
+  } = data as unknown as CardData
 
   if (node.type === 'source') {
     return (
@@ -110,19 +196,42 @@ export function NodeCard({ data }: NodeProps) {
 
   const output = state.outputs[0]
 
+  const rendering = RENDERING.has(state.status)
+
   return (
-    <div className="node" data-status={state.status} data-selected={selected} data-testid={`node-${node.id}`}>
+    <div
+      className="node node--shot"
+      data-status={state.status}
+      data-selected={selected}
+      data-has-frame={output ? 'true' : 'false'}
+      data-testid={`node-${node.id}`}
+    >
       <Grip visible={selected} />
+      <CardActions
+        node={node}
+        visible={selected}
+        onReroll={onReroll}
+        onFanOut={onFanOut}
+        onDelete={onDelete}
+      />
       <Handle type="target" position={Position.Left} />
       {node.type !== 'export' && <Handle type="source" position={Position.Right} />}
 
-      <header className="node__slate">
-        <span className="node__clap" aria-hidden="true" />
-        <span className="node__id">{node.label ?? node.id}</span>
-        <span className="node__role">{node.type}</span>
-      </header>
+      {/*
+        The frame, at the size of the card.
 
-      <div className="node__frame">
+        It used to be 5:4 of the card's width with the slate, the direction and
+        the bill taking rows underneath, which meant every output was cropped to
+        a shape it was not rendered in — a bottle dead centre in the thumbnail
+        and cut off in the file. The card takes the frame's own ratio now (see
+        `fitToFrame`), the frame fills it, and the paperwork rides on top.
+
+        `overflow: hidden` lives here rather than on `.node`: the handles are
+        siblings of this element and sit half outside the card, and clipping
+        them makes them visible but not hit-testable — wiring silently stops
+        working.
+      */}
+      <div className="node__stage">
         {output ? (
           <>
             {output.mime.startsWith('video/') ? (
@@ -143,10 +252,20 @@ export function NodeCard({ data }: NodeProps) {
             )}
             <Peek item={{ url: output.url, mime: output.mime, label: node.id }} onPreview={onPreview} />
           </>
+        ) : rendering ? (
+          // A shimmer, not a spinner in the middle of the card: forty seconds of
+          // a static grey box is indistinguishable from a shot nobody pressed.
+          <span className="node__loading" aria-label="Rendering" />
         ) : (
           <span className="node__empty">{state.status === 'failed' ? 'no frame' : 'unexposed'}</span>
         )}
       </div>
+
+      <header className="node__slate">
+        <span className="node__clap" aria-hidden="true" />
+        <span className="node__id">{node.label ?? node.id}</span>
+        <span className="node__role">{node.type}</span>
+      </header>
 
       {'prompt' in node && (
         <EditablePrompt value={node.prompt} onCommit={(next) => onPrompt(node.id, next)} />
@@ -154,17 +273,26 @@ export function NodeCard({ data }: NodeProps) {
 
       <footer className="node__foot">
         <span className="node__status" data-status={state.status} data-testid={`status-${node.id}`}>
+          <span className="node__dot" aria-hidden="true" />
           {STATUS_LABEL[state.status]}
         </span>
         {/* On the card, not only in the inspector: three shots off one source
             differ by their model and nothing else, and a comparison you have to
             click through one card at a time is not a comparison. */}
+        {/* The slug is ellipsised so a long fal id cannot push the bill off the
+            card, which until now meant there was no way to read the rest of it
+            at all. */}
         {'modelId' in node && (
-          <span className="node__model" data-testid={`model-${node.id}`}>
-            {node.modelId}
-          </span>
+          <Hint label={node.modelId} side="top">
+            <span className="node__model" data-testid={`model-${node.id}`} tabIndex={0}>
+              {node.modelId}
+            </span>
+          </Hint>
         )}
-        <span data-testid={`price-${node.id}`}>
+        {/* The one figure on the card that is never abbreviated, never hidden
+            behind a hover and now weighted to match: this is a tool whose
+            headline feature is that you see the bill before you commit. */}
+        <span className="node__price" data-testid={`price-${node.id}`}>
           {state.status === 'succeeded' ? money(state.costCents) : money(state.estimatedCents)}
         </span>
         {/* Reviewing one shot is not the same as committing to twelve. The card
@@ -172,18 +300,31 @@ export function NodeCard({ data }: NodeProps) {
             `nodrag` and the stopped propagation keep the click off React Flow's
             drag handler and off the canvas's alt-click fan-out. */}
         {node.type !== 'export' && (
-          <button
-            className="node__run nodrag"
-            data-testid={`run-${node.id}`}
-            disabled={state.status !== 'stale' && state.status !== 'failed'}
-            title={state.status === 'succeeded' ? 'Already rendered — re-roll to render again' : 'Render this shot'}
-            onClick={(event) => {
-              event.stopPropagation()
-              onRun(node.id)
-            }}
+          <Hint
+            label={
+              state.status === 'succeeded'
+                ? 'Already rendered. Re-roll the seed to render it again.'
+                : `Render this shot alone, and whatever upstream it still needs · ${money(state.estimatedCents)}`
+            }
+            side="top"
           >
-            {state.status === 'failed' ? 'Retry' : 'Run'}
-          </button>
+            {/* Wrapped, not the button itself: a disabled button fires no
+                pointer events, so a tooltip on it would be silent in exactly
+                the state where "why can I not press this" is the question. */}
+            <span className="node__run-wrap">
+              <button
+                className="node__run nodrag"
+                data-testid={`run-${node.id}`}
+                disabled={state.status !== 'stale' && state.status !== 'failed'}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onRun(node.id)
+                }}
+              >
+                {state.status === 'failed' ? 'Retry' : 'Run'}
+              </button>
+            </span>
+          </Hint>
         )}
 
         {/* Total spend is too coarse when one branch is three video renders, but
@@ -313,7 +454,7 @@ function SourceCard({
         </span>
       </header>
 
-      <div className="node__frame node__frame--source">
+      <div className="node__frame">
         {!source ? (
           <span className="node__empty">missing</span>
         ) : kind === 'text' ? (
@@ -345,9 +486,15 @@ function SourceCard({
 
       <footer className="node__foot">
         <span className="slate">asset</span>
-        <button className="node__replace nodrag" onClick={() => onReplace(sourceId)} data-testid={`replace-${node.id}`}>
-          Replace
-        </button>
+        <Hint label="Swap the file. Every shot built on it goes stale, priced first." side="top">
+          <button
+            className="node__replace nodrag"
+            onClick={() => onReplace(sourceId)}
+            data-testid={`replace-${node.id}`}
+          >
+            Replace
+          </button>
+        </Hint>
       </footer>
     </div>
   )

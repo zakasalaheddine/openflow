@@ -1,4 +1,47 @@
+/*
+ * Two styling systems, one palette. The rule for which owns what is in
+ * DESIGN.md; the short version is that everything below this header — canvas,
+ * node card, React Flow — is hand-written CSS, and Tailwind exists only so the
+ * shadcn primitives (tooltip, toast, dialog, menu, combobox) can be dropped in
+ * with their accessibility already correct.
+ */
 @import '@xyflow/react/dist/style.css';
+
+/*
+ * Tailwind without preflight.
+ *
+ * `@import "tailwindcss"` would pull in `preflight.css`, which resets margins,
+ * headings, lists and form controls across the whole document — including the
+ * canvas layer this file spent a thousand lines tuning. The three layers below
+ * are what that import expands to minus preflight, so the utilities are here
+ * and the reset is not. What preflight actually provided that shadcn depends on
+ * is re-stated deliberately in `@layer openflow-base` further down: ten lines,
+ * measured, rather than a blanket reset.
+ */
+@layer theme, base, openflow-base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+/*
+ * The enter/exit utilities every shadcn overlay is written against — `animate-in`,
+ * `fade-in-0`, `zoom-in-95`, `slide-in-from-top-2` and the `data-[state=closed]`
+ * variants of each. CSS only, no runtime. Without it those class names are
+ * simply unknown and every dialog, menu and tooltip appears and vanishes with a
+ * hard cut.
+ */
+@import 'tw-animate-css';
+
+/*
+ * `dark:` is a class, not a media query.
+ *
+ * shadcn components carry `dark:` utilities for the half of their styling that
+ * only makes sense on a dark ground. Left as Tailwind's default
+ * `prefers-color-scheme`, those rules would switch off for anyone whose OS is
+ * set to light — and this interface has no light mode to switch to. `.dark`
+ * sits on <html> permanently, so a primitive gets the styling its author wrote
+ * for a dark surface, because that is the only surface here.
+ */
+@custom-variant dark (&:is(.dark *));
 
 /*
  * Darkroom, not IDE.
@@ -8,50 +51,285 @@
  * and is spent on exactly one meaning — stale, and therefore costing money.
  * Nothing else in the interface is allowed to use it, so the eye learns that
  * amber means "this will be billed".
+ *
+ * OKLCH, not hex. The ground is six steps of one hue and the old hex values
+ * drifted across three; in OKLCH the lightness column is the only thing that
+ * moves, so a surface one step up is one step up everywhere. Chroma is pulled
+ * back as lightness approaches either end, which is why the deepest ground is
+ * flatter than the panels above it rather than more saturated.
  */
 :root {
-  --ground: #14161c;
-  --panel: #191c24;
-  --raised: #1f232d;
-  --line: #2a2f3c;
-  --line-bright: #3a4152;
+  /* Native scrollbars, form controls and the canvas gutter follow the ground
+     instead of rendering as light chrome sitting on a dark app. */
+  color-scheme: dark;
 
-  --ink: #e9e7e2;
-  --slate: #8d95a8;
-  --slate-dim: #5b6376;
+  /* --- surfaces: one hue, six lightness steps --- */
+  --ground: oklch(0.176 0.011 262);
+  --panel: oklch(0.213 0.013 262);
+  --raised: oklch(0.253 0.014 262);
+  /* Menus, toasts, popovers — the layer that floats over everything else. */
+  --overlay: oklch(0.279 0.015 262);
+  --line: oklch(0.311 0.015 262);
+  --line-bright: oklch(0.405 0.018 262);
 
-  --safelight: #ff8a3d;
-  --safelight-dim: #6b3a1c;
-  --fixed: #74d3a6;
-  --fault: #ff6b6b;
+  /* --- ink: warm, because a print under a safelight is warm --- */
+  --ink: oklch(0.928 0.006 80);
+  --slate: oklch(0.686 0.021 262);
+  --slate-dim: oklch(0.512 0.021 262);
 
-  --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
-  --sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /*
+   * Amber is the safelight and means "this will be billed". Nothing else may
+   * use it — not a toast, not a warning, not a focus ring. That is the single
+   * semantic this interface teaches, and it only holds while it is exclusive.
+   */
+  --safelight: oklch(0.762 0.163 55);
+  --safelight-dim: oklch(0.423 0.088 52);
+  --safelight-wash: oklch(0.295 0.048 52);
+
+  /*
+   * The light table. Cool, and the one thing amber used to do wrongly: focus,
+   * selection and primary action all sat on the cost colour. They live here now.
+   */
+  --beam: oklch(0.706 0.128 233);
+  --beam-dim: oklch(0.412 0.078 233);
+
+  /* Behind a dialog. Darker than the ground and tinted to it, never `black/50`:
+     a neutral scrim over a blue-black canvas turns the whole page grey-green. */
+  --scrim: oklch(0.12 0.014 262 / 0.72);
+
+  --fixed: oklch(0.795 0.111 158);
+  --fault: oklch(0.688 0.181 22);
+
+  --mono: var(--font-jetbrains), ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+  --sans: var(--font-inter), ui-sans-serif, -apple-system, 'Segoe UI', system-ui, sans-serif;
+
+  /*
+   * Type. Fixed rem steps at ~1.15, not a fluid clamp: this is product UI viewed
+   * at a consistent DPI, and a heading that shrinks inside a 340px inspector
+   * looks worse rather than better.
+   */
+  --fs-1: 0.6875rem; /* 11 — slates, meta */
+  --fs-2: 0.75rem; /* 12 — dense labels, figures */
+  --fs-3: 0.8125rem; /* 13 — controls */
+  --fs-4: 0.875rem; /* 14 — body */
+  --fs-5: 1rem; /* 16 — panel headings */
+  --fs-6: 1.1875rem; /* 19 — the one title */
+
+  /*
+   * Radius. Every surface used to be 2px, which is the single most dated thing
+   * about this interface — a 2014 flat-design residue. Three steps, scaled to
+   * how big the thing is: a chip is not a panel.
+   */
+  --r-sm: 6px; /* chips, inputs, handles */
+  --r-md: 10px; /* nodes, menus, toasts */
+  --r-lg: 14px; /* panels, dialogs */
+
+  /*
+   * Elevation. Two layers each — a tight contact shadow so the edge reads, and
+   * a wide ambient one so the thing sits in a room. Tinted to the ground hue,
+   * never neutral black, or a raised surface looks like a hole.
+   */
+  --e-1: 0 1px 2px oklch(0.12 0.02 262 / 0.44), 0 1px 3px oklch(0.12 0.02 262 / 0.3);
+  --e-2:
+    0 2px 4px oklch(0.12 0.02 262 / 0.44), 0 8px 20px oklch(0.1 0.02 262 / 0.42);
+  --e-3:
+    0 4px 8px oklch(0.12 0.02 262 / 0.46), 0 24px 48px oklch(0.09 0.02 262 / 0.5);
+
+  /*
+   * Motion. Exponential ease-out only: things arrive fast and settle, which is
+   * what a tool does. No bounce, no elastic — this is a canvas someone is
+   * working on, not a page they are being shown.
+   */
+  --ease: cubic-bezier(0.25, 1, 0.5, 1); /* quart */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); /* expo */
+  --t-micro: 150ms;
+  --t-panel: 220ms;
+  --t-overlay: 320ms;
+
+  /* 4pt, with room to vary — same padding everywhere is the monotony. */
+  --s-1: 4px;
+  --s-2: 6px;
+  --s-3: 8px;
+  --s-4: 12px;
+  --s-5: 16px;
+  --s-6: 24px;
+  --s-7: 32px;
+  --s-8: 48px;
 
   --rail: 264px;
   --inspector: 340px;
 }
 
-* {
-  box-sizing: border-box;
+/*
+ * The shadcn contract.
+ *
+ * shadcn components are written against these exact variable names, so this
+ * block is the whole bridge between the two systems: the darkroom palette above
+ * is the only place a colour is decided, and every primitive inherits it. Add a
+ * component, it arrives in the right colours; change `--panel`, it moves with
+ * everything else. Nothing here introduces a new hue.
+ */
+:root {
+  --background: var(--ground);
+  --foreground: var(--ink);
+  --card: var(--panel);
+  --card-foreground: var(--ink);
+  --popover: var(--overlay);
+  --popover-foreground: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: var(--ground);
+  --secondary: var(--raised);
+  --secondary-foreground: var(--ink);
+  --muted: var(--raised);
+  --muted-foreground: var(--slate);
+  --accent: var(--raised);
+  --accent-foreground: var(--ink);
+  --destructive: var(--fault);
+  --destructive-foreground: var(--ground);
+  --border: var(--line);
+  --input: var(--line-bright);
+  --ring: var(--beam);
+  --radius: var(--r-md);
 }
 
-html,
-body {
-  margin: 0;
-  height: 100%;
-  background: var(--ground);
-  color: var(--ink);
-  font-family: var(--sans);
-  font-size: 14px;
-  -webkit-font-smoothing: antialiased;
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* House colours, so a primitive can reach the darkroom vocabulary directly. */
+  --color-ground: var(--ground);
+  --color-panel: var(--panel);
+  --color-raised: var(--raised);
+  --color-overlay: var(--overlay);
+  --color-line: var(--line);
+  --color-line-bright: var(--line-bright);
+  --color-ink: var(--ink);
+  --color-slate: var(--slate);
+  --color-slate-dim: var(--slate-dim);
+  --color-safelight: var(--safelight);
+  --color-beam: var(--beam);
+  --color-fixed: var(--fixed);
+  --color-fault: var(--fault);
+  --color-scrim: var(--scrim);
+
+  /*
+   * Tailwind's radius scale is remapped onto the house scale by what shadcn
+   * actually reaches for, not by matching names. shadcn buttons and inputs are
+   * `rounded-md`, its popovers and menus are `rounded-lg`, its dialogs are
+   * `rounded-xl` — so those three land on `--r-sm`, `--r-md` and `--r-lg`
+   * respectively. Named across rather than straight down, because a shadcn
+   * Button next to a `.chip` has to sit at the same radius, and it is the
+   * bridge's job to make that true.
+   */
+  --radius-sm: 4px;
+  --radius-md: var(--r-sm);
+  --radius-lg: var(--r-md);
+  --radius-xl: var(--r-lg);
+
+  --shadow-e1: var(--e-1);
+  --shadow-e2: var(--e-2);
+  --shadow-e3: var(--e-3);
+
+  --font-sans: var(--sans);
+  --font-mono: var(--mono);
+
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Everything measurable is typed like a call sheet; only prose is set in sans. */
+/*
+ * What preflight actually provided, re-stated.
+ *
+ * Layered, so every Tailwind utility outranks it — otherwise the bare `button`
+ * rule below would beat `bg-primary` on a shadcn Button and every primitive
+ * would come out transparent. The component rules further down this file stay
+ * unlayered on purpose: `.node` and the React Flow selectors are the hand-tuned
+ * layer and must win over utilities, not lose to them.
+ */
+@layer openflow-base {
+  * {
+    box-sizing: border-box;
+  }
+
+  /*
+   * The one thing shadcn genuinely needs from preflight. Tailwind's `border`
+   * utility sets a width and nothing else, so without a default style and
+   * colour every bordered primitive renders as a 3px browser-default ridge in
+   * `currentColor`. Every border in this file is set with the shorthand, so
+   * zeroing the width here changes nothing that already exists.
+   */
+  *,
+  ::before,
+  ::after {
+    border-width: 0;
+    border-style: solid;
+    border-color: var(--border);
+  }
+
+  html,
+  body {
+    margin: 0;
+    height: 100%;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: var(--fs-4);
+    font-optical-sizing: auto;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  button {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+
+  /*
+   * Focus is the beam, not the safelight. It used to be amber, which taught the
+   * eye that tabbing onto a chip meant money.
+   *
+   * Layered with the rest of the base so a shadcn primitive's `outline-none` +
+   * its own ring wins. Unlayered, this rule outranked every utility and every
+   * primitive came out wearing two focus rings at once.
+   */
+  :focus-visible {
+    outline: 2px solid var(--beam);
+    outline-offset: 2px;
+  }
+}
+
+/*
+ * Everything measurable is typed like a call sheet; only prose is set in sans.
+ *
+ * 11px, not 10, and the tracking pulled back from .14em: this treatment was on
+ * nearly every label in the interface, which made one uniform texture and no
+ * hierarchy at all. It is a caption now, and the things above it are allowed to
+ * be bigger than it.
+ */
 .slate {
   font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.14em;
+  font-size: var(--fs-1);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--slate);
 }
@@ -59,19 +337,6 @@ body {
 .figure {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-}
-
-button {
-  font: inherit;
-  color: inherit;
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-:focus-visible {
-  outline: 2px solid var(--safelight);
-  outline-offset: 2px;
 }
 
 /* ---------- shell ---------- */
@@ -104,10 +369,10 @@ button {
 
 .topbar__title {
   margin: 0;
-  font-weight: 500;
+  font-weight: 600;
   font-family: var(--mono);
-  font-size: 13px;
-  letter-spacing: 0.18em;
+  font-size: var(--fs-3);
+  letter-spacing: 0.13em;
   text-transform: uppercase;
 }
 
@@ -122,13 +387,13 @@ button {
 .ledger {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--s-3);
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-2);
   font-variant-numeric: tabular-nums;
-  padding: 5px 10px;
+  padding: 6px 11px;
   border: 1px solid var(--line-bright);
-  border-radius: 2px;
+  border-radius: var(--r-sm);
 }
 
 .ledger--due {
@@ -143,15 +408,15 @@ button {
 .toggle {
   display: flex;
   border: 1px solid var(--line-bright);
-  border-radius: 2px;
+  border-radius: var(--r-sm);
   overflow: hidden;
 }
 
 .toggle button {
   padding: 5px 12px;
   font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.14em;
+  font-size: var(--fs-1);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--slate);
 }
@@ -162,13 +427,13 @@ button {
 }
 
 .run {
-  padding: 7px 18px;
-  border-radius: 2px;
+  padding: 8px 18px;
+  border-radius: var(--r-sm);
   background: var(--ink);
   color: var(--ground);
   font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.16em;
+  font-size: var(--fs-2);
+  letter-spacing: 0.09em;
   text-transform: uppercase;
   font-weight: 600;
 }
@@ -225,6 +490,113 @@ button {
 }
 
 /*
+ * Two grids: coarse lines that survive every zoom, fine dots that leave below
+ * 0.5 (see `Grid` in canvas.tsx). The coarse level is barely above the ground on
+ * purpose — it is there to prove the canvas is moving under a pan, not to be
+ * looked at.
+ */
+:root {
+  --grid-coarse: oklch(0.263 0.013 262);
+  --grid-fine: oklch(0.297 0.014 262);
+  --minimap-mask: oklch(0.176 0.011 262 / 0.72);
+}
+
+/* ---------- canvas chrome: controls and overview ---------- */
+
+/*
+ * React Flow ships its controls styled for a light page, and `dist/style.css` is
+ * imported at the top of this file. Until now nothing overrode them, so the one
+ * permanently visible piece of chrome on a darkroom canvas was a stack of white
+ * buttons — the single most "unfinished" thing on screen.
+ *
+ * Both classes named on the button, because the library's own rule is
+ * `.react-flow__controls-button` and a bare class here would tie on specificity
+ * and lose on source order.
+ */
+.react-flow__panel.react-flow__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--line);
+  box-shadow: var(--e-2);
+  /*
+   * Sits above the overview, in the same corner. The offset is the map's
+   * declared height plus the panel margin React Flow applies to both plus a
+   * gap — one magic number, and the size it depends on is declared four rules
+   * down rather than measured. Both are `bottom-left` panels, so without this
+   * they occupy the same pixels.
+   *
+   * Selector carries `.react-flow__panel` too: the library pins every bottom
+   * panel with `.react-flow__panel.bottom { bottom: 0 }`, which is two classes,
+   * and a bare `.react-flow__controls` here loses the offset on specificity and
+   * lands back on top of the map.
+   */
+}
+
+.canvas[data-map='true'] .react-flow__panel.react-flow__controls {
+  bottom: calc(112px + 15px + var(--s-3));
+}
+
+.react-flow__controls .react-flow__controls-button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: var(--panel);
+  color: var(--slate);
+  transition: background var(--t-micro) var(--ease), color var(--t-micro) var(--ease);
+}
+
+.react-flow__controls .react-flow__controls-button:hover {
+  background: var(--raised);
+  color: var(--ink);
+}
+
+.react-flow__controls .react-flow__controls-button[aria-pressed='true'] {
+  background: var(--raised);
+  color: var(--ink);
+}
+
+/* The library's icons are `fill: currentColor` already, but sized for a page
+   that is not this dense. */
+.react-flow__controls .react-flow__controls-button svg {
+  width: 11px;
+  height: 11px;
+  max-width: none;
+  max-height: none;
+  fill: currentColor;
+}
+
+/*
+ * Bottom-left, under the controls. Bottom-right is where a minimap usually goes
+ * and is exactly where the chat panel is — the overview would spend most of its
+ * life behind it.
+ *
+ * The height is declared, not left to the library's default, because the
+ * controls' `bottom` offset above is calculated from it.
+ */
+.react-flow__minimap {
+  width: 168px;
+  height: 112px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e-2);
+  overflow: hidden;
+}
+
+.react-flow__minimap-node {
+  /* Squares, not the node's own radius: at map scale a 10px corner eats most of
+     a card and every shot reads as a circle. */
+  rx: 1;
+  ry: 1;
+}
+
+/*
  * The edge layer takes no pointer input.
  *
  * React Flow draws a fat invisible interaction path along every edge, and it
@@ -260,15 +632,19 @@ button {
    */
   z-index: 10;
   pointer-events: all;
-  width: 9px;
-  height: 9px;
-  border-radius: 2px;
+  width: 10px;
+  height: 10px;
+  /* Not `--r-sm`: 6px on a 10px box is a circle, and a round handle reads as a
+     port you can drag *into* from any angle. These are square-ish sockets. */
+  border-radius: 3px;
   background: var(--line-bright);
   border: 1px solid var(--ground);
+  transition: background var(--t-micro) var(--ease), box-shadow var(--t-micro) var(--ease);
 }
 
 .react-flow__handle:hover {
   background: var(--fixed);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--fixed) 24%, transparent);
 }
 
 /* ---------- node: a strip of production paperwork ---------- */
@@ -280,38 +656,62 @@ button {
  * and when there is not enough for both the frame is the one that gives.
  */
 .node {
+  position: relative;
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
   border: 1px solid var(--line-bright);
-  border-radius: 3px;
+  border-radius: var(--r-md);
   background: var(--panel);
+  box-shadow: var(--e-1);
   /*
    * NOT overflow: hidden. Handles sit half outside the card, so clipping them
    * left them visible and measurable but not hit-testable — pointer events
    * never reached them and wiring silently did nothing. Round the first and
    * last children instead.
    */
-  transition: opacity 120ms ease, border-color 120ms ease;
+  transition: opacity var(--t-micro) var(--ease), border-color var(--t-micro) var(--ease);
 }
 
 .node__slate {
-  border-radius: 2px 2px 0 0;
+  border-radius: calc(var(--r-md) - 1px) calc(var(--r-md) - 1px) 0 0;
 }
 
 .node__foot:last-child {
-  border-radius: 0 0 2px 2px;
+  border-radius: 0 0 calc(var(--r-md) - 1px) calc(var(--r-md) - 1px);
 }
 
+/*
+ * A ring drawn with box-shadow, never a thicker border: border-width is layout,
+ * and a card that grows a pixel when you select it nudges the frame under the
+ * cursor. The beam rather than the safelight — selecting a shot is not a
+ * billable event, and amber has one meaning here.
+ */
 .node[data-selected='true'] {
-  border-color: var(--ink);
+  border-color: var(--beam);
+  box-shadow: 0 0 0 1px var(--beam), var(--e-2);
 }
 
 /* Stale is dimmed like an unexposed frame, and says so in the margin. */
 .node[data-status='stale'] {
   opacity: 0.62;
   border-color: var(--safelight-dim);
+}
+
+/*
+ * On a shot the dimming moves to the frame alone.
+ *
+ * The paperwork rides on the frame now, so fading the whole card took the price
+ * with it — and a cost figure at 62% over an arbitrary image is the one thing
+ * on this card that must never be hard to read.
+ */
+.node--shot[data-status='stale'] {
+  opacity: 1;
+}
+
+.node--shot[data-status='stale'] .node__stage {
+  opacity: 0.55;
 }
 
 .node[data-status='failed'] {
@@ -327,8 +727,8 @@ button {
   background: var(--raised);
   border-bottom: 1px solid var(--line);
   font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.12em;
+  font-size: var(--fs-1);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -355,32 +755,281 @@ button {
   color: var(--slate-dim);
 }
 
-.node__frame {
-  /* 5:4, not square. Twelve outputs have to be reviewable in place on one
-     screen — that is the whole reason there is no separate review grid. Held
-     against the card's width as it is resized, so the shape of a shot is the
-     one thing dragging a corner cannot distort. */
-  aspect-ratio: 5 / 4;
-  /* Its ratio is a preference, not a floor. Shrink a card to the minimum and
-     the 5:4 wants more height than the card has left, so the frame gives way
-     rather than pushing the direction and the bill out through the bottom. */
-  flex: 0 1 auto;
-  min-height: 44px;
+/* ---------- a shot: the card IS the frame ---------- */
+
+/*
+ * The frame used to be 5:4 of the card's width with the slate, the direction and
+ * the bill stacked underneath, and `object-fit: cover`. That cropped every
+ * output to a shape it was never rendered in: a bottle dead centre in the
+ * thumbnail and cut off in the file, with the lightbox as the only way to see
+ * what you had actually paid for.
+ *
+ * A card now takes the frame's own ratio (`fitToFrame` in core/slots.ts), the
+ * frame fills it edge to edge, and the paperwork rides on top over a scrim.
+ * Nothing is cropped and nothing is letterboxed, because the box already has
+ * the right shape.
+ */
+.node--shot {
+  display: block;
   background: var(--ground);
-  display: grid;
-  place-items: center;
-  border-bottom: 1px solid var(--line);
-  overflow: hidden;
-  /* Anchors the preview control in the corner of the frame. */
-  position: relative;
+  /* The two strips the frame does not get. Named, because the direction is
+     positioned against the bill and a magic 28 in three places drifts. */
+  --slate-h: 26px;
+  --bill-h: 28px;
+  --branch-h: 24px;
 }
 
-.node__frame img,
-.node__frame video {
+.node__stage {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: calc(var(--r-md) - 1px);
+  background: var(--ground);
+  /*
+   * Clipping lives here, on an element the handles are NOT inside. On `.node`
+   * it would clip the handles, which sit half outside the card — they stay
+   * visible and measurable and stop being hit-testable, and wiring silently
+   * does nothing.
+   */
+  overflow: hidden;
+}
+
+.node__stage img,
+.node__stage video {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  /* `contain`, not `cover`. The card is already the frame's shape, so the two
+     agree — and on a card someone has resized by hand, letterboxing is the
+     honest answer and cropping is not. */
+  object-fit: contain;
   display: block;
+}
+
+/*
+ * The paperwork, over the frame rather than beside it.
+ *
+ * A gradient scrim rather than a solid bar: a solid strip would be a second
+ * crop, taking the top and bottom of every shot back off you. The text-shadow
+ * is what carries legibility over a bright frame; the gradient only has to stop
+ * it from floating.
+ */
+.node--shot .node__slate,
+.node--shot .node__foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  border: none;
+  text-shadow: 0 1px 2px oklch(0.12 0.02 262 / 0.85);
+}
+
+/*
+ * The slate takes no pointer input. It is four words of text lying across the
+ * top of the frame, and as a live element it covered the preview button in the
+ * corner underneath it — the button was visible, hoverable-looking and
+ * unclickable, which is the same failure the handles had.
+ */
+.node--shot .node__slate {
+  top: 0;
+  height: var(--slate-h);
+  pointer-events: none;
+  border-radius: calc(var(--r-md) - 1px) calc(var(--r-md) - 1px) 0 0;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--ground) 82%, transparent),
+    transparent
+  );
+}
+
+.node--shot .node__foot {
+  bottom: 0;
+  height: var(--bill-h);
+  border-radius: 0 0 calc(var(--r-md) - 1px) calc(var(--r-md) - 1px);
+  background: linear-gradient(
+    to top,
+    color-mix(in oklab, var(--ground) 88%, transparent) 60%,
+    transparent
+  );
+}
+
+/*
+ * A shot still rendering, drawn as a sweep across the frame it will become.
+ *
+ * The footer says "rendering" in nine-pixel type, which is unreadable at the
+ * zoom where you are watching twelve cards — and forty seconds of an unchanged
+ * grey box is indistinguishable from a shot nobody pressed. Turned off with
+ * every other animation under `prefers-reduced-motion`.
+ */
+.node__loading {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    100deg,
+    var(--ground) 30%,
+    color-mix(in oklab, var(--beam) 12%, var(--raised)) 50%,
+    var(--ground) 70%
+  );
+  background-size: 250% 100%;
+  animation: frame-develop 1600ms linear infinite;
+}
+
+@keyframes frame-develop {
+  to {
+    background-position: -150% 0;
+  }
+}
+
+/*
+ * The direction, over the frame and out of the way of it.
+ *
+ * One line by default, opening to the full text when you point at the card,
+ * select it, or start writing in it. Twelve prompts printed in full over twelve
+ * frames is a wall of text where a contact sheet should be — but hiding it
+ * outright was worse: a strip nobody can reach without hovering is a strip that
+ * does not exist on a touch screen, and double-clicking to edit has to hit
+ * something that is already there.
+ *
+ * A card with no frame yet has nothing to obscure, so there it opens all the way
+ * without being asked.
+ */
+.node--shot .node__prompt {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--bill-h);
+  z-index: 2;
+  /* One line, plus its padding. `--fs-3` sets a 17px line box (see the base
+     rule), and the same number appears in `min-height` there. */
+  max-height: calc(17px + var(--s-3) * 2);
+  min-height: 0;
+  padding: var(--s-3);
+  margin: 0;
+  background: linear-gradient(
+    to top,
+    color-mix(in oklab, var(--ground) 88%, transparent),
+    color-mix(in oklab, var(--ground) 62%, transparent)
+  );
+}
+
+/*
+ * Opened. Not transitioned: `max-height` is a layout property, and this box
+ * hangs over a frame someone is judging — a 150ms wipe across it every time the
+ * pointer crosses a card is the canvas twitching again.
+ */
+.node--shot:hover .node__prompt,
+.node--shot[data-selected='true'] .node__prompt,
+.node--shot[data-has-frame='false'] .node__prompt,
+.node--shot .node__prompt--editing {
+  max-height: calc(100% - var(--slate-h) - var(--bill-h));
+}
+
+/*
+ * The branch line and the direction want the same band, and the branch line
+ * wins on source order — so on a card that has one, the direction steps up by
+ * exactly its height while it is showing. Without this a one-line prompt is
+ * completely covered the moment you point at the card, which is the moment you
+ * are most likely to be reading it.
+ *
+ * Not while editing: the strip is already faded out then (see below), and
+ * shifting the box you are typing in would move the caret under the cursor.
+ */
+.node--shot:hover:has(.node__foot--branch):not(:has(.node__prompt--editing)) .node__prompt {
+  bottom: calc(var(--bill-h) + var(--branch-h));
+  max-height: calc(100% - var(--slate-h) - var(--bill-h) - var(--branch-h));
+}
+
+/*
+ * The one control on the card that is never dimmed, never abbreviated and never
+ * behind a hover. Everything else on this strip can lose room first.
+ */
+.node__price {
+  flex: none;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.node[data-status='stale'] .node__price {
+  color: var(--safelight);
+}
+
+/* Status reads as a colour first and a word second: at the zoom where a whole
+   graph fits, the dot is all that survives. */
+.node__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+}
+
+.node__dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.node__status[data-status='queued'] .node__dot,
+.node__status[data-status='claimed'] .node__dot,
+.node__status[data-status='submitted'] .node__dot,
+.node__status[data-status='polling'] .node__dot {
+  animation: pulse-dot 1200ms var(--ease) infinite;
+}
+
+@keyframes pulse-dot {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/*
+ * The selected card's actions, floated above it by React Flow's own NodeToolbar.
+ *
+ * `--overlay` at `--e-2`, the same floating layer as a menu or a toast: this is
+ * a thing over the canvas, not a part of the card. It must never read as chrome
+ * belonging to the frame underneath, or twelve selected-in-turn cards would look
+ * like twelve differently-decorated shots.
+ */
+.node__tools {
+  display: flex;
+  align-items: stretch;
+  gap: 1px;
+  padding: 1px;
+  border: 1px solid var(--line-bright);
+  border-radius: var(--r-md);
+  background: var(--line);
+  box-shadow: var(--e-2);
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: var(--fs-1);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.node__tools button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  background: var(--overlay);
+  color: var(--slate);
+  transition: background var(--t-micro) var(--ease), color var(--t-micro) var(--ease);
+}
+
+.node__tools button:hover {
+  background: var(--raised);
+  color: var(--ink);
+}
+
+.node__tools button svg {
+  width: 12px;
+  height: 12px;
+}
+
+.node__tools-danger:hover {
+  background: var(--fault);
+  color: var(--ground);
 }
 
 /* A corner control, not the whole frame: the middle of the card belongs to
@@ -394,15 +1043,29 @@ button {
   height: 20px;
   display: grid;
   place-items: center;
-  border-radius: 2px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line-bright);
-  background: rgb(20 22 28 / 0.78);
+  /* The one blur in the interface, and it earns it: this button sits over a
+     rendered frame whose content is arbitrary, so a solid fill is either
+     invisible on a dark shot or a hole punched in a bright one. Everywhere else
+     a blur would sit over a surface we chose ourselves, where it is decoration. */
+  background: color-mix(in oklab, var(--ground) 82%, transparent);
+  backdrop-filter: blur(6px);
+  box-shadow: var(--e-1);
   color: var(--ink);
   font-size: 11px;
   line-height: 1;
   opacity: 0;
-  transition: opacity 120ms ease;
+  transition: opacity var(--t-micro) var(--ease);
   cursor: zoom-in;
+}
+
+/* Clear of the slate, which now lies across the top of the frame. Overlapping
+   it was only ever a visual problem on a source card; on a shot the slate was
+   also eating the click. */
+.node--shot .node__peek {
+  top: calc(var(--slate-h) + 4px);
+  z-index: 3;
 }
 
 .node:hover .node__peek,
@@ -412,8 +1075,8 @@ button {
 
 .node__empty {
   font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.14em;
+  font-size: var(--fs-1);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--slate-dim);
 }
@@ -424,9 +1087,9 @@ button {
  */
 .node__prompt {
   flex: 1;
-  padding: 7px 8px;
+  padding: var(--s-3) var(--s-3);
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-3);
   /* Line height in px, and a minimum that is an exact multiple of it, so the
      clip always lands on a line boundary. */
   line-height: 17px;
@@ -458,7 +1121,7 @@ button {
   padding: 5px 8px;
   border-top: 1px solid var(--line);
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: var(--fs-2);
   font-variant-numeric: tabular-nums;
   color: var(--slate);
 }
@@ -486,6 +1149,14 @@ button {
 .node__status[data-status='failed'] {
   color: var(--fault);
 }
+/* In flight is the beam, not amber: the money is already committed, so the
+   colour that means "this will be billed" has nothing left to warn about. */
+.node__status[data-status='queued'],
+.node__status[data-status='claimed'],
+.node__status[data-status='submitted'],
+.node__status[data-status='polling'] {
+  color: var(--beam);
+}
 
 /*
  * Total spend is too coarse when one branch is three video renders — but it is
@@ -504,12 +1175,16 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 5px 8px;
-  background: rgb(25 28 36 / 0.94);
+  height: var(--branch-h);
+  padding: 0 8px;
+  /* Opaque, not blurred. It floats over this card's own prompt, which is
+     `--panel` — a blur there is a glass effect with nothing behind it to see.
+     `--overlay` reads identically and costs no compositing. */
+  background: var(--overlay);
   border-top: 1px solid var(--line);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 120ms ease;
+  transition: opacity var(--t-micro) var(--ease);
 }
 
 /*
@@ -564,18 +1239,28 @@ button {
 .field select {
   background: var(--ground);
   border: 1px solid var(--line-bright);
-  border-radius: 2px;
+  border-radius: var(--r-sm);
   color: var(--ink);
-  padding: 8px;
+  padding: var(--s-3) var(--s-4);
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--fs-3);
   resize: vertical;
+  transition: border-color var(--t-micro) var(--ease), box-shadow var(--t-micro) var(--ease);
+}
+
+/* The beam, not the safelight: focus is not a billable event. */
+.field textarea:focus-visible,
+.field input:focus-visible,
+.field select:focus-visible {
+  outline: none;
+  border-color: var(--beam);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--beam) 22%, transparent);
 }
 
 .field input,
 .field select {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-3);
 }
 
 .inspector__chips {
@@ -591,11 +1276,13 @@ button {
 }
 
 .banner {
-  padding: 10px;
+  padding: var(--s-4);
   border: 1px solid var(--safelight-dim);
-  border-radius: 2px;
+  border-radius: var(--r-md);
+  background: var(--overlay);
+  box-shadow: var(--e-2);
   color: var(--safelight);
-  font-size: 12px;
+  font-size: var(--fs-3);
   line-height: 1.5;
 }
 
@@ -609,10 +1296,43 @@ button {
   inset: 0;
   display: grid;
   place-content: center;
-  gap: 6px;
+  justify-items: center;
+  gap: var(--s-3);
   text-align: center;
   pointer-events: none;
   color: var(--slate-dim);
+  padding: var(--s-6);
+}
+
+/*
+ * Three routes in, as a table rather than a paragraph: the verb is the column
+ * you scan, and the sentence after it is the one you read only for the route
+ * you picked. As prose all three read as one instruction and none of them
+ * landed.
+ */
+.empty-canvas__ways {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--s-3) var(--s-4);
+  margin: var(--s-3) 0 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+  max-width: 46ch;
+}
+
+/* `contents`, so the verb and its sentence are two grid items on one row and
+   the verbs line up as a column across all three. */
+.empty-canvas__ways li {
+  display: contents;
+  font-size: var(--fs-3);
+  line-height: 1.5;
+  color: var(--slate);
+}
+
+.empty-canvas__ways li .slate {
+  text-align: right;
+  align-self: baseline;
 }
 
 @media (max-width: 900px) {
@@ -632,12 +1352,13 @@ button {
 /* ---------- chips, banners, floats ---------- */
 
 .chip {
-  padding: 4px 9px;
+  padding: 5px 10px;
   border: 1px solid var(--line-bright);
-  border-radius: 2px;
+  border-radius: var(--r-sm);
   font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.1em;
+  font-size: var(--fs-1);
+  letter-spacing: 0.08em;
+  transition: background var(--t-micro) var(--ease), border-color var(--t-micro) var(--ease), color var(--t-micro) var(--ease);
   text-transform: uppercase;
   color: var(--slate);
 }
@@ -665,18 +1386,16 @@ button {
   color: var(--ground);
 }
 
-.banner__actions {
-  display: flex;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.floating {
-  position: absolute;
-  left: 16px;
-  bottom: 16px;
-  max-width: 420px;
-}
+/*
+ * `.floating` and `.banner__actions` are gone. `.floating` was one absolutely
+ * positioned slot at `left: 16px; bottom: 16px` that five different panels all
+ * rendered into, so any two on screen at once landed exactly on top of each
+ * other. Toasts stack, dialogs take the top layer, and neither needs a fixed
+ * corner reserved for it.
+ *
+ * `.banner` survives for the inspector's inline error, which is the one thing
+ * here that is genuinely part of a panel rather than floating over the canvas.
+ */
 
 /* ---------- reference edges, drawn quietly ---------- */
 
@@ -694,15 +1413,61 @@ button {
 
 .react-flow__edge.edge--generation .react-flow__edge-path {
   stroke: var(--fixed);
-  stroke-width: 1.5;
+  stroke-width: 1.75;
   stroke-dasharray: none;
   opacity: 1;
+}
+
+/*
+ * A dispatched shot, drawn as movement along the edge that feeds it.
+ *
+ * The status word in the footer says "rendering" and nothing on the canvas
+ * agrees with it — zoomed out far enough to read a whole graph, the text is
+ * gone and the card looks identical to one nobody has pressed. The edge is the
+ * one thing still legible at that scale.
+ *
+ * `.react-flow__edge.edge--live` and not `.edge--live` alone: the generation
+ * rule above is two classes plus a descendant and would win the dasharray on
+ * specificity. The `prefers-reduced-motion` block at the top of this file turns
+ * the animation off; the dash pattern stays, so the state is still visible
+ * without the movement.
+ */
+.react-flow__edge.edge--live .react-flow__edge-path {
+  stroke: var(--beam);
+  stroke-dasharray: 7 5;
+  animation: edge-travel 620ms linear infinite;
+}
+
+@keyframes edge-travel {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+
+/* The head belongs to the direction of generation, so it inherits that colour
+   even while the edge itself is drawn in the beam. */
+.react-flow__arrowclosed,
+.react-flow__arrowhead polyline,
+.react-flow__arrowhead path {
+  fill: var(--fixed);
+  stroke: none;
+}
+
+/* The line you are dragging, before it is a wire. Beam rather than green: it is
+   a gesture in progress, not a connection that exists. */
+.react-flow__connectionline .react-flow__connection-path {
+  stroke: var(--beam);
+  stroke-width: 1.75;
+  stroke-dasharray: 5 4;
 }
 
 /* Hovering an asset answers "what does this product touch". */
 .react-flow__node.lit .node {
   border-color: var(--fixed);
-  box-shadow: 0 0 0 1px var(--fixed);
+  /* The ring is added to the card's elevation, not swapped for it — a lit card
+     that loses its shadow reads as pressed into the canvas rather than picked
+     out of it. */
+  box-shadow: 0 0 0 1px var(--fixed), var(--e-1);
 }
 
 /* ---------- source node: the asset itself ---------- */
@@ -717,30 +1482,55 @@ button {
   background: transparent;
 }
 
-/* An asset has no direction to read, so here the frame is what takes the height:
-   a note dragged taller shows more of the note. */
-.node__frame--source {
-  aspect-ratio: auto;
+/*
+ * A source keeps the stacked layout — slate, frame, footer — that a shot has
+ * left behind. It is a reference, not something you judge: there is no cost on
+ * it, no status, and nothing to read over the top of the picture. An asset has
+ * no direction either, so here the frame is what takes the height and a note
+ * dragged taller shows more of the note.
+ */
+.node__frame {
+  position: relative;
   flex: 1;
   min-height: 60px;
-  align-items: stretch;
+  display: grid;
+  place-items: stretch;
+  background: var(--ground);
+  border-bottom: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.node__frame img,
+.node__frame video {
+  width: 100%;
+  height: 100%;
+  /* `contain` here too. A product photo cropped to a card is the reference you
+     think you wired in, not the one the model gets. */
+  object-fit: contain;
+  display: block;
 }
 
 .node__text {
   margin: 0;
   padding: 8px;
   height: 100%;
-  font-size: 11px;
+  font-size: var(--fs-2);
   line-height: 1.45;
   color: var(--slate);
   overflow: hidden;
 }
 
+/* A box, not `display: contents`: a disabled button fires no pointer events, so
+   the tooltip that explains why it is disabled needs a wrapper that does. */
+.node__run-wrap {
+  display: inline-flex;
+}
+
 .node__replace,
 .node__run {
   font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.12em;
+  font-size: var(--fs-1);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--slate-dim);
 }
@@ -809,9 +1599,10 @@ button {
 .canvas[data-dropping='true']::after {
   content: '';
   position: absolute;
-  inset: 8px;
+  inset: var(--s-3);
   border: 1px dashed var(--fixed);
-  border-radius: 4px;
+  border-radius: var(--r-lg);
+  background: color-mix(in oklab, var(--fixed) 5%, transparent);
   pointer-events: none;
 }
 
@@ -820,13 +1611,14 @@ button {
   left: 50%;
   top: 24px;
   transform: translateX(-50%);
-  padding: 6px 14px;
-  border-radius: 2px;
-  background: var(--raised);
+  padding: 7px 14px;
+  border-radius: var(--r-sm);
+  background: var(--overlay);
+  box-shadow: var(--e-2);
   border: 1px solid var(--fixed);
   font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.14em;
+  font-size: var(--fs-1);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--fixed);
   pointer-events: none;
@@ -849,7 +1641,8 @@ button {
 }
 
 .lightbox::backdrop {
-  background: rgb(10 11 14 / 0.86);
+  background: color-mix(in oklab, oklch(0.12 0.014 262) 88%, transparent);
+  backdrop-filter: blur(3px);
 }
 
 .lightbox img,
@@ -859,6 +1652,8 @@ button {
   max-height: 92vh;
   object-fit: contain;
   border: 1px solid var(--line-bright);
+  border-radius: var(--r-md);
+  box-shadow: var(--e-3);
   background: var(--ground);
 }
 
@@ -886,53 +1681,18 @@ button {
 /* ---------- add-asset menu ---------- */
 
 /*
- * Anchored to its chip rather than to the viewport, because the toolbar's
- * layout is a flex row and the chip's position moves with it. The wrapper is
- * the anchor; nothing here needs the top layer.
+ * The wrapper only. The menu itself is a Radix popper now, positioned in the
+ * top layer against the trigger — the `position: relative` anchor and the
+ * hand-written panel, item, hover and separator rules that used to live here
+ * are gone with it, and the note editor is a dialog rather than a second view
+ * of the menu.
+ *
+ * Nothing here may set `position` or `z-index`: a rule in this file is
+ * unlayered and outranks every Tailwind utility, so it would beat the
+ * primitive's own positioning rather than complement it.
  */
 .assets {
-  position: relative;
   display: flex;
-}
-
-.assets__menu {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  z-index: 20;
-  min-width: 240px;
-  max-width: 320px;
-  max-height: 60vh;
-  overflow-y: auto;
-  padding: 4px;
-  border: 1px solid var(--line-bright);
-  border-radius: 3px;
-  background: var(--panel);
-  box-shadow: 0 12px 28px rgb(0 0 0 / 0.45);
-}
-
-.assets__item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 6px 8px;
-  border-radius: 2px;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--ink);
-  text-align: left;
-}
-
-.assets__item:hover {
-  background: var(--raised);
-}
-
-.assets__rule {
-  height: 0;
-  margin: 4px 0;
-  border: none;
-  border-top: 1px solid var(--line);
 }
 
 .assets__glyph {
@@ -950,24 +1710,6 @@ button {
   margin-left: auto;
   flex: none;
   color: var(--slate-dim);
-}
-
-.assets__note {
-  display: grid;
-  gap: 6px;
-  padding: 6px;
-}
-
-.assets__note textarea {
-  width: 100%;
-  resize: vertical;
-  padding: 6px;
-  border: 1px solid var(--line-bright);
-  border-radius: 2px;
-  background: var(--ground);
-  color: var(--ink);
-  font-family: var(--sans);
-  font-size: 12px;
 }
 
 /* ---------- chat panel ---------- */
@@ -999,7 +1741,7 @@ button {
   overflow: auto;
   border-left: 1px solid var(--line);
   background: var(--panel);
-  box-shadow: 0 12px 28px rgb(0 0 0 / 0.45);
+  box-shadow: var(--e-2);
 }
 .chat__head {
   display: flex;
@@ -1049,11 +1791,18 @@ button {
   width: 100%;
   background: var(--ground);
   border: 1px solid var(--line-bright);
-  border-radius: 2px;
+  border-radius: var(--r-sm);
   color: var(--ink);
-  padding: 8px;
+  padding: var(--s-3) var(--s-4);
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--fs-3);
+  transition: border-color var(--t-micro) var(--ease), box-shadow var(--t-micro) var(--ease);
+}
+
+.chat__compose textarea:focus-visible {
+  outline: none;
+  border-color: var(--beam);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--beam) 22%, transparent);
 }
 .chat__compose textarea:disabled {
   opacity: 0.5;

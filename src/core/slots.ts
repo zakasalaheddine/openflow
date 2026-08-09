@@ -21,6 +21,40 @@ export const MIN_CARD: NodeSize = { w: 150, h: 150 }
 export const sizeOf = (node: FlowNode): NodeSize =>
   node.size ?? (node.type === 'source' ? CARD_SOURCE : CARD)
 
+/**
+ * How tall a card should be to hold its frame at the frame's own shape.
+ *
+ * The card *is* the frame now — the slate, the direction and the bill ride on
+ * top of it rather than taking rows underneath — so this is just the aspect
+ * ratio, with no chrome to add. That is the whole reason the paperwork moved
+ * onto the image: as stacked rows this needed a constant for their combined
+ * height, kept in sync with the stylesheet by hand and wrong the first time
+ * anyone changed a padding.
+ *
+ * Only for cards nobody has sized. `node.size` is written the moment you drag a
+ * corner (and, incidentally, the moment you drag the card anywhere), and from
+ * then on the size you chose is the size you get — a shot that resnapped to
+ * 9:16 because a re-roll came back portrait would be undoing your layout.
+ *
+ * Bounded at both ends, and the ceiling is the grid's own row pitch rather than
+ * a round number. Every placement in this file — `slotFor`, `freeSlot`,
+ * `fanOut`'s sibling offset — assumes a card fits inside one row, so a 9:16 clip
+ * grown to its true 356px would sit on top of whatever the grid put underneath
+ * it. Capped, a portrait output pillarboxes by a few pixels instead; drag the
+ * card taller and `contain` fills it exactly, and the lightbox was always the
+ * place to judge one frame at its real shape.
+ */
+export function fitToFrame(
+  node: FlowNode,
+  frame: { width: number | null; height: number | null } | undefined,
+): NodeSize {
+  if (node.size) return node.size
+  const base = sizeOf(node)
+  if (!frame?.width || !frame?.height) return base
+  const height = Math.round((base.w * frame.height) / frame.width)
+  return { w: base.w, h: Math.min(Math.max(height, MIN_CARD.h), ROW - GUTTER) }
+}
+
 /** Where the nth card sits on a fresh canvas. */
 export const slotFor = (index: number) => ({
   x: 40 + (index % COLUMNS) * COLUMN,

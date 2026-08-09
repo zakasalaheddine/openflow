@@ -1,6 +1,24 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { FileUpIcon, PencilLineIcon } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui/dialog'
+import { Hint } from '@/ui/hint'
 import type { SourceRow } from './state'
 
 /**
@@ -48,41 +66,26 @@ type Props = {
  * the only one, which made a text source reachable solely by dragging selected
  * text out of another application. Nothing on screen said so.
  *
- * A plain dropdown rather than `popover`: light dismiss and the top layer come
- * free with it, but positioning does not — anchoring to a toolbar chip without
- * CSS anchor positioning means measuring the chip in JS, which is more code
- * than the two handlers below and lands on a feature Safari and Firefox do not
- * have yet.
+ * Radix now owns the menu. The hand-rolled version worked, including the one
+ * genuinely hard part (a capture-phase outside-click listener, because React
+ * Flow stops propagation on the pane and a bubbling listener never hears a
+ * click on the canvas) — but not the roving tabindex, the typeahead, or the
+ * focus return. Radix's dismissable layer listens in the capture phase too, so
+ * the canvas-click case it was written for still closes it.
+ *
+ * Writing a note is a dialog rather than a panel that replaces the menu's
+ * contents. A textarea inside a menu fights everything a menu does: arrow keys
+ * move between items, letters trigger typeahead, and focus is managed away from
+ * whatever you are typing in.
  */
 export function AssetMenu({ sources, onUpload, onNote, onPick }: Props) {
+  // Controlled, because the file input lives outside the menu and closing on a
+  // chosen file is not something the menu can see: picking a file dismisses the
+  // OS dialog, not the menu, and it stayed open behind it.
   const [open, setOpen] = useState(false)
   const [note, setNote] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-  const wrapRef = useRef<HTMLDivElement>(null)
   const noteRef = useRef<HTMLTextAreaElement>(null)
-
-  const close = () => {
-    setOpen(false)
-    setNote(null)
-  }
-
-  useEffect(() => {
-    if (!open) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close()
-    }
-    const onDown = (event: MouseEvent) => {
-      if (!wrapRef.current?.contains(event.target as Node)) close()
-    }
-    window.addEventListener('keydown', onKey)
-    // Capture: React Flow stops propagation on the pane, so a bubbling listener
-    // never hears a click on the canvas — the menu would stay open behind it.
-    window.addEventListener('mousedown', onDown, true)
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      window.removeEventListener('mousedown', onDown, true)
-    }
-  }, [open])
 
   useEffect(() => {
     if (note !== null) noteRef.current?.focus()
@@ -90,91 +93,120 @@ export function AssetMenu({ sources, onUpload, onNote, onPick }: Props) {
 
   const commitNote = () => {
     const text = (note ?? '').trim()
-    close()
+    setNote(null)
     // An empty note is refused by the API, so it is not sent. Nothing is
     // created, and nothing on the canvas has to be cleaned up afterwards.
     if (text) onNote(text)
   }
 
   return (
-    <div className="assets" ref={wrapRef}>
-      <button
-        className="chip"
-        aria-expanded={open}
-        aria-haspopup="menu"
-        data-testid="add-asset"
-        onClick={() => (open ? close() : setOpen(true))}
-      >
-        + asset
-      </button>
+    <div className="assets">
+      {/*
+        `modal={false}`: a modal menu puts `pointer-events: none` on the body
+        for as long as it is open, which would freeze the canvas behind it — and
+        this menu opens over a canvas whose whole job is being dragged on. The
+        old hand-rolled menu never blocked the page either.
+      */}
+      <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
+        <Hint label="Put a product photo, a clip or a note on the canvas">
+          <DropdownMenuTrigger asChild>
+            <button className="chip" data-testid="add-asset">
+              + asset
+            </button>
+          </DropdownMenuTrigger>
+        </Hint>
 
-      {open && (
-        <div className="assets__menu" role="menu" data-testid="asset-menu">
-          {note === null ? (
+        {/*
+          Tailwind, not a `.assets__menu` rule. The hand-written layer in
+          globals.css is unlayered and outranks every utility, so a class here
+          carrying `position: absolute; top: calc(100% + 8px)` — which is what
+          this menu used to need — would fight Radix's own positioning and win.
+          Sizing only; the surface, radius and elevation come from the primitive.
+        */}
+        <DropdownMenuContent
+          align="start"
+          className="max-h-[60vh] w-64 overflow-y-auto shadow-e2"
+          data-testid="asset-menu"
+        >
+          <DropdownMenuItem
+            data-testid="asset-upload"
+            onSelect={() => {
+              // Deferred past the menu's own close, which returns focus to the
+              // trigger. A file dialog opened inside that same tick loses the
+              // click that opened it on Safari.
+              setTimeout(() => fileRef.current?.click(), 0)
+            }}
+          >
+            <FileUpIcon aria-hidden="true" />
+            Upload a file…
+          </DropdownMenuItem>
+          <DropdownMenuItem data-testid="asset-note" onSelect={() => setNote('')}>
+            <PencilLineIcon aria-hidden="true" />
+            Write a note…
+          </DropdownMenuItem>
+
+          {/* Already uploaded, and otherwise unreachable: deleting a source node
+              leaves the row behind, and a second flow has no way to reference
+              the product the first one uploaded. */}
+          {sources.length > 0 && (
             <>
-              <button
-                className="assets__item"
-                role="menuitem"
-                data-testid="asset-upload"
-                onClick={() => fileRef.current?.click()}
-              >
-                Upload a file…
-              </button>
-              <button
-                className="assets__item"
-                role="menuitem"
-                data-testid="asset-note"
-                onClick={() => setNote('')}
-              >
-                Write a note…
-              </button>
-
-              {sources.length > 0 && <hr className="assets__rule" />}
-
-              {/* Already uploaded, and otherwise unreachable: deleting a source
-                  node leaves the row behind, and a second flow has no way to
-                  reference the product the first one uploaded. */}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>On this project</DropdownMenuLabel>
               {sources.map((source) => (
-                <button
+                <DropdownMenuItem
                   key={source.id}
-                  className="assets__item assets__item--source"
-                  role="menuitem"
+                  className="font-mono text-[11px]"
                   data-testid={`asset-pick-${source.id}`}
-                  onClick={() => {
-                    close()
-                    onPick(source.id)
-                  }}
+                  onSelect={() => onPick(source.id)}
                 >
                   <span className="assets__glyph" aria-hidden="true">
                     {GLYPH[source.kind]}
                   </span>
                   <span className="assets__label">{labelFor(source)}</span>
                   <span className="assets__version">v{source.version}</span>
-                </button>
+                </DropdownMenuItem>
               ))}
             </>
-          ) : (
-            <div className="assets__note">
-              <textarea
-                ref={noteRef}
-                value={note}
-                rows={3}
-                placeholder="warm, unfussy, no hard sell"
-                data-testid="asset-note-input"
-                onChange={(event) => setNote(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Escape') close()
-                  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) commitNote()
-                }}
-              />
-              <button className="chip" data-testid="asset-note-save" onClick={commitNote}>
-                Add note
-              </button>
-            </div>
           )}
-        </div>
-      )}
+        </DropdownMenuContent>
+      </DropdownMenu>
 
+      <Dialog open={note !== null} onOpenChange={(open) => !open && setNote(null)}>
+        <DialogContent aria-label="Write a note">
+          <DialogHeader>
+            <DialogTitle>Write a note</DialogTitle>
+            <DialogDescription>
+              A fragment of brand voice or direction. Wire it into a shot and it composes ahead of
+              that shot&rsquo;s prompt.
+            </DialogDescription>
+          </DialogHeader>
+          <label className="field">
+            <span className="slate">Note</span>
+            <textarea
+              ref={noteRef}
+              value={note ?? ''}
+              rows={4}
+              placeholder="warm, unfussy, no hard sell"
+              data-testid="asset-note-input"
+              onChange={(event) => setNote(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) commitNote()
+              }}
+            />
+          </label>
+          <DialogFooter>
+            <button className="chip" onClick={() => setNote(null)}>
+              Cancel
+            </button>
+            <button className="run" data-testid="asset-note-save" onClick={commitNote}>
+              Add note
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Outside the menu on purpose: the menu unmounts when an item is chosen,
+          and an input that unmounts with it has no change event left to fire. */}
       <input
         ref={fileRef}
         type="file"
@@ -186,7 +218,7 @@ export function AssetMenu({ sources, onUpload, onNote, onPick }: Props) {
           const files = Array.from(event.target.files ?? [])
           // Cleared so choosing the same file twice in a row fires again.
           event.target.value = ''
-          close()
+          setOpen(false)
           if (files.length > 0) onUpload(files)
         }}
       />

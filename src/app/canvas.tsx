@@ -5,21 +5,47 @@ import {
   ReactFlow,
   ReactFlowProvider,
   Background,
+  BackgroundVariant,
   Controls,
+  MarkerType,
+  MiniMap,
   useNodesState,
   useEdgesState,
   useReactFlow,
+  useStore,
   type Connection,
   type Node as RfNode,
   type Edge as RfEdge,
 } from '@xyflow/react'
+import { toast } from 'sonner'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/ui/alert-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui/dialog'
+import { Hint } from '@/ui/hint'
+import { Toaster } from '@/ui/sonner'
+import { TooltipProvider } from '@/ui/tooltip'
 import { applyWire, assertModelFits, removeNode, WiringError } from '@/core/wiring'
 import { newNode } from '@/core/node-defaults'
 import { UnsupportedCapabilityError } from '@/models/registry'
 import type { Flow, FlowNode, NodeId } from '@/core/types'
 import { NodeCard } from './node-card'
 import { Inspector } from './inspector'
-import { CARD_SOURCE, COLUMN, MIN_CARD, ROW, freeSlot, sizeOf, slotFor } from './slots'
+import { CARD_SOURCE, COLUMN, MIN_CARD, ROW, fitToFrame, freeSlot, sizeOf, slotFor } from './slots'
 import { Lightbox, type Preview } from './lightbox'
 import { AssetMenu } from './asset-menu'
 import { ChatPanel } from './chat-panel'
@@ -53,6 +79,60 @@ const BLANK: NodeState = {
   outputs: [],
 }
 
+/** Dispatched, not yet answered — the states a spinner would be for. */
+const RUNNING: ReadonlySet<NodeState['status']> = new Set([
+  'queued',
+  'claimed',
+  'submitted',
+  'polling',
+])
+
+/**
+ * Two grids, and the fine one leaves at low zoom.
+ *
+ * A single 22px dot grid is a texture at 1.0 and a grey wash at 0.3 — zoomed out
+ * to see a twelve-shot graph, the thing you came to look at sits on static. The
+ * coarse lines survive because they are what tells you the canvas is still
+ * moving under a pan.
+ *
+ * Its own component so the zoom subscription re-renders four SVG rects rather
+ * than the whole canvas: `CanvasInner` holds every node's state, and
+ * re-rendering it on every wheel tick is how a graph starts to feel heavy. The
+ * selector returns a boolean, so it only fires when the threshold is crossed
+ * rather than on every intermediate zoom value.
+ */
+function Grid() {
+  const close = useStore((s) => s.transform[2] > 0.5)
+
+  return (
+    <>
+      <Background
+        id="coarse"
+        variant={BackgroundVariant.Lines}
+        gap={110}
+        lineWidth={1}
+        color="var(--grid-coarse)"
+      />
+      {close && (
+        <Background
+          id="fine"
+          variant={BackgroundVariant.Dots}
+          gap={22}
+          size={1.4}
+          color="var(--grid-fine)"
+        />
+      )}
+    </>
+  )
+}
+
+/** What each add button makes, said once rather than inferred from its label. */
+const ADD_NODE = [
+  { type: 'image', hint: 'A still frame, rendered from a prompt' },
+  { type: 'video', hint: 'A clip that starts from the frame you wire into it' },
+  { type: 'export', hint: 'Crops and text overlays, written to ./exports' },
+] as const
+
 let counter = 0
 const newId = (type: string) => `${type}-${++counter}-${Math.random().toString(36).slice(2, 6)}`
 
@@ -62,7 +142,9 @@ const edgeShapeOf = (graph: Flow) => graph.edges.map((e) => `${e.from}>${e.to}:$
 export function Canvas() {
   return (
     <ReactFlowProvider>
-      <CanvasInner />
+      <TooltipProvider>
+        <CanvasInner />
+      </TooltipProvider>
     </ReactFlowProvider>
   )
 }
@@ -75,11 +157,27 @@ function CanvasInner() {
   // Open on load — chat is the primary way in, not a drawer someone has to
   // find first. Closing it reclaims the canvas the panel overlays.
   const [chatOpen, setChatOpen] = useState(true)
-  const [notice, setNotice] = useState<string | null>(null)
+  /**
+   * One line of feedback, and whether it is a refusal or a fact.
+   *
+   * It used to be a bare string rendered into `.floating` alongside four other
+   * things at the same coordinates, so a refused wire and an export result
+   * landed exactly on top of each other. It is a toast now, and the tone is
+   * carried rather than guessed: "already rendered at these settings" is not an
+   * error and must not arrive in the fault colour.
+   */
+  const [notice, setNotice] = useState<{ text: string; tone: 'error' | 'info' } | null>(null)
+  const say = useCallback(
+    (text: string, tone: 'error' | 'info' = 'error') => setNotice({ text, tone }),
+    [],
+  )
   // Carries the node so "Render anyway" repeats the click that was refused,
   // rather than silently widening one shot into the whole flow.
   const [confirming, setConfirming] = useState<{ message: string; nodeId?: NodeId } | null>(null)
   const [showRefs, setShowRefs] = useState(true)
+  // Open by default. A map you have to find first is a map nobody uses, and the
+  // shape of the work is twelve cards spread wider than one screen.
+  const [mapOpen, setMapOpen] = useState(true)
   const [hovered, setHovered] = useState<NodeId | null>(null)
   // `text` set means the replacement is already in hand — a rewritten note —
   // and the panel confirms it rather than asking for a file.
@@ -135,7 +233,7 @@ function CanvasInner() {
         nodeShapeRef.current = nodeShape
         setRfNodes(
           next.graph.nodes.map((node, index) => {
-            const size = sizeOf(node)
+            const size = fitToFrame(node, next.nodes[node.id]?.outputs[0])
             return {
               id: node.id,
               type: 'card',
@@ -166,7 +264,12 @@ function CanvasInner() {
           ) {
             return rf
           }
-          return { ...rf, data: { node, state: nodeState } }
+          // A render finishing does not change the node shape, so this branch is
+          // where a first output arrives — and the card takes the frame's shape
+          // here or never. `fitToFrame` returns the stored size untouched once
+          // there is one, so a card you have sized is not resnapped under you.
+          const size = fitToFrame(node, nodeState.outputs[0])
+          return { ...rf, width: size.w, height: size.h, data: { node, state: nodeState } }
         }),
       )
     },
@@ -195,10 +298,10 @@ function CanvasInner() {
       absorb(next)
     } catch (error) {
       if (read === readRef.current) {
-        setNotice(error instanceof Error ? error.message : 'Could not load the flow')
+        say(error instanceof Error ? error.message : 'Could not load the flow')
       }
     }
-  }, [absorb])
+  }, [absorb, say])
 
   useEffect(() => {
     let alive = true
@@ -228,7 +331,7 @@ function CanvasInner() {
           try {
             next = apply()
           } catch (error) {
-            setNotice(
+            say(
               error instanceof WiringError || error instanceof UnsupportedCapabilityError
                 ? error.message
                 : `Could not apply that change: ${error instanceof Error ? error.message : String(error)}`,
@@ -247,10 +350,10 @@ function CanvasInner() {
               try {
                 await saveGraph(apply(), stampRef.current)
               } catch (retry) {
-                setNotice(retry instanceof Error ? retry.message : 'Could not save')
+                say(retry instanceof Error ? retry.message : 'Could not save')
               }
             } else {
-              setNotice(error instanceof Error ? error.message : 'Could not save')
+              say(error instanceof Error ? error.message : 'Could not save')
             }
           }
           await load()
@@ -258,7 +361,7 @@ function CanvasInner() {
         .catch(() => undefined)
       return queueRef.current
     },
-    [load],
+    [load, say],
   )
 
   /**
@@ -317,6 +420,62 @@ function CanvasInner() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  /**
+   * The bridge from state to the toast stack.
+   *
+   * Kept as state rather than fired imperatively at each call site, because
+   * several paths clear the notice as well as set it — `setNotice(null)` is how
+   * a successful wire takes the last refusal off screen, and an imperative
+   * `toast()` has nothing to take back. The fixed `id` also means a message
+   * re-set to the same value replaces its toast rather than stacking a second
+   * copy of itself.
+   *
+   * `duration: Infinity`: a refusal that fades before you look up is a refusal
+   * nobody read, and every one of these names something you now have to do.
+   */
+  useEffect(() => {
+    if (!notice) {
+      toast.dismiss('notice')
+      return
+    }
+    const show = notice.tone === 'error' ? toast.error : toast.info
+    show(<span data-testid="notice">{notice.text}</span>, {
+      id: 'notice',
+      duration: Infinity,
+      onDismiss: () => setNotice(null),
+    })
+  }, [notice])
+
+  useEffect(() => {
+    if (!exported) {
+      toast.dismiss('export')
+      return
+    }
+    toast[exported.refusals.length > 0 ? 'warning' : 'success'](
+      <span data-testid="export-result">
+        {exported.written} {exported.written === 1 ? 'file' : 'files'} written to ./exports
+        {exported.refusals.length > 0 ? ` · ${exported.refusals.length} refused` : ''}
+      </span>,
+      {
+        id: 'export',
+        duration: Infinity,
+        onDismiss: () => setExported(null),
+        // Every refusal, named. A count alone tells you something was refused
+        // and nothing about what to drag two pixels to fix.
+        description:
+          exported.refusals.length > 0 ? (
+            <span className="flex flex-col gap-1">
+              {exported.refusals.map((reason) => (
+                <span key={reason} data-testid="export-refusal">
+                  {reason}
+                </span>
+              ))}
+            </span>
+          ) : undefined,
+      },
+    )
+  }, [exported])
+
   const graph = state?.graph
   const selected = graph?.nodes.find((n) => n.id === selectedId) ?? null
   const sourcesById = useMemo(() => new Map((state?.sources ?? []).map((s) => [s.id, s])), [state])
@@ -352,6 +511,33 @@ function CanvasInner() {
   }, [])
 
   /**
+   * Re-roll and delete, from the card's own toolbar.
+   *
+   * Both existed only in the inspector, which meant deleting a card was select,
+   * read a panel, find the one red chip in it. `reroll` keeps the direction and
+   * changes the dice; confusing that with editing the prompt means re-rolling a
+   * bad idea forever, which is why they are worded the way they are.
+   */
+  const reroll = useCallback(
+    (nodeId: NodeId) =>
+      void commit((current) => ({
+        ...current,
+        nodes: current.nodes.map((n) =>
+          n.id === nodeId ? ({ ...n, seed: Math.floor(Math.random() * 1_000_000) } as FlowNode) : n,
+        ),
+      })),
+    [commit],
+  )
+
+  const deleteNode = useCallback(
+    (nodeId: NodeId) => {
+      void commit((current) => removeNode(current, nodeId))
+      setSelectedId((current) => (current === nodeId ? null : current))
+    },
+    [commit],
+  )
+
+  /**
    * Rewrites a text asset in place.
    *
    * Brand voice is the one asset you rewrite rather than re-upload, and it
@@ -375,10 +561,10 @@ function CanvasInner() {
         await replaceSource(sourceId, text)
         await load()
       } catch (error) {
-        setNotice(error instanceof Error ? error.message : 'Could not save that note')
+        say(error instanceof Error ? error.message : 'Could not save that note')
       }
     },
-    [load],
+    [load, say],
   )
 
   /**
@@ -394,21 +580,33 @@ function CanvasInner() {
         return
       }
       setConfirming(null)
-      setNotice(
-        outcome.kind === 'refused'
-          ? outcome.message
-          : // Nothing enqueued reads as a dead button. It means the hash is
-            // already satisfied — say so, and name the way to render it again.
-            outcome.enqueued === 0
-            ? 'Already rendered at these settings. Re-roll the seed to render it again.'
-            : null,
-      )
+      if (outcome.kind === 'refused') {
+        say(outcome.message)
+      } else if (outcome.enqueued === 0) {
+        // Nothing enqueued reads as a dead button. It means the hash is already
+        // satisfied — say so, and name the way to render it again. A fact, not
+        // a refusal: the fault colour here would report a working cache as a
+        // failure.
+        say('Already rendered at these settings. Re-roll the seed to render it again.', 'info')
+      } else {
+        setNotice(null)
+      }
       await load()
     },
-    [load],
+    [load, say],
   )
 
   const onRun = useCallback((nodeId: NodeId) => void run({ nodeId }), [run])
+
+  /**
+   * `fanOut` is declared below as a plain function — it reads the catalog off
+   * `state` and would have to be rebuilt on every poll. Called through a ref so
+   * the identity handed to every card is stable: put a fresh function in
+   * `decorated`'s deps and each card's `data` object is new on every render,
+   * which re-renders twelve cards for nothing.
+   */
+  const fanOutRef = useRef<(nodeId: NodeId) => void>(() => undefined)
+  const onFanOut = useCallback((nodeId: NodeId) => fanOutRef.current(nodeId), [])
 
   const decorated = useMemo(
     () =>
@@ -426,16 +624,58 @@ function CanvasInner() {
             onRun,
             onPreview: setPreview,
             onEditText,
+            onReroll: reroll,
+            onFanOut,
+            onDelete: deleteNode,
           },
         }
       }),
-    [rfNodes, selectedId, sourcesById, hovered, litUp, onPrompt, onReplace, onRun, onEditText],
+    [
+      rfNodes,
+      selectedId,
+      sourcesById,
+      hovered,
+      litUp,
+      onPrompt,
+      onReplace,
+      onRun,
+      onEditText,
+      reroll,
+      onFanOut,
+      deleteNode,
+    ],
   )
 
-  const visibleEdges = useMemo(
-    () => (showRefs ? rfEdges : rfEdges.filter((e) => e.data?.role !== 'reference')),
-    [rfEdges, showRefs],
-  )
+  /**
+   * The edge layer, dressed after the fact.
+   *
+   * Arrowheads and the rendering animation are decided here rather than in
+   * `absorb`, because both depend on node *state* and `absorb` reseeds the edge
+   * array only when the graph's edge shape changes. Folded in there, an edge
+   * would keep the arrowhead it was born with and never notice its target
+   * started rendering.
+   *
+   * Only generation edges get a head. A reference is a fact about a shot, not a
+   * direction anything travels in, and pointing an arrow at it says the wrong
+   * thing about what the graph does.
+   */
+  const visibleEdges = useMemo(() => {
+    const shown = showRefs ? rfEdges : rfEdges.filter((e) => e.data?.role !== 'reference')
+    return shown.map((edge) => {
+      if (edge.data?.role === 'reference') return edge
+      const live = RUNNING.has(state?.nodes[edge.target]?.status ?? 'stale')
+      return {
+        ...edge,
+        className: live ? `${edge.className ?? ''} edge--live` : edge.className,
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 14,
+          height: 14,
+          color: 'var(--fixed)',
+        },
+      }
+    })
+  }, [rfEdges, showRefs, state])
   const hiddenRefs = rfEdges.length - visibleEdges.length
 
   /**
@@ -511,6 +751,14 @@ function CanvasInner() {
     reveal(node.position!, sizeOf(node))
   }
 
+  // Re-pointed after every render, called through `onFanOut` above: the cards
+  // hold a stable callback and this holds the current closure. In an effect
+  // rather than inline, because a ref written during render is a value React is
+  // free to throw away when it discards that render.
+  useEffect(() => {
+    fanOutRef.current = fanOut
+  })
+
   /**
    * Adds a source node for an already-uploaded asset, optionally wiring it in.
    *
@@ -550,7 +798,7 @@ function CanvasInner() {
         await queueRef.current
       }
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Upload failed')
+      say(error instanceof Error ? error.message : 'Upload failed')
     }
   }
 
@@ -561,7 +809,7 @@ function CanvasInner() {
       addSourceNode(id, slot)
       reveal(slot, CARD_SOURCE)
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Could not save that note')
+      say(error instanceof Error ? error.message : 'Could not save that note')
     }
   }
 
@@ -602,7 +850,7 @@ function CanvasInner() {
         addSourceNode(id, point, wireTo)
       }
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Upload failed')
+      say(error instanceof Error ? error.message : 'Upload failed')
     }
   }
 
@@ -629,7 +877,7 @@ function CanvasInner() {
         refusals: outcome.rejected.flatMap((r) => r.reasons),
       })
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Export failed')
+      say(error instanceof Error ? error.message : 'Export failed')
     }
   }
 
@@ -644,13 +892,14 @@ function CanvasInner() {
       await saveBrandProfile(brief.profile)
       setBrief(null)
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Could not save the brand profile')
+      say(error instanceof Error ? error.message : 'Could not save the brand profile')
     }
   }
 
   const totals = state?.totals
 
   return (
+    <>
     <div
       className="shell"
       data-inspector={selected ? 'open' : 'closed'}
@@ -666,10 +915,12 @@ function CanvasInner() {
       <header className="topbar">
         <h1 className="topbar__title">OpenFlow</h1>
 
-        {(['image', 'video', 'export'] as const).map((type) => (
-          <button key={type} className="chip" onClick={() => addNode(type)} data-testid={`add-${type}`}>
-            + {type}
-          </button>
+        {ADD_NODE.map(({ type, hint }) => (
+          <Hint key={type} label={hint}>
+            <button className="chip" onClick={() => addNode(type)} data-testid={`add-${type}`}>
+              + {type}
+            </button>
+          </Hint>
         ))}
 
         <AssetMenu
@@ -679,59 +930,84 @@ function CanvasInner() {
           onPick={addExistingSource}
         />
 
-        <button
-          className="chip"
-          aria-pressed={!showRefs}
-          onClick={() => setShowRefs((on) => !on)}
-          data-testid="toggle-refs"
-          title="⌥R"
-        >
-          {hiddenRefs > 0 ? `${hiddenRefs} refs hidden` : 'refs'}
-        </button>
+        {/* The shortcut used to be the whole tooltip: `title="⌥R"`, with nothing
+            anywhere saying what ⌥R did. */}
+        <Hint label={showRefs ? 'Hide reference wires' : 'Show reference wires'} keys="⌥R">
+          <button
+            className="chip"
+            aria-pressed={!showRefs}
+            onClick={() => setShowRefs((on) => !on)}
+            data-testid="toggle-refs"
+          >
+            {hiddenRefs > 0 ? `${hiddenRefs} refs hidden` : 'refs'}
+          </button>
+        </Hint>
 
         <span className="topbar__spacer" />
 
         {totals && (
-          <span
-            className={
-              totals.staleCount > 0 || totals.runningCount > 0
-                ? 'ledger ledger--due'
-                : 'ledger ledger--clear'
+          <Hint
+            label={
+              totals.staleCount > 0
+                ? 'What it would cost to render everything that is out of date'
+                : totals.runningCount > 0
+                  ? 'Shots dispatched to fal and not yet answered'
+                  : 'What this flow has cost so far'
             }
-            data-testid="ledger"
           >
-            {totals.staleCount > 0
-              ? `${totals.staleCount} stale · ${money(totals.estimatedCents)} to render`
-              : totals.runningCount > 0
-                ? `rendering ${totals.runningCount}…`
-                : `all rendered · ${money(totals.spentCents)} spent`}
-          </span>
+            <span
+              className={
+                totals.staleCount > 0 || totals.runningCount > 0
+                  ? 'ledger ledger--due'
+                  : 'ledger ledger--clear'
+              }
+              data-testid="ledger"
+              tabIndex={0}
+            >
+              {totals.staleCount > 0
+                ? `${totals.staleCount} stale · ${money(totals.estimatedCents)} to render`
+                : totals.runningCount > 0
+                  ? `rendering ${totals.runningCount}…`
+                  : `all rendered · ${money(totals.spentCents)} spent`}
+            </span>
+          </Hint>
         )}
 
-        <button className="chip" onClick={() => void openBrand()} data-testid="brand">
-          Brand
-        </button>
+        <Hint label="The voice every prompt is composed against">
+          <button className="chip" onClick={() => void openBrand()} data-testid="brand">
+            Brand
+          </button>
+        </Hint>
 
-        <button className="chip" onClick={() => void exportAll()} data-testid="export">
-          Export
-        </button>
+        <Hint label="Write every rendered frame to ./exports">
+          <button className="chip" onClick={() => void exportAll()} data-testid="export">
+            Export
+          </button>
+        </Hint>
 
-        <button
-          className="chip"
-          aria-pressed={chatOpen}
-          onClick={() => setChatOpen((open) => !open)}
-          data-testid="chat-toggle"
-        >
-          Chat
-        </button>
+        <Hint label={chatOpen ? 'Close the direction panel' : 'Write the graph by asking for it'}>
+          <button
+            className="chip"
+            aria-pressed={chatOpen}
+            onClick={() => setChatOpen((open) => !open)}
+            data-testid="chat-toggle"
+          >
+            Chat
+          </button>
+        </Hint>
 
-        <button className="run" onClick={() => void run()} data-testid="run">
-          Run all
-        </button>
+        <Hint label="Render everything that is out of date, at the price on the ledger">
+          <button className="run" onClick={() => void run()} data-testid="run">
+            Run all
+          </button>
+        </Hint>
       </header>
 
       <div className="canvas-row">
-      <main className="canvas" data-dropping={dropping}>
+      {/* `data-map` is read by the stylesheet: the controls sit above the
+          overview when there is one and drop back to the corner when there is
+          not, so an empty canvas has no gap where a map used to be. */}
+      <main className="canvas" data-dropping={dropping} data-map={mapOpen && nodeCount > 0}>
         <ReactFlow
           nodes={decorated}
           edges={visibleEdges}
@@ -829,154 +1105,104 @@ function CanvasInner() {
           proOptions={{ hideAttribution: true }}
           minZoom={0.2}
         >
-          <Background color="#232833" gap={22} />
-          <Controls showInteractive={false} />
+          <Grid />
+
+          {/*
+            A shot's status is the only thing worth reading at map scale — the
+            frame is four pixels wide there. Amber still means billed, so a
+            glance at the corner answers "how much of this graph is unpaid for"
+            without reading a single card.
+          */}
+          {mapOpen && nodeCount > 0 && (
+            <MiniMap
+              position="bottom-left"
+              pannable
+              zoomable
+              ariaLabel="Graph overview"
+              maskColor="var(--minimap-mask)"
+              bgColor="var(--ground)"
+              nodeStrokeWidth={0}
+              nodeColor={(node) => {
+                const status = state?.nodes[node.id]?.status ?? 'stale'
+                if (status === 'succeeded') return 'var(--fixed)'
+                if (status === 'failed') return 'var(--fault)'
+                if (RUNNING.has(status)) return 'var(--beam)'
+                // The dim amber, not the safelight itself. A fresh graph is
+                // entirely stale, and at map scale that is a solid block of the
+                // loudest colour in the interface saying nothing you did not
+                // already know. Still amber, still means billed.
+                return 'var(--safelight-dim)'
+              }}
+            />
+          )}
+
+          <Controls showInteractive={false}>
+            {/* Inside the control cluster rather than beside it: zoom, fit and
+                overview are one thought, and a second floating island in the
+                corner is one more thing covering the canvas. */}
+            <button
+              type="button"
+              className="react-flow__controls-button"
+              aria-pressed={mapOpen}
+              title={mapOpen ? 'Hide the overview' : 'Show the overview'}
+              aria-label={mapOpen ? 'Hide the overview' : 'Show the overview'}
+              data-testid="toggle-minimap"
+              onClick={() => setMapOpen((open) => !open)}
+            >
+              <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" />
+                <rect x="4" y="5" width="5" height="4" rx="0.5" fill="currentColor" />
+              </svg>
+            </button>
+          </Controls>
         </ReactFlow>
 
+        {/*
+          Teaches the interface rather than announcing that it is empty. There
+          are three ways in and the canvas used to name one of them, so the
+          toolbar and the chat panel read as decoration until you guessed.
+
+          Still `pointer-events: none` — every route here is a thing you do
+          somewhere else on screen, and a click that lands on this panel instead
+          of the canvas under it is a click that does nothing.
+        */}
         {nodeCount === 0 && (
           <div className="empty-canvas">
             <span className="slate">Empty call sheet</span>
             <p className="hint">
-              Drop a product photo, a clip or a note anywhere here. Add a shot, wire the asset in, and
-              it stays identical across every frame.
+              Nothing renders until you press Run, and the price is on the card before you do.
             </p>
+            <ul className="empty-canvas__ways">
+              <li>
+                <span className="slate">Drop</span>a product photo, a clip or a note anywhere on the
+                canvas
+              </li>
+              <li>
+                <span className="slate">Add</span>a shot from the toolbar, then wire an asset into it
+              </li>
+              <li>
+                <span className="slate">Ask</span>the panel on the right to write the graph for you
+              </li>
+            </ul>
           </div>
         )}
 
         {dropping && <div className="drop-veil">Drop to add an asset</div>}
 
-        {notice && (
-          <div className="floating">
-            <p className="banner" role="status" data-testid="notice">
-              {notice}
-            </p>
-          </div>
-        )}
+        {/*
+          `notice`, `exported`, `confirming`, `replacing` and `brief` all used to
+          render into `.floating` at the same `left: 16px; bottom: 16px`. Any two
+          at once landed exactly on top of each other — a refused wire could hide
+          the spend confirmation that was waiting for an answer.
 
-        {brief && (
-          <div className="floating">
-            <div className="banner" role="dialog" aria-label="Brand">
-              <label className="field">
-                <span className="slate">Brand profile</span>
-                <textarea
-                  rows={3}
-                  value={brief.profile}
-                  placeholder="Warm, editorial, never clinical. Product always in frame."
-                  data-testid="brand-profile"
-                  onChange={(e) => setBrief({ ...brief, profile: e.target.value })}
-                />
-              </label>
-              <div className="banner__actions">
-                <button className="run" onClick={() => void saveBrand()} data-testid="brand-save">
-                  Save
-                </button>
-                <button className="chip" onClick={() => setBrief(null)}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {exported && (
-          <div className="floating">
-            <div className="banner" role="status" aria-label="Export result">
-              <p data-testid="export-result">
-                {exported.written} {exported.written === 1 ? 'file' : 'files'} written to ./exports
-                {exported.refusals.length > 0
-                  ? ` · ${exported.refusals.length} refused`
-                  : ''}
-              </p>
-              {exported.refusals.map((reason) => (
-                <p key={reason} className="hint" data-testid="export-refusal">
-                  {reason}
-                </p>
-              ))}
-              <div className="banner__actions">
-                <button className="chip" onClick={() => setExported(null)}>
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {confirming && (
-          <div className="floating">
-            <div className="banner" role="alertdialog" aria-label="Confirm spend">
-              <p data-testid="spend-warning">{confirming.message}</p>
-              <div className="banner__actions">
-                <button
-                  className="chip"
-                  onClick={() => void run({ nodeId: confirming.nodeId, confirmOverspend: true })}
-                  data-testid="confirm-spend"
-                >
-                  Render anyway
-                </button>
-                <button className="chip" onClick={() => setConfirming(null)}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {replacing && (
-          <div className="floating">
-            <div className="banner" role="alertdialog" aria-label="Confirm replacement">
-              {/* Never silently re-run. One replacement can invalidate two campaigns. */}
-              <p data-testid="replace-warning">
-                {replacing.radius.nodeCount} {replacing.radius.nodeCount === 1 ? 'shot' : 'shots'} across{' '}
-                {replacing.radius.flowCount} {replacing.radius.flowCount === 1 ? 'flow' : 'flows'} go stale ·{' '}
-                {money(replacing.radius.estimatedCents)} to refresh.
-              </p>
-              <div className="banner__actions">
-                <button
-                  className="chip"
-                  data-testid="confirm-replace"
-                  onClick={async () => {
-                    if (replacing.text === undefined) return replaceInputRef.current?.click()
-                    try {
-                      await replaceSource(replacing.id, replacing.text)
-                    } catch (error) {
-                      setNotice(error instanceof Error ? error.message : 'Could not save that note')
-                    }
-                    setReplacing(null)
-                    await load()
-                  }}
-                >
-                  {replacing.text === undefined ? 'Choose a file' : 'Save the note'}
-                </button>
-                <button className="chip" onClick={() => setReplacing(null)}>
-                  Cancel
-                </button>
-              </div>
-              <input
-                ref={replaceInputRef}
-                type="file"
-                hidden
-                data-testid="replace-input"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0]
-                  if (!file || !replacing) return
-                  try {
-                    await replaceSource(replacing.id, file)
-                  } catch (error) {
-                    setNotice(error instanceof Error ? error.message : 'Could not replace')
-                  }
-                  setReplacing(null)
-                  await load()
-                }}
-              />
-            </div>
-          </div>
-        )}
+          They are three different things and now live in three places: passing
+          facts go to the toast stack, the two irreversible-money gates are real
+          alert dialogs, and the brand profile is a form, so it is a dialog too.
+        */}
       </main>
 
       {chatOpen && <ChatPanel />}
       </div>
-
-      <Lightbox item={preview} onClose={() => setPreview(null)} />
 
       {selected && (
         <Inspector
@@ -1015,6 +1241,156 @@ function CanvasInner() {
           }
         />
       )}
-    </div>
+      </div>
+
+      {/*
+        Outside `.shell`, all of it.
+
+        `.shell` is a two-column grid whose columns are the canvas and the
+        inspector, and every direct child is a grid item. `<Toaster>` renders a
+        real <section>, so sitting in here it took the inspector's column: the
+        inspector wrapped to a third row, the canvas lost half its height, and a
+        node card ended up underneath the panel — you could double-click a
+        prompt and hit an inspector field instead. Overlays belong in the top
+        layer or a portal, never in the layout.
+      */}
+      <Lightbox item={preview} onClose={() => setPreview(null)} />
+
+      {/*
+        Both of these are the same shape and neither is a modal for the sake of
+        it: they are the two places money is committed, and they were the least
+        prominent things on screen — a banner in the bottom-left corner, in the
+        same slot as four other panels. An alert dialog takes focus, traps it,
+        and cannot be missed, which is the correct amount of friction for an
+        invoice.
+      */}
+      <AlertDialog open={confirming !== null} onOpenChange={(open) => !open && setConfirming(null)}>
+        <AlertDialogContent aria-label="Confirm spend">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm spend</AlertDialogTitle>
+            <AlertDialogDescription data-testid="spend-warning">
+              {confirming?.message}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="confirm-spend"
+              onClick={() => void run({ nodeId: confirming?.nodeId, confirmOverspend: true })}
+            >
+              Render anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={replacing !== null} onOpenChange={(open) => !open && setReplacing(null)}>
+        <AlertDialogContent aria-label="Confirm replacement">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm replacement</AlertDialogTitle>
+            {/* Never silently re-run. One replacement can invalidate two campaigns. */}
+            <AlertDialogDescription data-testid="replace-warning">
+              {replacing
+                ? `${replacing.radius.nodeCount} ${replacing.radius.nodeCount === 1 ? 'shot' : 'shots'} across ${replacing.radius.flowCount} ${replacing.radius.flowCount === 1 ? 'flow' : 'flows'} go stale · ${money(replacing.radius.estimatedCents)} to refresh.`
+                : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="confirm-replace"
+              onClick={(event) => {
+                if (!replacing) return
+                // The file picker has to open from inside the click that was
+                // just made, so this branch keeps the dialog open rather than
+                // letting AlertDialogAction close it: the input is a child of
+                // the dialog, and a closed dialog has no input to click.
+                if (replacing.text === undefined) {
+                  event.preventDefault()
+                  replaceInputRef.current?.click()
+                  return
+                }
+                void (async () => {
+                  try {
+                    await replaceSource(replacing.id, replacing.text!)
+                  } catch (error) {
+                    say(error instanceof Error ? error.message : 'Could not save that note')
+                  }
+                  setReplacing(null)
+                  await load()
+                })()
+              }}
+            >
+              {replacing?.text === undefined ? 'Choose a file' : 'Save the note'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+          <input
+            ref={replaceInputRef}
+            type="file"
+            hidden
+            data-testid="replace-input"
+            onChange={async (e) => {
+              const file = e.target.files?.[0]
+              if (!file || !replacing) return
+              try {
+                await replaceSource(replacing.id, file)
+              } catch (error) {
+                say(error instanceof Error ? error.message : 'Could not replace')
+              }
+              setReplacing(null)
+              await load()
+            }}
+          />
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* A form, not an alert: nothing is spent by opening it, and the profile is
+          long enough to want a box rather than a corner banner. */}
+      <Dialog open={brief !== null} onOpenChange={(open) => !open && setBrief(null)}>
+        <DialogContent aria-label="Brand">
+          <DialogHeader>
+            <DialogTitle>Brand</DialogTitle>
+            <DialogDescription>
+              Composed ahead of every prompt on the canvas. Changing it does not re-render anything
+              on its own.
+            </DialogDescription>
+          </DialogHeader>
+          <label className="field">
+            <span className="slate">Brand profile</span>
+            <textarea
+              rows={5}
+              value={brief?.profile ?? ''}
+              placeholder="Warm, editorial, never clinical. Product always in frame."
+              data-testid="brand-profile"
+              onChange={(e) => setBrief({ profile: e.target.value })}
+            />
+          </label>
+          <DialogFooter>
+            <button className="chip" onClick={() => setBrief(null)}>
+              Cancel
+            </button>
+            <button className="run" onClick={() => void saveBrand()} data-testid="brand-save">
+              Save
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/*
+        Bottom-right, stacked, and errors do not auto-dismiss: a refusal that
+        fades before you look up is a refusal nobody read. `expand` because two
+        at once is the case this whole change exists for.
+      */}
+      <Toaster
+        position="bottom-right"
+        expand
+        richColors
+        closeButton
+        // The chat panel overlays the right edge of the canvas, so an unshifted
+        // bottom-right toast lands on top of its composer — you get told
+        // something went wrong by a box sitting over the box you were typing in.
+        offset={{ right: chatOpen ? '23.5rem' : '1rem', bottom: '1rem' }}
+      />
+    </>
   )
 }

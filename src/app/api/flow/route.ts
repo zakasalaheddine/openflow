@@ -102,7 +102,17 @@ export async function GET() {
             outputs: ((currentRun?.outputRefs as string[] | null) ?? [])
               .map((id) => assetById.get(id))
               .filter(Boolean)
-              .map((a) => ({ id: a!.id, url: `/assets/${a!.id}`, mime: a!.mime })),
+              // Dimensions ride along so a card can take the shape of the frame
+              // it is holding. Nullable on purpose: an asset recorded before
+              // these columns existed has none, and the card falls back to its
+              // default shape rather than collapsing to nothing.
+              .map((a) => ({
+                id: a!.id,
+                url: `/assets/${a!.id}`,
+                mime: a!.mime,
+                width: a!.width ?? null,
+                height: a!.height ?? null,
+              })),
           },
         ]
       }),
