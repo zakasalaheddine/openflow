@@ -67,6 +67,52 @@ function Field({
   )
 }
 
+/**
+ * The direction, at the size it deserves.
+ *
+ * The card's strip is a peek — four lines over the frame, capped so a long
+ * prompt cannot bury the shot you are judging. This is where the rest of it
+ * lives, and it is reached by selecting the card: a click, which works on touch,
+ * from the keyboard and under a hit test. Growing the strip instead would have
+ * put the whole direction behind a hover, and nothing on a card may be reachable
+ * only that way.
+ *
+ * Same commit rules as `Field` and for the same reason — the graph is saved
+ * whole and polled back, so a keystroke-by-keystroke save races the poll and
+ * puts the old value under your cursor. Enter is a newline here, not a commit;
+ * ⌘/Ctrl+Enter is the deliberate one, and blur is the ordinary one.
+ */
+function Direction({ value, onCommit }: { value: string; onCommit: (next: string) => void }) {
+  const [draft, setDraft] = useState<string | null>(null)
+
+  const commit = (next: string | null) => {
+    if (next !== null && next !== value) onCommit(next)
+    setDraft(null)
+  }
+
+  return (
+    <label className="field">
+      <span className="slate">Direction</span>
+      <textarea
+        className="inspector__direction"
+        value={draft ?? value}
+        rows={6}
+        placeholder="Describe the shot"
+        data-testid="node-direction"
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => commit(draft)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') setDraft(null)
+          if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) event.currentTarget.blur()
+        }}
+      />
+      <span className="hint">
+        The card shows the first few lines. ⌘↵ or click away to commit; Esc puts it back.
+      </span>
+    </label>
+  )
+}
+
 /** The whole order, with two entries exchanged — `reorderSequence` wants every clip. */
 const swap = (clips: { id: string }[], a: number, b: number) => {
   const order = clips.map((clip) => clip.id)
@@ -188,8 +234,16 @@ export function Inspector({ node, state, models, clips, onChange, onReorder, onD
           testId="node-label"
           onCommit={(label) => onChange({ ...node, label })}
         />
-        <span className="hint">Double-click the prompt on the card to edit the direction.</span>
       </Section>
+
+      {'prompt' in node && (
+        <Section title="Direction">
+          <Direction
+            value={node.prompt}
+            onCommit={(prompt) => onChange({ ...node, prompt })}
+          />
+        </Section>
+      )}
 
       {node.type === 'video' && (
         <Section title="Clip">

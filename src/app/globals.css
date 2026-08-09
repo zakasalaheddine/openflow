@@ -115,6 +115,11 @@
   --fs-5: 1rem; /* 16 — panel headings */
   --fs-6: 1.1875rem; /* 19 — the one title */
 
+  /* The direction's line box, in px because three heights on the card are
+     counted in lines of it and have to land on a line boundary: the closed
+     strip, the opened cap, and the minimum a card can be dragged to. */
+  --prompt-line: 17px;
+
   /*
    * Radius. Every surface used to be 2px, which is the single most dated thing
    * about this interface — a 2014 flat-design residue. Three steps, scaled to
@@ -892,6 +897,17 @@
   --slate-h: 26px;
   --bill-h: 28px;
   --branch-h: 24px;
+  /* How far the direction is allowed to open over the frame: four lines, or
+     45% of the card, whichever is smaller. Four because that is where a prompt
+     stops being a glance and starts being a read, and 45% because on a card at
+     the 150px floor four lines would be most of the picture. The frame keeps
+     the majority of itself in every case — see the rule below. */
+  --prompt-open: min(calc(var(--prompt-line) * 4 + var(--s-3) * 2), 45%);
+  /* What the direction sits on: the bill, or the bill plus the branch line
+     while that is showing. One variable because `bottom` and the uncapped
+     height both need it, and two rules that had to agree on the same sum are
+     how the magic 28 got here in the first place. */
+  --prompt-floor: var(--bill-h);
 }
 
 .node__stage {
@@ -998,12 +1014,20 @@
 /*
  * The direction, over the frame and out of the way of it.
  *
- * One line by default, opening to the full text when you point at the card,
- * select it, or start writing in it. Twelve prompts printed in full over twelve
- * frames is a wall of text where a contact sheet should be — but hiding it
- * outright was worse: a strip nobody can reach without hovering is a strip that
- * does not exist on a touch screen, and double-clicking to edit has to hit
+ * One line by default, opening to at most `--prompt-open` when you point at the
+ * card, select it, or start writing in it. Twelve prompts printed in full over
+ * twelve frames is a wall of text where a contact sheet should be — but hiding
+ * it outright was worse: a strip nobody can reach without hovering is a strip
+ * that does not exist on a touch screen, and double-clicking to edit has to hit
  * something that is already there.
+ *
+ * It used to open to `calc(100% - slate - bill)`, which was fine while
+ * directions were a line or two and wrong the moment they were not: a
+ * three-hundred-word prompt filled the entire card, so pointing at a shot was
+ * how you stopped being able to see it. The strip is a peek now. The whole
+ * direction is a field in the inspector, reached by selecting the card — a
+ * click, which works on touch, from the keyboard and under a hit test, none of
+ * which is true of a hover.
  *
  * A card with no frame yet has nothing to obscure, so there it opens all the way
  * without being asked.
@@ -1012,11 +1036,10 @@
   position: absolute;
   left: 0;
   right: 0;
-  bottom: var(--bill-h);
+  bottom: var(--prompt-floor);
   z-index: 2;
-  /* One line, plus its padding. `--fs-3` sets a 17px line box (see the base
-     rule), and the same number appears in `min-height` there. */
-  max-height: calc(17px + var(--s-3) * 2);
+  /* One line, plus its padding. */
+  max-height: calc(var(--prompt-line) + var(--s-3) * 2);
   min-height: 0;
   padding: var(--s-3);
   margin: 0;
@@ -1034,9 +1057,13 @@
  */
 .node--shot:hover .node__prompt,
 .node--shot[data-selected='true'] .node__prompt,
-.node--shot[data-has-frame='false'] .node__prompt,
 .node--shot .node__prompt--editing {
-  max-height: calc(100% - var(--slate-h) - var(--bill-h));
+  max-height: var(--prompt-open);
+}
+
+/* Nothing under it to protect, so this one is not capped. */
+.node--shot[data-has-frame='false'] .node__prompt {
+  max-height: calc(100% - var(--slate-h) - var(--prompt-floor));
 }
 
 /*
@@ -1046,12 +1073,14 @@
  * completely covered the moment you point at the card, which is the moment you
  * are most likely to be reading it.
  *
+ * Raising the floor is the whole change: `bottom` and the uncapped height both
+ * read `--prompt-floor`, so neither can drift from the other.
+ *
  * Not while editing: the strip is already faded out then (see below), and
  * shifting the box you are typing in would move the caret under the cursor.
  */
-.node--shot:hover:has(.node__foot--branch):not(:has(.node__prompt--editing)) .node__prompt {
-  bottom: calc(var(--bill-h) + var(--branch-h));
-  max-height: calc(100% - var(--slate-h) - var(--bill-h) - var(--branch-h));
+.node--shot:hover:has(.node__foot--branch):not(:has(.node__prompt--editing)) {
+  --prompt-floor: calc(var(--bill-h) + var(--branch-h));
 }
 
 /*
@@ -1205,10 +1234,12 @@
   padding: var(--s-3) var(--s-3);
   margin: 0;
   font-size: var(--fs-3);
-  /* Line height in px, and a minimum that is an exact multiple of it, so the
-     clip always lands on a line boundary. */
-  line-height: 17px;
-  min-height: 48px;
+  /* Line height in px, and every height derived from it is a multiple, so the
+     clip always lands on a line boundary. `--prompt-line` is declared on `:root`
+     because the closed strip, the opened cap and this rule all count in it, and
+     three copies of 17 is how the magic 28 above got here. */
+  line-height: var(--prompt-line);
+  min-height: calc(var(--prompt-line) * 3);
   overflow: hidden;
   color: var(--ink);
 }
@@ -1435,6 +1466,16 @@
 .field select {
   font-family: var(--mono);
   font-size: var(--fs-3);
+}
+
+/*
+ * The one piece of prose in the inspector, so it is the one thing here set for
+ * reading rather than for scanning: a looser line, and six rows of it before
+ * you have to drag the grip. Everything else in this panel is a value.
+ */
+.inspector__direction {
+  line-height: 1.55;
+  min-height: 132px;
 }
 
 .inspector__chips {

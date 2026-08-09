@@ -293,6 +293,70 @@ test('the branch line never covers the direction you are writing', async ({ page
   expect(branch.y + branch.height).toBeLessThanOrEqual(bill.y + 1)
 })
 
+test('a long direction never buries the frame it describes', async ({ page, request }) => {
+  const long = 'a bottle on wet marble, '.repeat(40)
+  await setGraph(request, {
+    nodes: [
+      {
+        id: 'marble',
+        type: 'image',
+        position: { x: 60, y: 60 },
+        prompt: long,
+        modelId: 'flux-2-pro',
+        seed: 1,
+      },
+    ],
+    edges: [],
+  })
+  await page.goto('/')
+  await waitForLedger(page)
+  await closeChat(page)
+
+  // A rendered frame, because that is the only state the cap is protecting: an
+  // unexposed card has nothing underneath the text to lose.
+  await page.getByTestId('run-marble').click()
+  await expect(page.getByTestId('status-marble')).toHaveText('done', { timeout: 30_000 })
+
+  const card = page.getByTestId('node-marble')
+  const strip = card.getByTestId('node-prompt-text')
+  await card.hover()
+
+  // It used to open to the full height of the card, so a prompt this long meant
+  // pointing at a shot was how you stopped being able to see it. The majority of
+  // the card stays frame, whatever the direction says.
+  const height = (await card.boundingBox())!.height
+  expect((await strip.boundingBox())!.height).toBeLessThanOrEqual(height * 0.45 + 1)
+
+  // Again on a card sized by hand, because the 45% term of the cap is a
+  // percentage of the card and only resolves while the card's own height is
+  // definite. React Flow writes it inline and `.node` is `height: 100%` of
+  // that — but a card whose size came from the grip takes a different path to
+  // it, and a percentage against an indefinite height computes to `none`,
+  // which is the cap silently not existing.
+  await card.click()
+  const grip = page.locator('.react-flow__resize-control.handle.bottom.right')
+  const from = (await grip.boundingBox())!
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(from.x + from.width / 2 + 120, from.y + from.height / 2 + 140, { steps: 12 })
+  await page.mouse.up()
+
+  const taller = (await card.boundingBox())!.height
+  expect(taller).toBeGreaterThan(height)
+  expect((await strip.boundingBox())!.height).toBeLessThanOrEqual(taller * 0.45 + 1)
+
+  // And the rest of it is readable somewhere that is not a hover: select the
+  // card, and the whole direction is a field you can edit.
+  await card.click()
+  const field = page.getByTestId('node-direction')
+  await expect(field).toHaveValue(long)
+
+  await field.fill('bottle on slate')
+  await field.blur()
+  await expect(strip).toHaveText('bottle on slate')
+  expect((await graphOf(request)).nodes[0].prompt).toBe('bottle on slate')
+})
+
 test('a note keeps the height of its card while it is being rewritten', async ({
   page,
   request,
