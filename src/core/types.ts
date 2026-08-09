@@ -1,3 +1,5 @@
+import type { Aspect } from './aspect'
+
 export type NodeId = string
 export type SourceId = string
 
@@ -116,6 +118,15 @@ export type ImageNode = NodeBase & {
    */
   modelId: string
   seed?: number
+  /**
+   * The shape it renders at. Absent means 1:1, which is what every endpoint did
+   * before anyone could ask for anything else — so an existing flow reads the
+   * same after this field arrived as it did before.
+   *
+   * Deliberately not on a clip: a clip's shape comes from the still it starts
+   * from, and a second declaration here could only ever disagree with it.
+   */
+  aspect?: Aspect
 }
 
 export type VideoNode = NodeBase & {

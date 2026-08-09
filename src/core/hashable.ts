@@ -1,4 +1,5 @@
 import type { FlowNode } from './types'
+import { DEFAULT_ASPECT } from './aspect'
 import type { JsonValue } from './hash'
 
 /**
@@ -26,6 +27,18 @@ export function hashableConfig(node: FlowNode): Record<string, JsonValue> {
       // twice and make the two spellings of one change look like two changes.
       return {
         prompt: node.prompt,
+        // Changes the pixels, so it changes the hash: a shot re-shaped from 1:1
+        // to 9:16 is a different frame at a different price, and without this
+        // it would read as already-rendered and never re-run.
+        //
+        // Omitted at the default rather than written as `'1:1'`, and the
+        // difference is money. Every flow that predates this field has no
+        // aspect, and every endpoint rendered square anyway — so an unset node
+        // and a node someone set to 1:1 describe the same frame, and hashing
+        // them apart would re-bill a whole canvas of finished renders the first
+        // time anyone opened an inspector. Set it back to 1:1 after trying 9:16
+        // and the original hash returns, with its render still in the cache.
+        ...(node.aspect && node.aspect !== DEFAULT_ASPECT ? { aspect: node.aspect } : {}),
       }
     case 'video':
       return {

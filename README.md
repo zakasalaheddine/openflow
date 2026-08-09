@@ -50,6 +50,16 @@ A rendered still can be wired into another still as a **reference**. That is how
 
 A **sequence** node cuts clips into one film. Wire the clips in the order they play, reorder them in the inspector, and Export writes the assembled cut with the rest of the deliverables. It dispatches to no model and costs nothing to run: the cut is made locally, from clips already rendered, and it is a stream copy rather than a re-encode whenever the clips share a frame size. Silent for now — a clip with native audio loses it, rather than producing a film whose sound cuts in and out depending on which model rendered which shot.
 
+## A still is rendered at the shape you ship
+
+Every image node names its own **shape** — 1:1, 4:5, 9:16 or 16:9 — in the inspector, and the price on the card follows it: a per-megapixel row bills what it renders, so 9:16 is nearly twice 1:1 and the card says so before you press Run.
+
+A clip has no shape of its own. It is expected to take the shape of the still it starts from, which would make the shape of one keyframe the shape of the whole film — but that is an assumption about what each video endpoint does with a start frame, and no video row in this catalog has ever returned a file (`verifiedOn: null` on all of them). Check the first clip you render before re-shaping eleven more.
+
+Before this, nothing in the app asked fal for a shape, so every frame came back square while the project shipped 9:16 by default — and export refused the vertical every time, correctly, because it will not upscale a square into a portrait. If you see `9:16 needs at least 1080x1920; the source is 1080x1080`, the stills upstream are square: re-shape them, or drop the format on that export node, which overrides project settings.
+
+The control only appears on rows that can be told. `hailuo-2-3-pro` and the other video rows are not offered it, because an unknown key is dropped by fal without complaint — a select that quietly did nothing would look like it had worked and bill for a square frame anyway.
+
 ## One build per URL
 
 Each build is a workspace with an address of its own — `/f/default`, `/f/9c1a4f0e` — so two of them are two browser tabs rather than two apps. Its canvas, its render history, its costs and its chat thread belong to it alone; open the switcher in the toolbar to make one, rename it, or delete it. `/` opens the default workspace, or the most recently touched one if you have deleted it.

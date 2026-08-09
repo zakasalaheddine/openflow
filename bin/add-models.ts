@@ -23,6 +23,7 @@ import {
   type FalIndexEntry,
   type FalInputSchema,
 } from '../src/models/fal-catalog'
+import { honoursAspect } from '../src/models/input'
 import { dataDir, loadDotEnv, modelsPath } from '../src/env'
 import type { ModelSpec } from '../src/models/registry'
 
@@ -234,6 +235,20 @@ if (process.argv[1]?.endsWith('add-models.ts')) {
     // caps came from a schema, but the price came from a sentence, and fal's
     // sentences carry conditions a regex cannot ("4K is charged at double").
     console.log("Check each price against its `pricingNote` — that's the sentence it was read from.")
+
+    // Not derivable from the schema: which field an endpoint reads a render
+    // size from, and in what shape (`image_size` as pixels, `aspect_ratio` as a
+    // ratio). A row with no entry renders square, silently, and the inspector
+    // offers no shape control for it — which looks like the feature is missing
+    // rather than like the row is incomplete.
+    const shapeless = added.filter((row) => row.format === 'image' && !honoursAspect(row.id))
+    if (shapeless.length > 0) {
+      console.log(
+        `\n${shapeless.length} image row(s) render at the endpoint's default shape and offer no` +
+          ` shape control: ${shapeless.map((row) => row.id).join(', ')}.` +
+          ' Add each to ASPECT_INPUT in src/models/input.ts once you know its size field.',
+      )
+    }
   } else {
     console.log('\n[openflow] nothing added.')
   }
