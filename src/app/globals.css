@@ -357,14 +357,129 @@
   grid-template-columns: 1fr var(--inspector);
 }
 
+/*
+ * The toolbar, in groups.
+ *
+ * It was a flat row of a dozen chips at one gap: the four things that add a
+ * node, the thing that spends money, and the thing that ships, all reading as
+ * equals. Groups with hairlines between them, and a spacer that puts the ledger
+ * and everything that acts on the whole flow to the right of it — you read the
+ * price before you reach the buttons that commit it.
+ *
+ * `overflow-x: auto` and nothing hidden: below about 1200px the labels drop and
+ * the icons carry the controls, and if a window is narrower than even that, the
+ * row scrolls. A toolbar that removes controls as it narrows is a toolbar that
+ * is missing features on a laptop.
+ */
 .topbar {
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
-  gap: 20px;
-  padding: 0 16px;
+  gap: var(--s-4);
+  padding: 0 var(--s-5);
   border-bottom: 1px solid var(--line);
   background: var(--panel);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.topbar::-webkit-scrollbar {
+  display: none;
+}
+
+.topbar__group {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex: none;
+}
+
+/* A hairline, not a gap: a gap says "these are further apart", a rule says
+   "these are different kinds of thing". */
+.topbar__rule {
+  flex: none;
+  width: 1px;
+  height: 20px;
+  background: var(--line);
+}
+
+/*
+ * Nothing in this row wraps.
+ *
+ * `.shell` gives the toolbar a fixed 52px row, so a control that wraps to two
+ * lines does not make the bar taller — it overflows it, and at 820px the ledger
+ * and Run all both did exactly that. The row scrolls sideways instead; that is
+ * what `overflow-x` above is for.
+ */
+.topbar .chip,
+.topbar .ledger,
+.topbar .run {
+  white-space: nowrap;
+  flex: none;
+}
+
+.topbar .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/*
+ * Run all is pinned to the right edge of the row.
+ *
+ * The toolbar scrolls sideways when it runs out of room, and the one control
+ * that must never be off screen is the one that spends money — it is also the
+ * one the ledger beside it is pricing. Sticky rather than taken out of the flow:
+ * it keeps its place in the row at full width and only stops moving once the
+ * row starts sliding under it.
+ */
+.topbar .run {
+  position: sticky;
+  right: 0;
+  margin-left: auto;
+  box-shadow: -12px 0 12px -6px var(--panel);
+}
+
+/* A workspace called something long truncates rather than pushing the row into
+   a scroll, and truncates harder once the labels have gone. The full name is in
+   the menu it opens, and it is the first thing in there. */
+.topbar .workspaces .chip {
+  display: inline-block;
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 1080px) {
+  .topbar .workspaces .chip {
+    max-width: 12ch;
+  }
+}
+
+.topbar .chip svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+/*
+ * Two steps down, both label-only. The glyph and the tooltip carry the control
+ * from here, which is why every one of them has both.
+ */
+@media (max-width: 1240px) {
+  .topbar__group[aria-label='This flow'] .chip__label {
+    display: none;
+  }
+}
+
+@media (max-width: 1080px) {
+  .topbar .chip__label {
+    display: none;
+  }
+
+  .topbar__title {
+    display: none;
+  }
 }
 
 .topbar__title {
@@ -1206,11 +1321,70 @@
 .inspector {
   background: var(--panel);
   border-left: 1px solid var(--line);
-  padding: 16px 14px;
+  padding: var(--s-5) var(--s-5) var(--s-6);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  /* Between sections, not between fields — the sections carry their own
+     internal spacing, and one flat gap for both was what made the panel read as
+     an undifferentiated stack. */
+  gap: var(--s-6);
+}
+
+/*
+ * A titled group of controls.
+ *
+ * The rhythm is the point: a caption, a tight cluster of fields, then a bigger
+ * gap before the next caption. Uniform spacing between every element is what
+ * made finding one control mean reading all of them.
+ */
+.inspector__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.inspector__section-title {
+  margin: 0;
+  padding-bottom: var(--s-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.inspector__seed {
+  align-self: center;
+  font-size: var(--fs-3);
+  color: var(--ink);
+}
+
+/*
+ * The bill, at the bottom and weighted like one.
+ *
+ * It was a sentence in `.hint` — the same weight as a note about project
+ * settings, for the figure this whole tool exists to put in front of you before
+ * you commit to it. `margin-top: auto` pins it to the bottom of the panel on a
+ * short node so it is always in the same place.
+ */
+.inspector__bill {
+  margin-top: auto;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-3);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line);
+}
+
+.inspector__figure {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-5);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Amber while it is still owed, ink once it is spent. Same rule as the card. */
+.inspector__bill[data-status='stale'] .inspector__figure {
+  color: var(--safelight);
 }
 
 /*
@@ -1335,9 +1509,50 @@
   align-self: baseline;
 }
 
+/*
+ * Below 900px the inspector stops being a column and becomes a sheet.
+ *
+ * It used to just drop the second column, which does not remove a grid item —
+ * the panel wrapped to a row of its own underneath, took half the height of the
+ * canvas, and left you looking at a graph through a letterbox. There is no
+ * width for a 340px rail at this size, and there is no version of this where
+ * the canvas gives up half its height for a form.
+ *
+ * A sheet over the bottom edge instead, capped at 60vh: the canvas keeps its
+ * full height, and the part of the graph the sheet covers is the part you are
+ * not working on, because the card you selected is what put the sheet there.
+ */
 @media (max-width: 900px) {
   .shell[data-inspector='open'] {
     grid-template-columns: 1fr;
+  }
+
+  .inspector {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    max-height: 60vh;
+    border-left: none;
+    border-top: 1px solid var(--line-bright);
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    box-shadow: var(--e-3);
+    padding-bottom: var(--s-6);
+  }
+
+  /* The grab bar every bottom sheet has, so it reads as one thing you can
+     dismiss rather than a panel that appeared. */
+  .inspector::before {
+    content: '';
+    position: sticky;
+    top: 0;
+    align-self: center;
+    width: 36px;
+    height: 4px;
+    flex: none;
+    border-radius: 2px;
+    background: var(--line-bright);
   }
 }
 
@@ -1940,13 +2155,60 @@
   color: var(--slate);
 }
 .chat__line {
+  margin: 0;
   white-space: pre-wrap;
-  font-size: 0.9rem;
-  line-height: 1.45;
+  font-size: var(--fs-3);
+  line-height: 1.5;
   color: var(--ink);
 }
+
+/*
+ * Who said it, by shape rather than by opacity.
+ *
+ * The only distinction used to be `opacity: 0.7` on your own messages, which
+ * made the whole log one grey wall and made the thing you wrote the *quietest*
+ * thing in it. Your turns sit right in a tinted box; the agent's run flush left
+ * as prose, because that is what they are.
+ */
 .chat__line--user {
-  opacity: 0.7;
+  align-self: flex-end;
+  max-width: 88%;
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-md) var(--r-md) var(--r-sm) var(--r-md);
+  background: var(--raised);
+}
+
+/*
+ * What the agent did to the graph, between what it said about it.
+ *
+ * Quiet on purpose: it is a receipt for something you can already see on the
+ * canvas, and the canvas is the real answer.
+ */
+.chat__activity {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: var(--fs-1);
+  letter-spacing: 0.06em;
+  color: var(--slate-dim);
+}
+
+/* A caret on the streaming line, not a "Thinking…" placeholder swapped in and
+   out: the text arrives token by token, so a placeholder flickers off on the
+   first one. */
+.chat__caret {
+  display: inline-block;
+  width: 2px;
+  height: 0.9em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--beam);
+  animation: caret-blink 1s steps(2, start) infinite;
+}
+
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
 }
 /* The house's error colour is `--fault` — `.chip--danger` uses the same
    token — so chat errors match every other fault-coloured line. */

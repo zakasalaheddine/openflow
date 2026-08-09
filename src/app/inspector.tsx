@@ -140,11 +140,30 @@ function ModelField({
 }
 
 /**
+ * A titled group of fields.
+ *
+ * The panel was a flat stack: a name, a hint, a duration, a select, a model, a
+ * seed and a price, all at the same weight and in one column, so finding the
+ * one control you came for meant reading all of them. Four or five short
+ * sections with a caption each is the whole fix — a `<section>` with a heading,
+ * which is also what makes it navigable to a screen reader.
+ */
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="inspector__section" aria-label={title}>
+      <h2 className="slate inspector__section-title">{title}</h2>
+      {children}
+    </section>
+  )
+}
+
+/**
  * Re-roll and prompt editing sit side by side but read differently on purpose:
  * re-roll keeps the direction and changes the dice, editing changes the
  * direction. Confusing the two means re-rolling a bad idea forever.
  */
 export function Inspector({ node, state, models, clips, onChange, onReorder, onDelete, onReroll }: Props) {
+  const seed = 'seed' in node ? node.seed : undefined
 
   return (
     <aside className="inspector" aria-label={`Inspector for ${node.id}`}>
@@ -161,19 +180,19 @@ export function Inspector({ node, state, models, clips, onChange, onReorder, onD
         </p>
       )}
 
-      <Field
-        label="Name"
-        value={node.label ?? ''}
-        placeholder={node.id}
-        testId="node-label"
-        onCommit={(label) => onChange({ ...node, label })}
-      />
-
-      <p className="hint">Double-click the prompt on the card to edit the direction.</p>
-
+      <Section title="Identity">
+        <Field
+          label="Name"
+          value={node.label ?? ''}
+          placeholder={node.id}
+          testId="node-label"
+          onCommit={(label) => onChange({ ...node, label })}
+        />
+        <span className="hint">Double-click the prompt on the card to edit the direction.</span>
+      </Section>
 
       {node.type === 'video' && (
-        <>
+        <Section title="Clip">
           <Field
             label="Duration (seconds)"
             type="number"
@@ -197,15 +216,14 @@ export function Inspector({ node, state, models, clips, onChange, onReorder, onD
               <option value="on">On</option>
             </select>
           </label>
-        </>
+        </Section>
       )}
 
       {node.type === 'sequence' && (
-        <>
-          {/* The order is the whole content of this node, so it is the whole
-              inspector. Arrows rather than drag-to-reorder: a list of twelve
-              shots is read, not dragged, and a misdrop here re-cuts the film. */}
-          <span className="slate">Cut order</span>
+        // The order is the whole content of this node, so it is the whole
+        // inspector. Arrows rather than drag-to-reorder: a list of twelve shots
+        // is read, not dragged, and a misdrop here re-cuts the film.
+        <Section title="Cut order">
           {(clips ?? []).length === 0 ? (
             <span className="hint">
               Wire clips into this node. They cut together in the order you wire them.
@@ -251,11 +269,11 @@ export function Inspector({ node, state, models, clips, onChange, onReorder, onD
           <span className="hint">
             The cut is made at Export from clips you have already rendered. It costs nothing to run.
           </span>
-        </>
+        </Section>
       )}
 
       {node.type === 'export' && (
-        <>
+        <Section title="Overlay">
           {/* Placed here, not asked of the model: a declared box is what makes
               the safe-zone check arithmetic instead of OCR. */}
           <Field
@@ -294,34 +312,50 @@ export function Inspector({ node, state, models, clips, onChange, onReorder, onD
           <span className="hint">
             Formats come from project settings unless this node names its own.
           </span>
-        </>
+        </Section>
       )}
 
-      {'modelId' in node && <ModelField node={node} models={models} onChange={onChange} />}
+      {('modelId' in node || 'seed' in node) && (
+        <Section title="Model">
+          {'modelId' in node && <ModelField node={node} models={models} onChange={onChange} />}
 
-      {'seed' in node && (
-        <div className="field">
-          <span className="slate">Seed</span>
-          <div className="inspector__chips">
-            <span className="figure" style={{ fontSize: 12, alignSelf: 'center' }}>
-              {node.seed ?? '—'}
-            </span>
-            <button className="chip" onClick={onReroll} data-testid="reroll">
-              ↻ Re-roll
-            </button>
-          </div>
-          <span className="hint">
-            Re-roll keeps the direction and changes the dice. Edit the direction above to change intent.
-          </span>
-        </div>
+          {'seed' in node && (
+            <div className="field">
+              <span className="slate">Seed</span>
+              <div className="inspector__chips">
+                {/* Read before the section's own guard, not inside it: the
+                    enclosing `'modelId' in node || 'seed' in node` widens the
+                    union again, so TypeScript loses the narrowing by the time
+                    this line asks for the value. */}
+                <span className="figure inspector__seed">{seed ?? '—'}</span>
+                <button className="chip" onClick={onReroll} data-testid="reroll">
+                  ↻ Re-roll
+                </button>
+              </div>
+              <span className="hint">
+                Re-roll keeps the direction and changes the dice. Edit the direction above to change
+                intent.
+              </span>
+            </div>
+          )}
+        </Section>
       )}
 
+      {/*
+        The bill, as a figure rather than a sentence.
+
+        It was one line of `.hint` at the bottom of a flat stack — the same
+        weight as "Formats come from project settings", for the number this
+        whole tool exists to show you before you commit to it.
+      */}
       {state && (
-        <p className="hint">
-          {state.status === 'succeeded'
-            ? `Rendered for ${money(state.costCents)}${state.modelId ? ` on ${state.modelId}` : ''}.`
-            : `${money(state.estimatedCents)} to render${state.modelId ? ` on ${state.modelId}` : ''}.`}
-        </p>
+        <div className="inspector__bill" data-status={state.status}>
+          <span className="slate">{state.status === 'succeeded' ? 'Rendered for' : 'To render'}</span>
+          <span className="inspector__figure">
+            {money(state.status === 'succeeded' ? state.costCents : state.estimatedCents)}
+          </span>
+          {state.modelId && <span className="hint">on {state.modelId}</span>}
+        </div>
       )}
     </aside>
   )

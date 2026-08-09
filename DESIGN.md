@@ -274,6 +274,31 @@ over a gradient scrim; they do not take rows underneath it.
   direction is one line at rest and opens on hover, selection or editing — it is
   never absent.
 
+## Panels
+
+- **The toolbar is grouped, and nothing is ever removed from it.** Groups are
+  separated by hairlines, not by wider gaps: a gap says "further apart", a rule
+  says "a different kind of thing". As the window narrows, labels drop and the
+  icons carry the controls; below that the row scrolls sideways. Run all is
+  sticky to the right edge, because the one control that must never be off
+  screen is the one that spends money.
+- **Nothing in the toolbar wraps.** `.shell` gives it a fixed 52px row, so a
+  control that wraps to two lines overflows the bar rather than growing it.
+- **The inspector is sections, not a stack.** A caption, a tight cluster of
+  fields, then a bigger gap. One flat gap between every element is what made
+  finding one control mean reading all of them.
+- **The bill is pinned to the bottom of the inspector and weighted like a
+  figure**, amber while owed and ink once spent — the same rule as the card.
+- **Below 900px the inspector is a bottom sheet**, not a collapsed column.
+  Dropping the column does not remove a grid item: the panel wrapped to a row of
+  its own and took half the canvas.
+- **The chat log distinguishes speakers by shape.** Your turns are right-aligned
+  in a tinted box; the agent's run flush left as prose. Opacity alone made the
+  log one grey wall and made the thing you wrote the quietest thing in it.
+- **The agent's tool calls are summarised, never logged.** What it did to the
+  graph belongs in the thread; the arguments do not — the graph is on screen,
+  and a panel that reprints it is a second source of truth to keep in sync.
+
 ## The load-bearing comments
 
 `src/app/globals.css` and `src/app/node-card.tsx` carry comments that read like

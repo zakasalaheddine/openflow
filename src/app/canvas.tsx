@@ -19,6 +19,16 @@ import {
 } from '@xyflow/react'
 import { toast } from 'sonner'
 import {
+  DownloadIcon,
+  FilmIcon,
+  ImageIcon,
+  MessageSquareIcon,
+  PackageIcon,
+  PaletteIcon,
+  VideoIcon,
+  WaypointsIcon,
+} from 'lucide-react'
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -135,12 +145,19 @@ function Grid() {
   )
 }
 
-/** What each add button makes, said once rather than inferred from its label. */
+/**
+ * What each add button makes, said once rather than inferred from its label.
+ *
+ * The icon is not decoration: below about 1200px the labels are hidden and the
+ * glyph is the whole control, which is also why every one of them keeps its
+ * tooltip. Nothing is ever removed from the row — a toolbar that drops controls
+ * as it narrows is a toolbar you cannot use on a laptop.
+ */
 const ADD_NODE = [
-  { type: 'image', hint: 'A still frame, rendered from a prompt' },
-  { type: 'video', hint: 'A clip that starts from the frame you wire into it' },
-  { type: 'sequence', hint: 'Clips cut together in order, into one film' },
-  { type: 'export', hint: 'Crops and text overlays, written to ./exports' },
+  { type: 'image', icon: ImageIcon, hint: 'A still frame, rendered from a prompt' },
+  { type: 'video', icon: VideoIcon, hint: 'A clip that starts from the frame you wire into it' },
+  { type: 'sequence', icon: FilmIcon, hint: 'Clips cut together in order, into one film' },
+  { type: 'export', icon: PackageIcon, hint: 'Crops and text overlays, written to ./exports' },
 ] as const
 
 let counter = 0
@@ -936,20 +953,30 @@ function CanvasInner({ flow }: { flow: string }) {
             this menu reports is a refusal. */}
         <FlowMenu current={flow} onError={say} />
 
-        {ADD_NODE.map(({ type, hint }) => (
-          <Hint key={type} label={hint}>
-            <button className="chip" onClick={() => addNode(type)} data-testid={`add-${type}`}>
-              + {type}
-            </button>
-          </Hint>
-        ))}
+        <span className="topbar__rule" aria-hidden="true" />
 
-        <AssetMenu
-          sources={state?.sources ?? []}
-          onUpload={(files) => void addAssets(files)}
-          onNote={(text) => void addNote(text)}
-          onPick={addExistingSource}
-        />
+        {/* What this canvas is made of. Four node types and the assets they are
+            built from, which is the whole vocabulary — the non-goals in the
+            README are the reason there is no fifth. */}
+        <div className="topbar__group" role="group" aria-label="Add to the canvas">
+          {ADD_NODE.map(({ type, icon: Icon, hint }) => (
+            <Hint key={type} label={hint}>
+              <button className="chip" onClick={() => addNode(type)} data-testid={`add-${type}`}>
+                <Icon aria-hidden="true" />
+                <span className="chip__label">{type}</span>
+              </button>
+            </Hint>
+          ))}
+
+          <AssetMenu
+            sources={state?.sources ?? []}
+            onUpload={(files) => void addAssets(files)}
+            onNote={(text) => void addNote(text)}
+            onPick={addExistingSource}
+          />
+        </div>
+
+        <span className="topbar__rule" aria-hidden="true" />
 
         {/* The shortcut used to be the whole tooltip: `title="⌥R"`, with nothing
             anywhere saying what ⌥R did. */}
@@ -960,7 +987,13 @@ function CanvasInner({ flow }: { flow: string }) {
             onClick={() => setShowRefs((on) => !on)}
             data-testid="toggle-refs"
           >
-            {hiddenRefs > 0 ? `${hiddenRefs} refs hidden` : 'refs'}
+            <WaypointsIcon aria-hidden="true" />
+            {/* Still "refs hidden", not "hidden": the glyph does not say what
+                kind of wire this counts, and a hidden edge that looks like no
+                edge is how someone concludes a connection vanished. */}
+            <span className="chip__label">
+              {hiddenRefs > 0 ? `${hiddenRefs} refs hidden` : 'refs'}
+            </span>
           </button>
         </Hint>
 
@@ -994,28 +1027,36 @@ function CanvasInner({ flow }: { flow: string }) {
           </Hint>
         )}
 
-        <Hint label="The voice every prompt is composed against">
-          <button className="chip" onClick={() => void openBrand()} data-testid="brand">
-            Brand
-          </button>
-        </Hint>
+        {/* Everything that acts on the flow as a whole rather than on a card,
+            kept together and to the right of the ledger — you read the price
+            before you reach the things that spend or ship it. */}
+        <div className="topbar__group" role="group" aria-label="This flow">
+          <Hint label="The voice every prompt is composed against">
+            <button className="chip" onClick={() => void openBrand()} data-testid="brand">
+              <PaletteIcon aria-hidden="true" />
+              <span className="chip__label">Brand</span>
+            </button>
+          </Hint>
 
-        <Hint label="Write every rendered frame to ./exports">
-          <button className="chip" onClick={() => void exportAll()} data-testid="export">
-            Export
-          </button>
-        </Hint>
+          <Hint label="Write every rendered frame to ./exports">
+            <button className="chip" onClick={() => void exportAll()} data-testid="export">
+              <DownloadIcon aria-hidden="true" />
+              <span className="chip__label">Export</span>
+            </button>
+          </Hint>
 
-        <Hint label={chatOpen ? 'Close the direction panel' : 'Write the graph by asking for it'}>
-          <button
-            className="chip"
-            aria-pressed={chatOpen}
-            onClick={() => setChatOpen((open) => !open)}
-            data-testid="chat-toggle"
-          >
-            Chat
-          </button>
-        </Hint>
+          <Hint label={chatOpen ? 'Close the direction panel' : 'Write the graph by asking for it'}>
+            <button
+              className="chip"
+              aria-pressed={chatOpen}
+              onClick={() => setChatOpen((open) => !open)}
+              data-testid="chat-toggle"
+            >
+              <MessageSquareIcon aria-hidden="true" />
+              <span className="chip__label">Chat</span>
+            </button>
+          </Hint>
+        </div>
 
         <Hint label="Render everything that is out of date, at the price on the ledger">
           <button className="run" onClick={() => void run()} data-testid="run">

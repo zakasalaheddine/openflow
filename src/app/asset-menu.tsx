@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { FileUpIcon, PencilLineIcon } from 'lucide-react'
+import { FileUpIcon, PaperclipIcon, PencilLineIcon } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -111,7 +111,10 @@ export function AssetMenu({ sources, onUpload, onNote, onPick }: Props) {
         <Hint label="Put a product photo, a clip or a note on the canvas">
           <DropdownMenuTrigger asChild>
             <button className="chip" data-testid="add-asset">
-              + asset
+              <PaperclipIcon aria-hidden="true" />
+              {/* Same `.chip__label` as the rest of the add group, so it drops
+                  to an icon at the same width they do. */}
+              <span className="chip__label">asset</span>
             </button>
           </DropdownMenuTrigger>
         </Hint>
