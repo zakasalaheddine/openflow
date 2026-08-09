@@ -4,6 +4,7 @@ import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { projects, flows, sources, nodeRuns } from '../db/schema'
 import { inputHash } from './hash'
 import { hashableConfig } from './hashable'
+import { pixelsFor } from './aspect'
 import { topoOrder, ancestors } from './graph'
 import { previewRun } from './preview'
 import { DEFAULT_SETTINGS, type ProjectSettings } from './settings'
@@ -19,7 +20,15 @@ type Db = BetterSQLite3Database<any>
 /** Statuses that mean money is already committed to this hash. */
 export const IN_FLIGHT = ['queued', 'claimed', 'submitted', 'polling'] as const
 
-/** Default render size for a per-megapixel cost estimate before dimensions exist. */
+/**
+ * The fallback size for a per-megapixel estimate, now only reached by clips.
+ *
+ * A still is estimated from its own aspect (`pixelsFor`). A clip has no aspect
+ * of its own — it takes the shape of the frame it starts from — and every video
+ * row in the catalog is priced per second, so this number does not reach a bill
+ * today. It stays for the row that is priced per megapixel and does not exist
+ * yet; a clip reaching here quietly priced at zero would be worse.
+ */
 const ESTIMATE_PIXELS = { width: 1024, height: 1024 }
 
 export class SpendCapExceededError extends Error {
@@ -184,7 +193,12 @@ function walk(
         model.caps.refImages > 0 && hasImageReference(graph, nodeId, library),
       ),
       estimatedCents: estimateCostCents(model, {
-        ...ESTIMATE_PIXELS,
+        // The shape it will actually be rendered at, not a fixed square. A
+        // per-megapixel row bills what it renders: `flux-2-pro` at 9:16 is
+        // 1.83 MP against 1.05 at 1:1. Estimated from the same table the
+        // payload is built from, so the card cannot quote a price for a frame
+        // of a different size than the one dispatched.
+        ...(node.type === 'image' ? pixelsFor(node.aspect) : ESTIMATE_PIXELS),
         ...(node.type === 'video' ? { durationSec: node.durationSec } : {}),
       }),
     })

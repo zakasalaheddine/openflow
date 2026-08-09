@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ASPECTS } from './aspect'
 
 /**
  * The trust boundary. `graph_json` decides what gets dispatched and billed, so
@@ -56,6 +57,10 @@ export const nodeSchema = z.discriminatedUnion('type', [
     // pure and has no business reading a file off disk.
     modelId: z.string().min(1),
     seed: z.number().int().optional(),
+    // An enum, not a `{ w, h }` pair: the value is sent to an endpoint with its
+    // own bounds, and a number arriving over HTTP would have to be checked
+    // against every one of them. See core/aspect.ts.
+    aspect: z.enum(ASPECTS).optional(),
   }),
   z.object({
     id: z.string().min(1),

@@ -2,7 +2,9 @@
 
 import { useState } from 'react'
 import type { FlowNode } from '@/core/types'
+import { ASPECTS, DEFAULT_ASPECT, pixelsFor, type Aspect } from '@/core/aspect'
 import { DEFAULT_TEXT_BOX } from '@/core/spec'
+import { honoursAspect } from '@/models/input'
 import { money, type ModelRow, type NodeState } from './state'
 
 type Props = {
@@ -180,6 +182,49 @@ function ModelField({
           : current.cost.amount === null
             ? `No price — fal published none. Set cost.amount in models.json before running it. · ${capsLine(current)}`
             : capsLine(current)}
+      </span>
+    </label>
+  )
+}
+
+/**
+ * The shape the still is rendered at.
+ *
+ * Offered only on a row that can be told — `honoursAspect` — because an unknown
+ * key is dropped by fal without complaint, so a select that quietly did nothing
+ * would look like it had worked and bill for a square frame anyway. The same
+ * reason references are gated on `caps.refImages` rather than sent hopefully.
+ *
+ * Changing it re-prices the card before anything runs: a per-megapixel row
+ * bills what it renders, and 9:16 is nearly twice the pixels of 1:1.
+ */
+function AspectField({
+  node,
+  onChange,
+}: {
+  node: Extract<FlowNode, { type: 'image' }>
+  onChange: (next: FlowNode) => void
+}) {
+  return (
+    <label className="field">
+      <span className="slate">Shape</span>
+      <select
+        value={node.aspect ?? DEFAULT_ASPECT}
+        data-testid="node-aspect"
+        onChange={(e) => onChange({ ...node, aspect: e.target.value as Aspect })}
+      >
+        {ASPECTS.map((aspect) => {
+          const { width, height } = pixelsFor(aspect)
+          return (
+            <option key={aspect} value={aspect}>
+              {aspect} — {width}×{height}
+            </option>
+          )
+        })}
+      </select>
+      <span className="hint">
+        A clip is expected to take the shape of the frame it starts from, so this is what decides
+        the shape of the film. Unverified on every video row — check the first clip you render.
       </span>
     </label>
   )
@@ -372,6 +417,10 @@ export function Inspector({ node, state, models, clips, onChange, onReorder, onD
       {('modelId' in node || 'seed' in node) && (
         <Section title="Model">
           {'modelId' in node && <ModelField node={node} models={models} onChange={onChange} />}
+
+          {node.type === 'image' && honoursAspect(node.modelId) && (
+            <AspectField node={node} onChange={onChange} />
+          )}
 
           {'seed' in node && (
             <div className="field">
