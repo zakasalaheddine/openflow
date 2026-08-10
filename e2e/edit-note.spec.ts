@@ -1,5 +1,5 @@
 import { test, expect, type APIRequestContext } from '@playwright/test'
-import { resetWorkspace, setGraph, waitForLedger, uploadText } from './helpers'
+import { closeChat, resetWorkspace, setGraph, uploadText, waitForLedger } from './helpers'
 
 // Brand voice is the one asset you rewrite rather than re-upload, and it
 // composes ahead of every prompt it feeds. So a rewrite is a replacement: the
@@ -30,6 +30,7 @@ test('a note feeding nothing is rewritten in place, with no dialog in the way', 
   await noteOnCanvas(request, 'warm, unfussy, no hard sell')
   await page.goto('/')
   await waitForLedger(page)
+  await closeChat(page)
 
   await page.getByTestId('node-text-voice-text').dblclick()
   await page.getByTestId('node-text-voice-input').fill('cold, clinical, evidence first')
@@ -66,6 +67,7 @@ test('rewriting a note that feeds shots is priced before it commits', async ({ p
 
   await page.goto('/')
   await waitForLedger(page)
+  await closeChat(page)
 
   await page.getByTestId('node-text-voice-text').dblclick()
   await page.getByTestId('node-text-voice-input').fill('cold, clinical, evidence first')
@@ -102,6 +104,7 @@ test('cancelling the price leaves the note as it was', async ({ page, request })
 
   await page.goto('/')
   await waitForLedger(page)
+  await closeChat(page)
 
   await page.getByTestId('node-text-voice-text').dblclick()
   await page.getByTestId('node-text-voice-input').fill('cold, clinical, evidence first')
@@ -119,6 +122,7 @@ test('Escape abandons the edit and writes nothing', async ({ page, request }) =>
   await noteOnCanvas(request, 'warm, unfussy, no hard sell')
   await page.goto('/')
   await waitForLedger(page)
+  await closeChat(page)
 
   await page.getByTestId('node-text-voice-text').dblclick()
   await page.getByTestId('node-text-voice-input').fill('something else entirely')
@@ -147,6 +151,7 @@ test('a rewritten note stales the shots it feeds', async ({ page, request }) => 
 
   await page.goto('/')
   await waitForLedger(page)
+  await closeChat(page)
   await page.getByTestId('run-marble').click()
   await expect(page.getByTestId('status-marble')).toHaveText('done', { timeout: 30_000 })
 
@@ -180,6 +185,7 @@ test('editing a note does not disturb prompt editing on a shot', async ({ page, 
 
   await page.goto('/')
   await waitForLedger(page)
+  await closeChat(page)
 
   await page.getByTestId('node-prompt-text').dblclick()
   await page.getByTestId('node-prompt-input').fill('bottle on wet slate')

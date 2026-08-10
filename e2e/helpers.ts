@@ -29,6 +29,21 @@ export async function setGraph(request: APIRequestContext, graph: unknown) {
  * runs at. Specs that need that strip clear (a resize handle, a card's own
  * text) close it as setup, the same way they seed the graph as setup; the
  * assertions those specs make are unchanged by this.
+ *
+ * It is called by every spec that touches a card, and that is working around a
+ * real bug rather than a quirk of the suite. `.chat` is `position: absolute;
+ * inset: 0 0 0 auto` against `.canvas-row`, so opening the inspector narrows
+ * that row and slides the chat panel 340px left — over whatever cards are
+ * there. Selecting a card can therefore put the chat panel on top of the card
+ * you just selected: `elementsFromPoint` over the direction returns
+ * `div.chat__log` the moment the inspector opens. The second click of a
+ * double-click lands on the chat log and the edit never opens.
+ *
+ * DESIGN.md already records this exact bug as fixed for the inspector — "the
+ * inspector takes a column rather than floating over the canvas. Overlaying it
+ * hid whichever shots sat under it and made them unclickable" — and the chat
+ * panel never got the same treatment. Closing it here keeps the suite honest
+ * about everything else; it does not make the bug go away for a person.
  */
 export async function closeChat(page: Page) {
   const toggle = page.getByTestId('chat-toggle')
@@ -96,28 +111,44 @@ export async function waitForLedger(page: Page) {
   await settled(page)
 }
 
+/** What React Flow renders before it has framed anything. */
+const UNFRAMED = 'translate(0px, 0px) scale(1)'
+
 /**
- * The canvas has stopped moving.
+ * The canvas has framed the graph and stopped moving.
  *
- * Two identical reads of the viewport transform, not a fixed sleep. Whatever
- * the last thing to move it was — the framing above, a resize from the chat
- * panel closing — this waits for it to finish rather than guessing how long it
- * takes on the slowest box that will ever run the suite.
+ * Waiting for "two identical reads of the transform" is not enough, and the
+ * version of this that did only that is what turned a rare flake into a
+ * reliable CI failure: at the moment the ledger paints, the framing has not
+ * started, so two reads taken before it both say `translate(0px, 0px) scale(1)`
+ * and the wait returns instantly with a canvas that is about to move.
+ *
+ * So the identity transform is treated as "not yet", not as "stable". A graph
+ * with nodes always leaves it — `fitView` centres and zooms, and it has never
+ * been a no-op for the fixtures this suite seeds. An empty canvas never frames
+ * anything and is settled the moment it renders, which is why the node count is
+ * checked first rather than waiting 10s for a transform that will never come.
  */
 export async function settled(page: Page) {
-  const transform = () =>
-    page.locator('.react-flow__viewport').evaluate((el) => el.style.transform)
+  const read = () =>
+    page.evaluate(() => ({
+      nodes: document.querySelectorAll('.react-flow__node').length,
+      transform:
+        (document.querySelector('.react-flow__viewport') as HTMLElement | null)?.style.transform ??
+        '',
+    }))
 
-  let last = await transform()
+  let last = ''
   await expect
     .poll(
       async () => {
-        const now = await transform()
-        const stable = now !== '' && now === last
-        last = now
+        const { nodes, transform } = await read()
+        if (nodes === 0) return true
+        const stable = transform !== '' && transform !== UNFRAMED && transform === last
+        last = transform
         return stable
       },
-      { timeout: 10_000, intervals: [100] },
+      { timeout: 10_000, intervals: [50] },
     )
     .toBe(true)
 }
