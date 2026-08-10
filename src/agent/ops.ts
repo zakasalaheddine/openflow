@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type { Db } from '@/db'
 import { flows } from '@/db/schema'
 import { saveGraph, listSources as listProjectSources } from '@/core/workspace'
+import { readGraph } from '@/core/graph'
 import { applyWire, removeEdge, removeNode } from '@/core/wiring'
 import { buildFlowFromBrief, loadTemplates } from '@/core/brief'
 import { previewRun } from '@/core/preview'
@@ -35,7 +36,7 @@ export const listGraphInput = z.object({})
 export const listSourcesInput = z.object({})
 
 export const addNodeInput = z.object({
-  type: z.enum(['source', 'image', 'video', 'export', 'sequence']),
+  type: z.enum(['source', 'image', 'video', 'sequence']),
   label: z.string().optional(),
   /** Required for image and video. */
   prompt: z.string().optional(),
@@ -44,9 +45,6 @@ export const addNodeInput = z.object({
   modelId: modelId.optional(),
   durationSec: z.number().min(1).max(60).optional(),
   audio: z.boolean().optional(),
-  formats: z
-    .array(z.object({ name: z.string(), w: z.number(), h: z.number() }))
-    .optional(),
 })
 
 export const updateNodeInput = z.object({
@@ -56,9 +54,6 @@ export const updateNodeInput = z.object({
   modelId: modelId.optional(),
   durationSec: z.number().min(1).max(60).optional(),
   audio: z.boolean().optional(),
-  formats: z
-    .array(z.object({ name: z.string(), w: z.number(), h: z.number() }))
-    .optional(),
 })
 
 export const deleteNodeInput = z.object({ id: z.string() })
@@ -105,7 +100,7 @@ const newId = (graph: Flow, type: string) => {
 export type Ops = ReturnType<typeof createOps>
 
 export function createOps(db: Db, ids: { projectId: string; flowId: string }) {
-  const read = (): Flow => db.select().from(flows).where(eq(flows.id, ids.flowId)).get()!.graphJson as Flow
+  const read = (): Flow => readGraph(db.select().from(flows).where(eq(flows.id, ids.flowId)).get()!.graphJson)
 
   const write = (graph: Flow) => {
     // The same door the canvas comes through: a graph the schema refuses must
@@ -190,7 +185,6 @@ export function createOps(db: Db, ids: { projectId: string; flowId: string }) {
             : undefined,
         durationSec: input.durationSec,
         audio: input.audio,
-        formats: input.formats,
       })
 
       write({ ...graph, nodes: [...graph.nodes, node] })

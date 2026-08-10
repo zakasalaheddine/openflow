@@ -5,12 +5,12 @@ import { projects, flows, sources, nodeRuns } from '../db/schema'
 import { inputHash } from './hash'
 import { hashableConfig } from './hashable'
 import { pixelsFor } from './aspect'
-import { topoOrder, ancestors } from './graph'
+import { topoOrder, ancestors, readGraph } from './graph'
 import { previewRun } from './preview'
 import { DEFAULT_SETTINGS, type ProjectSettings } from './settings'
 import { referencesOf, sequenceInputs } from './wiring'
 import { composePrompt, hasImageReference } from './compose'
-import type { Flow, FlowNode, NodeId } from './types'
+import type { FlowNode, NodeId } from './types'
 import { assertAnchorsSupported, estimateCostCents, endpointFor, isPriced, UnpricedModelError } from '../models/registry'
 import { byId as modelOrNone, modelById } from '../models/catalog'
 import { LOCAL_CUT } from './runs'
@@ -84,7 +84,7 @@ function loadContext(db: Db, flowId: string) {
       .map((row) => [row.id, row] as const),
   )
 
-  return { graph: flow.graphJson as Flow, settings, library }
+  return { graph: readGraph(flow.graphJson), settings, library }
 }
 
 /**

@@ -35,7 +35,7 @@ export const createTools = (ops: Ops) => ({
 
   add_node: tool({
     description:
-      'Add one node and return its id. Types: source (an existing asset, needs sourceId), image (a still, needs prompt), video (a clip, needs prompt), sequence (cuts several clips into one film, in the order you wire them), export (the deliverable formats). Nothing renders until the person presses Run.',
+      'Add one node and return its id. Types: source (an existing asset, needs sourceId), image (a still, needs prompt), video (a clip, needs prompt), sequence (cuts several clips into one film, in the order you wire them). Nothing renders until the person presses Run.',
     inputSchema: addNodeInput,
     execute: async (input) => ops.addNode(input),
   }),

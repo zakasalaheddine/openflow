@@ -21,7 +21,7 @@ describe('placing a new card', () => {
   })
 
   test('ignores nodes that have no position of their own', () => {
-    const floating = { id: 'x', type: 'export', formats: [] } as unknown as FlowNode
+    const floating: FlowNode = { id: 'x', type: 'sequence' }
 
     expect(freeSlot([floating, at('a', 0)])).toEqual(slotFor(1))
   })

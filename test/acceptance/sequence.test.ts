@@ -26,12 +26,10 @@ const film = (): Flow => ({
     clip('one', 'she opens the door'),
     clip('two', 'she steps into the light'),
     { id: 'cut', type: 'sequence', label: 'film' },
-    { id: 'out', type: 'export', formats: [{ name: '9:16', w: 1080, h: 1920 }] },
   ],
   edges: [
     { id: 'e1', from: 'one', to: 'cut', role: 'input', position: 0 },
     { id: 'e2', from: 'two', to: 'cut', role: 'input', position: 1 },
-    { id: 'e3', from: 'cut', to: 'out', role: 'input', position: null },
   ],
 })
 
@@ -79,15 +77,13 @@ describe('a sequence', () => {
   })
 
   test('the total counts a clip once, however many ways it ships', async () => {
-    // The same clip wired into the film *and* straight into the export. It was
-    // rendered once and paid for once; a manifest that says otherwise is a
+    // The same clip requested standalone *and* inside the film it feeds. It
+    // was rendered once and paid for once; a manifest that says otherwise is a
     // number a client can be shown and later disproved.
-    const graph = film()
-    graph.edges.push({ id: 'e4', from: 'one', to: 'out', role: 'input', position: null })
-    const { db, flowId, dir } = await prepared(graph)
+    const { db, flowId, dir } = await prepared()
 
-    // 'out' is wired straight from both 'cut' and 'one' now, and the caller
-    // decides what "everything" means — here, both.
+    // The caller decides what "everything" means — here, both the cut and the
+    // clip it was built from.
     const result = await exportFlow(db, flowId, { dir, nodeIds: ['cut', 'one'], formats: SEQ_FORMATS })
     expect(result.entries).toHaveLength(2)
     expect(result.totalCostCents).toBe(100)

@@ -16,8 +16,9 @@ import { assetsDir } from '../env'
 import { IN_FLIGHT } from '../core/executor'
 import { cutSequence } from '../core/cut'
 import { LOCAL_CUT } from '../core/runs'
+import { readGraph } from '../core/graph'
 import type { Adapter, ParsedOutput } from '../models/fal'
-import type { Flow, AssetRef } from '../core/types'
+import type { AssetRef } from '../core/types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = BetterSQLite3Database<any>
@@ -114,7 +115,7 @@ function buildInput(
   const flow = db.select().from(flows).where(eq(flows.id, run.flowId)).get()
   if (!flow) throw new Error(`Flow ${run.flowId} no longer exists`)
 
-  const graph = flow.graphJson as Flow
+  const graph = readGraph(flow.graphJson)
   const node = graph.nodes.find((n) => n.id === run.nodeId)
   if (!node) throw new Error(`Node ${run.nodeId} no longer exists in the graph`)
 
@@ -240,7 +241,7 @@ function waitingOnUpstream(db: Db, run: NodeRun): boolean {
   const flow = db.select().from(flows).where(eq(flows.id, run.flowId)).get()
   if (!flow) return false
 
-  const parents = (flow.graphJson as Flow).edges
+  const parents = readGraph(flow.graphJson).edges
     .filter((e) => e.to === run.nodeId)
     .map((e) => e.from)
   if (parents.length === 0) return false

@@ -102,7 +102,7 @@ export function buildModelInput(
       }
     }
     default:
-      // source and export nodes never dispatch; planRun does not plan them.
+      // source and sequence nodes never dispatch; planRun does not plan them.
       throw new Error(`Node type '${node.type}' does not dispatch to a model.`)
   }
 }

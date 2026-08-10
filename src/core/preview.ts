@@ -2,8 +2,8 @@ import { eq, inArray } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { flows, nodeRuns } from '../db/schema'
 import { planRun, IN_FLIGHT, type PlannedNode } from './executor'
-import { descendants } from './graph'
-import type { Flow, NodeId } from './types'
+import { descendants, readGraph } from './graph'
+import type { NodeId } from './types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = BetterSQLite3Database<any>
@@ -42,7 +42,7 @@ export function previewRun(db: Db, flowId: string): Preview {
   const stale = planned.filter((p) => !satisfied.has(p.inputHash) && !running.has(p.inputHash))
 
   const flow = db.select().from(flows).where(eq(flows.id, flowId)).get()
-  const graph = (flow?.graphJson as Flow | undefined) ?? { nodes: [], edges: [] }
+  const graph = flow ? readGraph(flow.graphJson) : { nodes: [], edges: [] }
   const shape = { nodeIds: graph.nodes.map((n) => n.id), edges: graph.edges }
   const staleById = new Map(stale.map((s) => [s.nodeId, s]))
 
@@ -82,7 +82,7 @@ export function staleForSource(
   const affected: AffectedNode[] = []
 
   for (const flow of projectFlows) {
-    const graph = flow.graphJson as Flow
+    const graph = readGraph(flow.graphJson)
     const holders = graph.nodes
       .filter((n) => n.type === 'source' && n.sourceId === sourceId)
       .map((n) => n.id)

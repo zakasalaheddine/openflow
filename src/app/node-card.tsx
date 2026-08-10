@@ -224,7 +224,7 @@ export function NodeCard({ data }: NodeProps) {
         onDelete={onDelete}
       />
       <Handle type="target" position={Position.Left} />
-      {node.type !== 'export' && <Handle type="source" position={Position.Right} />}
+      <Handle type="source" position={Position.Right} />
 
       {/*
         The frame, at the size of the card.
@@ -319,39 +319,36 @@ export function NodeCard({ data }: NodeProps) {
             `nodrag` and the stopped propagation keep the click off React Flow's
             drag handler and off the canvas's alt-click fan-out. */}
         {/* A cut runs like anything else, and its button says $0.00 because it
-            is: the clips were paid for and ffmpeg is local. An export node had
-            no button because it had no run; a sequence has one. */}
-        {node.type !== 'export' && (
-          <Hint
-            label={
-              state.status === 'succeeded'
-                ? node.type === 'sequence'
-                  ? 'Already cut. Reorder the clips to cut it again.'
-                  : 'Already rendered. Re-roll the seed to render it again.'
-                : node.type === 'sequence'
-                  ? `Cut the film, and whatever clips it still needs rendered · ${money(state.estimatedCents)}`
-                  : `Render this shot alone, and whatever upstream it still needs · ${money(state.estimatedCents)}`
-            }
-            side="top"
-          >
-            {/* Wrapped, not the button itself: a disabled button fires no
-                pointer events, so a tooltip on it would be silent in exactly
-                the state where "why can I not press this" is the question. */}
-            <span className="node__run-wrap">
-              <button
-                className="node__run nodrag"
-                data-testid={`run-${node.id}`}
-                disabled={state.status !== 'stale' && state.status !== 'failed'}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  onRun(node.id)
-                }}
-              >
-                {state.status === 'failed' ? 'Retry' : 'Run'}
-              </button>
-            </span>
-          </Hint>
-        )}
+            is: the clips were paid for and ffmpeg is local. */}
+        <Hint
+          label={
+            state.status === 'succeeded'
+              ? node.type === 'sequence'
+                ? 'Already cut. Reorder the clips to cut it again.'
+                : 'Already rendered. Re-roll the seed to render it again.'
+              : node.type === 'sequence'
+                ? `Cut the film, and whatever clips it still needs rendered · ${money(state.estimatedCents)}`
+                : `Render this shot alone, and whatever upstream it still needs · ${money(state.estimatedCents)}`
+          }
+          side="top"
+        >
+          {/* Wrapped, not the button itself: a disabled button fires no
+              pointer events, so a tooltip on it would be silent in exactly
+              the state where "why can I not press this" is the question. */}
+          <span className="node__run-wrap">
+            <button
+              className="node__run nodrag"
+              data-testid={`run-${node.id}`}
+              disabled={state.status !== 'stale' && state.status !== 'failed'}
+              onClick={(event) => {
+                event.stopPropagation()
+                onRun(node.id)
+              }}
+            >
+              {state.status === 'failed' ? 'Retry' : 'Run'}
+            </button>
+          </span>
+        </Hint>
 
         {/* Beside Run, not on hover: no control here may exist only while the
             pointer happens to be over the card, and this is the one action a

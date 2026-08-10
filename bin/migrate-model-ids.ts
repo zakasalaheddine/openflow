@@ -62,17 +62,14 @@ function oldHashableConfig(node: OldNode): Record<string, JsonValue> {
         durationSec: node.durationSec,
         audio: node.audio,
       }
-    case 'export':
-      return {
-        formats: node.formats as unknown as JsonValue,
-        fps: node.fps,
-        codec: node.codec,
-        overlay: (node.overlay ?? null) as unknown as JsonValue,
-      }
     default:
-      // Node types added after this migration was written. A database old
-      // enough to need it cannot contain one, and the frozen shape above must
-      // not grow a case for it — that would change what this recomputes.
+      // Node types added after this migration was written (`sequence`), and
+      // `export`, deleted since — never carried a `modelRole`, so it is never
+      // `stale` and never rewritten; its hash here only feeds the unclaimed
+      // count, and no run was ever recorded against it to miscount. A database
+      // old enough to need this migration cannot contain a node type invented
+      // after it, and the frozen shape above must not grow a case for one —
+      // that would change what this recomputes.
       return {}
   }
 }

@@ -6,24 +6,27 @@ import { eq } from 'drizzle-orm'
 import { exportFlow } from '@/core/exporter'
 import { probe } from '@/core/ffmpeg'
 import { exports, flows } from '@/db/schema'
-import type { ExportNode, Flow, TextOverlay } from '@/core/types'
+import type { AdFormat, Flow, TextOverlay } from '@/core/types'
 import { tempDb, seedProject, seedFlow } from '../helpers/db'
 import { tempExportDir, seedRenderedNode, STUB_PNG } from '../helpers/exports'
 
 const SQUARE = { name: '1:1', w: 1080, h: 1080 }
 
-const graph = (over: Partial<ExportNode>): Flow => ({
-  nodes: [
-    { id: 'shot', type: 'image', prompt: 'bottle on marble', modelId: 'flux-2-pro', label: 'shot' },
-    { id: 'out', type: 'export', formats: [SQUARE], ...over },
-  ],
-  edges: [{ id: 'e1', from: 'shot', to: 'out', role: 'input', position: null }],
+// exportFlow takes its formats and overlay explicitly (see core/exporter.ts) —
+// the graph only has to supply the rendered node, never an export node to
+// carry them.
+const graph = (): Flow => ({
+  nodes: [{ id: 'shot', type: 'image', prompt: 'bottle on marble', modelId: 'flux-2-pro', label: 'shot' }],
+  edges: [],
 })
 
-function prepared(over: Partial<ExportNode> = {}, seed: Parameters<typeof seedRenderedNode>[3] = {}) {
+function prepared(
+  over: { formats?: AdFormat[]; overlay?: TextOverlay } = {},
+  seed: Parameters<typeof seedRenderedNode>[3] = {},
+) {
   const { db } = tempDb()
   const projectId = seedProject(db)
-  const flowId = seedFlow(db, projectId, graph(over))
+  const flowId = seedFlow(db, projectId, graph())
   seedRenderedNode(db, flowId, 'shot', seed)
   const formats = over.formats?.length ? over.formats : [SQUARE]
   return { db, flowId, dir: tempExportDir(), nodeIds: ['shot'], formats, overlay: over.overlay }
@@ -61,11 +64,11 @@ describe('an edit since the last render', () => {
     // never produced — and provenance that lies is worse than none.
     const { db } = tempDb()
     const projectId = seedProject(db)
-    const flowId = seedFlow(db, projectId, graph({}))
+    const flowId = seedFlow(db, projectId, graph())
     seedRenderedNode(db, flowId, 'shot')
     const dir = tempExportDir()
 
-    const base = graph({})
+    const base = graph()
     const edited: Flow = {
       ...base,
       nodes: base.nodes.map((n) => (n.type === 'image' ? { ...n, prompt: 'bottle on slate' } : n)),
@@ -81,7 +84,7 @@ describe('an edit since the last render', () => {
   test('a node that was never run is refused with the same reason', async () => {
     const { db } = tempDb()
     const projectId = seedProject(db)
-    const flowId = seedFlow(db, projectId, graph({}))
+    const flowId = seedFlow(db, projectId, graph())
 
     const result = await exportFlow(db, flowId, {
       dir: tempExportDir(),
@@ -102,7 +105,7 @@ describe('a render whose file has gone from disk', () => {
     // the fixture every other test in this file reads from.
     const { db } = tempDb()
     const projectId = seedProject(db)
-    const flowId = seedFlow(db, projectId, graph({}))
+    const flowId = seedFlow(db, projectId, graph())
     const dir = tempExportDir()
     const copy = path.join(dir, 'gone.png')
     copyFileSync(STUB_PNG, copy)

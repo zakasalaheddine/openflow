@@ -93,6 +93,12 @@ export function validateWire(
   if (to.type === 'source') {
     throw new WiringError('A source node brings an existing file in; nothing feeds it.')
   }
+  if (from.type === 'sequence') {
+    // The film is the last step. It used to feed an export node and nothing
+    // else; with that gone, wiring one into a shot would hand a model an mp4
+    // where it expects a still.
+    throw new WiringError('A film is the last step. Download it rather than wiring it into something.')
+  }
   if (flow.edges.some((e) => e.from === fromId && e.to === toId)) {
     throw new WiringError(`${fromId} already feeds ${toId}.`)
   }

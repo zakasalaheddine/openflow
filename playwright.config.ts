@@ -3,7 +3,6 @@ import path from 'node:path'
 
 const PORT = 3100
 const testDataDir = path.resolve(import.meta.dirname, '.playwright-data')
-const testExportsDir = path.resolve(import.meta.dirname, '.playwright-exports')
 
 export default defineConfig({
   testDir: './e2e',
@@ -24,7 +23,7 @@ export default defineConfig({
     // file at boot, and deleting it afterwards leaves the in-process worker
     // holding a deleted inode while the route handlers open a fresh one. The
     // symptom is a queue nothing ever claims — every node stuck at `queued`.
-    command: `rm -rf ${testDataDir} ${testExportsDir} && npm run build && npx next start -p ${PORT}`,
+    command: `rm -rf ${testDataDir} && npm run build && npx next start -p ${PORT}`,
     url: `http://127.0.0.1:${PORT}`,
     // Never reused: globalSetup deletes the test database, and a server already
     // holding it open would keep writing to the deleted file and serving what
@@ -35,9 +34,6 @@ export default defineConfig({
       // Never the dev database: the worker ticks every 2s and would delete
       // real, paid-for assets out from under you.
       OPENFLOW_DATA_DIR: testDataDir,
-      // Never ./exports: a spec run would sit among real deliverables and the
-      // next `rm -rf` cleanup would take both.
-      OPENFLOW_EXPORTS_DIR: testExportsDir,
       // stub, not replay: these specs build graphs through the UI, so their
       // input hashes cannot be known in advance to record fixtures against.
       // Fixture-driven execution is covered by test/acceptance.
