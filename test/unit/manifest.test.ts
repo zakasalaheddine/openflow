@@ -23,13 +23,15 @@ const graph: Flow = {
   ],
 }
 
+const FORMATS = [{ name: '1:1', w: 1080, h: 1080 }]
+
 function prepared(over: Parameters<typeof seedRenderedNode>[3] = {}) {
   const { db } = tempDb()
   const projectId = seedProject(db)
   seedSource(db, projectId, 'source-1', { version: 3 })
   const flowId = seedFlow(db, projectId, graph)
   seedRenderedNode(db, flowId, 'shot', over)
-  return { db, flowId, dir: tempExportDir() }
+  return { db, flowId, dir: tempExportDir(), nodeIds: ['shot'], formats: FORMATS }
 }
 
 const readManifest = (dir: string) =>
@@ -41,15 +43,15 @@ const readManifest = (dir: string) =>
 
 describe('manifest', () => {
   test('is written beside the exported files', async () => {
-    const { db, flowId, dir } = prepared()
-    const result = await exportFlow(db, flowId, { dir })
+    const { db, flowId, dir, nodeIds, formats } = prepared()
+    const result = await exportFlow(db, flowId, { dir, nodeIds, formats })
     expect(existsSync(result.manifestPath)).toBe(true)
     expect(readManifest(dir).flowId).toBe(flowId)
   })
 
   test('every exported file has a full provenance entry', async () => {
-    const { db, flowId, dir } = prepared({ modelId: 'nano-banana-pro', costCents: 15 })
-    await exportFlow(db, flowId, { dir })
+    const { db, flowId, dir, nodeIds, formats } = prepared({ modelId: 'nano-banana-pro', costCents: 15 })
+    await exportFlow(db, flowId, { dir, nodeIds, formats })
 
     const [entry] = readManifest(dir).files
     expect(entry).toMatchObject({
@@ -68,8 +70,8 @@ describe('manifest', () => {
   })
 
   test('the manifest total matches the node_runs ledger', async () => {
-    const { db, flowId, dir } = prepared({ costCents: 41 })
-    await exportFlow(db, flowId, { dir })
+    const { db, flowId, dir, nodeIds, formats } = prepared({ costCents: 41 })
+    await exportFlow(db, flowId, { dir, nodeIds, formats })
 
     const ledger = db
       .select()
@@ -98,7 +100,11 @@ describe('manifest', () => {
     seedRenderedNode(db, flowId, 'shot', { costCents: 30 })
     const dir = tempExportDir()
 
-    const result = await exportFlow(db, flowId, { dir })
+    const result = await exportFlow(db, flowId, {
+      dir,
+      nodeIds: ['shot'],
+      formats: [{ name: '1:1', w: 1080, h: 1080 }, { name: '9:16', w: 1080, h: 1920 }],
+    })
     expect(result.entries).toHaveLength(2)
     expect(result.totalCostCents).toBe(30)
   })
