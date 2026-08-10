@@ -138,19 +138,6 @@ export async function replaceSource(id: string, next: File | string) {
   }
 }
 
-export type ExportOutcome = {
-  dir: string
-  written: { file: string; format: string }[]
-  rejected: { nodeId: string; format: string; reasons: string[] }[]
-}
-
-export async function startExport(flow: string): Promise<ExportOutcome> {
-  const response = await fetch(scoped('/api/export', flow), { method: 'POST' })
-  const body = await response.json()
-  if (!response.ok) throw new Error(body.error ?? 'Export failed')
-  return body as ExportOutcome
-}
-
 export type DownloadVerdict = { nodeId: string; format: string; pass: boolean; reasons: string[] }
 export type DownloadPreview = { verdicts: DownloadVerdict[]; stale: string[]; formats: AdFormat[] }
 

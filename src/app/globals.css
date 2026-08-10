@@ -1493,6 +1493,33 @@
   color: var(--slate);
 }
 
+/*
+ * The download dialog's own rows — a `fieldset` per group (what ships, which
+ * placements) with no border of its own, and a reason in `--fault` sitting
+ * right beside the checkbox it explains rather than in a summary at the
+ * bottom. Nothing here is amber: a download spends nothing, and amber is
+ * reserved for what will be billed.
+ */
+.download__group {
+  display: grid;
+  gap: var(--s-2);
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.download__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.download__reason {
+  font-size: var(--fs-1);
+  color: var(--fault);
+  margin: 0;
+}
+
 .banner {
   padding: var(--s-4);
   border: 1px solid var(--safelight-dim);

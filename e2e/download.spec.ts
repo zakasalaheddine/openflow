@@ -26,6 +26,31 @@ const marbleShot = () => ({
   edges: [],
 })
 
+/** Two rendered shots, for the whole-flow dialog's own node picker. */
+const twoShots = () => ({
+  nodes: [
+    {
+      id: 'marble',
+      type: 'image',
+      position: { x: 60, y: 80 },
+      prompt: 'bottle on marble',
+      modelId: 'flux-2-pro',
+      seed: 1,
+      label: 'marble',
+    },
+    {
+      id: 'second',
+      type: 'image',
+      position: { x: 420, y: 80 },
+      prompt: 'bottle on slate',
+      modelId: 'flux-2-pro',
+      seed: 2,
+      label: 'second',
+    },
+  ],
+  edges: [],
+})
+
 async function rendered(page: import('@playwright/test').Page) {
   await page.goto('/')
   await waitForLedger(page)
@@ -166,4 +191,68 @@ test('a node with no render matching its current settings is reported stale, not
   expect(body.stale).toEqual(['marble'])
   // Stale, not silently missing: it does not show up among the verdicts either.
   expect(body.verdicts).toEqual([])
+})
+
+test('one frame downloads as one file, no zip to unpack', async ({ page, request }) => {
+  await setGraph(request, marbleShot())
+  await rendered(page)
+
+  // One node, one format ticked: the common case must not hand you an archive.
+  await page.getByTestId('download-marble').click()
+  await page.getByTestId('download-format-1:1').uncheck()
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByTestId('download-confirm').click(),
+  ])
+
+  expect(download.suggestedFilename()).toMatch(/^marble-9-16\.png$/)
+})
+
+test('a headline in the safe zone cannot be ticked past', async ({ page, request }) => {
+  // The refusal is the product rule, not a nicety: shipping it anyway is the
+  // same as not checking, and the rejection arrives from the client instead,
+  // with the buy already booked. Driven from the dialog's own fields, because
+  // that is where the overlay lives now.
+  //
+  // `DEFAULT_TEXT_BOX` (see src/core/spec.ts) sits inside every default
+  // format's safe zone on its own — `text inside the safe zone passes` in
+  // test/unit/spec-validation.test.ts pins that down — so a headline alone
+  // never disables anything. The box has to move for there to be anything to
+  // refuse; the box-position field is this dialog's one deviation from the
+  // brief's given control list, and the same reasoning that requires it here
+  // applies to every test below that exercises a refusal.
+  await setGraph(request, marbleShot())
+  await rendered(page)
+
+  await page.getByTestId('download-marble').click()
+  await page.getByTestId('download-headline').fill('Bottled sunlight')
+  // Into the chrome at the top of the frame — the single most common
+  // rejection in a vertical placement, and the same edge the old export
+  // node's inspector field moved.
+  await page.getByTestId('download-box-y').fill('2')
+
+  await expect(page.getByTestId('download-format-9:16')).toBeDisabled()
+  await expect(page.getByTestId('download-confirm')).toBeDisabled()
+})
+
+test('unticking a node in the whole-flow picker drops it from what ships', async ({
+  page,
+  request,
+}) => {
+  await setGraph(request, twoShots())
+  await rendered(page)
+
+  await page.getByTestId('download-flow').click()
+  await expect(page.getByTestId('download-node-second')).toBeChecked()
+  await page.getByTestId('download-node-second').uncheck()
+  await page.getByTestId('download-format-1:1').uncheck()
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByTestId('download-confirm').click(),
+  ])
+
+  // A bare file, not a zip: if `second` had leaked back in despite being
+  // unticked, this would ship two entries and take the zip path instead.
+  expect(download.suggestedFilename()).toMatch(/^marble-9-16\.png$/)
 })

@@ -143,10 +143,11 @@ export type VideoNode = NodeBase & {
 export type ExportNode = NodeBase & {
   type: 'export'
   /**
-   * Empty means "the project's formats". `exportFlow` no longer resolves this
-   * itself — a download names its own `formats` — so it is the transitional
-   * route at `/api/export` that still reads this field and falls back to the
-   * project's, until this node is deleted.
+   * Nothing reads this any more. `exportFlow` no longer resolves formats from
+   * a node — a download names its own — and `/api/export`, the transitional
+   * route that once fell back to this field, is gone. The node type stays
+   * addable on the canvas for an existing graph that already carries one;
+   * this field is otherwise vestigial until that node is deleted too.
    */
   formats: AdFormat[]
   fps?: number
