@@ -41,7 +41,6 @@ const video = (id: string, modelId = 'kling-3-pro'): FlowNode => ({
 })
 
 const source = (id: string): FlowNode => ({ id, type: 'source', sourceId: `src:${id}` })
-const exportNode = (id: string): FlowNode => ({ id, type: 'export', formats: [] })
 
 const flowOf = (...nodes: FlowNode[]): Flow => ({ nodes, edges: [] })
 
@@ -75,12 +74,11 @@ describe('inferRole', () => {
     expect(inferRole(image('sheet'), video('clip', 'kling-3-pro'))).toBe('start_frame')
   })
 
-  test('image into export is a plain input', () => {
-    expect(inferRole(image('a'), exportNode('e'))).toBe('input')
-  })
-
-  test('video into export is a plain input', () => {
-    expect(inferRole(video('v'), exportNode('e'))).toBe('input')
+  test('a clip into a cut is a plain input', () => {
+    // The only case left that falls through to the default: a sequence has no
+    // reference budget and no start frame to claim, just an order — which
+    // lives on the edge's `position`, not on the role.
+    expect(inferRole(video('v'), { id: 'film', type: 'sequence' })).toBe('input')
   })
 })
 
@@ -137,6 +135,21 @@ describe('validateWire', () => {
     // A source brings an existing file in; nothing feeds it.
     const flow = flowOf(image('a'), source('s'))
     expect(() => validateWire(flow, 'a', 's', { resolve: modelById })).toThrow(WiringError)
+  })
+
+  test('nothing leaves a sequence', () => {
+    // The film is the deliverable. Feeding it into a shot would hand a model an
+    // mp4 where it expects a still — legal today only because an export node was
+    // the obvious thing to point a cut at.
+    const flow: Flow = {
+      nodes: [
+        { id: 'cut', type: 'sequence' },
+        { id: 'hero', type: 'image', prompt: 'a bottle', modelId: 'flux-2-pro', seed: 1 },
+      ],
+      edges: [],
+    }
+    expect(() => validateWire(flow, 'cut', 'hero')).toThrow(WiringError)
+    expect(() => validateWire(flow, 'cut', 'hero')).toThrow(/film is the last step|nothing leaves/i)
   })
 })
 
@@ -283,7 +296,7 @@ describe('sequence order', () => {
   test('every other node still treats its inputs as a set', () => {
     // `position` is read only by a sequence. A number nobody reads is a number
     // that will eventually be believed.
-    const flow = applyWire(flowOf(image('a'), exportNode('e')), 'a', 'e', { resolve: modelById })
+    const flow = applyWire(flowOf(image('a'), image('b')), 'a', 'b', { resolve: modelById })
     expect(flow.edges[0].position).toBeNull()
   })
 })

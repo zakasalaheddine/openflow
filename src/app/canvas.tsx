@@ -23,7 +23,6 @@ import {
   FilmIcon,
   ImageIcon,
   MessageSquareIcon,
-  PackageIcon,
   PaletteIcon,
   VideoIcon,
   WaypointsIcon,
@@ -157,10 +156,6 @@ const ADD_NODE = [
   { type: 'image', icon: ImageIcon, hint: 'A still frame, rendered from a prompt' },
   { type: 'video', icon: VideoIcon, hint: 'A clip that starts from the frame you wire into it' },
   { type: 'sequence', icon: FilmIcon, hint: 'Clips cut together in order, into one film' },
-  // Formats and overlay text live on the Download dialog now (see
-  // download-dialog.tsx); this node type is otherwise unused, kept only so an
-  // existing graph that already carries one still loads.
-  { type: 'export', icon: PackageIcon, hint: 'Legacy: crops and text overlays, superseded by Download' },
 ] as const
 
 let counter = 0
@@ -711,11 +706,11 @@ function CanvasInner({ flow }: { flow: string }) {
     return (rows.find((m) => m.default) ?? rows[0])?.id
   }
 
-  function addNode(type: 'image' | 'video' | 'sequence' | 'export') {
+  function addNode(type: 'image' | 'video' | 'sequence') {
     const id = newId(type)
     const position = freeSlot(graphRef.current.nodes)
-    // Only generators name a model. Export writes files and sequence cuts them;
-    // neither dispatches, and asking the catalog for one would throw.
+    // Only generators name a model. A sequence cuts clips locally and never
+    // dispatches, and asking the catalog for one would throw.
     const generates = type === 'image' || type === 'video'
     const node = newNode(type, {
       id,

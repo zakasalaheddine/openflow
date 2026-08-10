@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import type { FlowNode } from '@/core/types'
 import { ASPECTS, DEFAULT_ASPECT, pixelsFor, type Aspect } from '@/core/aspect'
-import { DEFAULT_TEXT_BOX } from '@/core/spec'
 import { honoursAspect } from '@/models/input'
 import { money, type ModelRow, type NodeState } from './state'
 
@@ -366,50 +365,8 @@ export function Inspector({ node, state, models, clips, onChange, onReorder, onD
             </span>
           )}
           <span className="hint">
-            The cut is made at Export from clips you have already rendered. It costs nothing to run.
-          </span>
-        </Section>
-      )}
-
-      {node.type === 'export' && (
-        <Section title="Overlay">
-          {/* Placed here, not asked of the model: a declared box is what makes
-              the safe-zone check arithmetic instead of OCR. */}
-          <Field
-            label="Headline"
-            value={node.overlay?.headline ?? ''}
-            testId="overlay-headline"
-            onCommit={(headline) => onChange({ ...node, overlay: { ...node.overlay, headline } })}
-          />
-          <Field
-            label="Call to action"
-            value={node.overlay?.cta ?? ''}
-            testId="overlay-cta"
-            onCommit={(cta) => onChange({ ...node, overlay: { ...node.overlay, cta } })}
-          />
-          <Field
-            label="Text position (top edge, % of frame)"
-            type="number"
-            min={0}
-            max={100}
-            value={String(Math.round((node.overlay?.box ?? DEFAULT_TEXT_BOX).y * 100))}
-            testId="overlay-y"
-            onCommit={(next) =>
-              onChange({
-                ...node,
-                overlay: {
-                  ...node.overlay,
-                  box: {
-                    ...(node.overlay?.box ?? DEFAULT_TEXT_BOX),
-                    // A fraction of the frame, so it cannot leave the frame.
-                    y: Math.min(100, Math.max(0, Number(next) || 0)) / 100,
-                  },
-                },
-              })
-            }
-          />
-          <span className="hint">
-            Formats come from project settings unless this node names its own.
+            The cut happens when you run this node, from clips you have already rendered. It costs
+            nothing to run.
           </span>
         </Section>
       )}

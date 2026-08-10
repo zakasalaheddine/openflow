@@ -74,32 +74,6 @@ describe('hashableConfig', () => {
     expect(hashableConfig(source)).toEqual({ sourceId: 'source:bottle' })
   })
 
-  test('keeps formats, fps, codec and the text overlay on an export node', () => {
-    // `overlay` joined the whitelist in Phase 3: it is what `render` composites
-    // into the file (sourced from this node only by the transitional export
-    // route, until the node is gone), so changing it changes the exported
-    // pixels.
-    const exportNode: FlowNode = {
-      id: 'e',
-      type: 'export',
-      formats: [{ name: '1:1', w: 1080, h: 1080 }],
-      fps: 30,
-      position: { x: 0, y: 0 },
-    }
-    expect(hashableConfig(exportNode)).toEqual({
-      formats: exportNode.type === 'export' ? exportNode.formats : [],
-      fps: 30,
-      codec: undefined,
-      overlay: null,
-    })
-  })
-
-  test('editing the headline changes an export node config', () => {
-    const base: FlowNode = { id: 'e', type: 'export', formats: [] }
-    const withText: FlowNode = { ...base, type: 'export', overlay: { headline: 'Bottled sunlight' } }
-    expect(hashableConfig(withText)).not.toEqual(hashableConfig(base))
-  })
-
   test('a prompt edit still changes the config', () => {
     const edited = { ...imageNode, prompt: 'bottle on slate' } as FlowNode
     expect(hashableConfig(edited)).not.toEqual(hashableConfig(imageNode))

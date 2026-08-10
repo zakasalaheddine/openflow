@@ -42,13 +42,13 @@ Copy [`.env.example`](./.env.example) to `.env` and edit it — `next dev`, `nex
 
 Assets live on your machine. Set `CLOUDINARY_URL` and uploads and rendered frames are pushed to Cloudinary as well, and fal is handed a URL instead of the file inlined into its request — the difference between a reference that works and one refused for being over 12 MB. Local copies are kept regardless: `ffmpeg` and `sharp` read files, so export never depends on the network.
 
-`FAL_MODE` is `live` by default and forced to `replay`/`off`/`stub` by the test configs, so a test run can never bill you. `DEMO=1` forces `replay`, pre-bakes the demo flow from recorded fixtures, and refuses every render request — that is the mode a public demo runs in. `OPENFLOW_DATA_DIR` moves the SQLite file and generated assets off `./data`; `OPENFLOW_EXPORTS_DIR` moves exported files off `./exports`.
+`FAL_MODE` is `live` by default and forced to `replay`/`off`/`stub` by the test configs, so a test run can never bill you. `DEMO=1` forces `replay`, pre-bakes the demo flow from recorded fixtures, and refuses every render request — that is the mode a public demo runs in. `OPENFLOW_DATA_DIR` moves the SQLite file and generated assets off `./data`.
 
 ## One character, many shots, one film
 
 A rendered still can be wired into another still as a **reference**. That is how a character stays the same person: generate a sheet of them once, wire it into every shot, and the sheet arrives with each prompt. Re-roll the sheet and every shot built on it greys out — the same blast radius a replaced product gets, for the same reason.
 
-A **sequence** node cuts clips into one film. Wire the clips in the order they play, reorder them in the inspector, and Export writes the assembled cut with the rest of the deliverables. It dispatches to no model and costs nothing to run: the cut is made locally, from clips already rendered, and it is a stream copy rather than a re-encode whenever the clips share a frame size. Silent for now — a clip with native audio loses it, rather than producing a film whose sound cuts in and out depending on which model rendered which shot.
+A **sequence** node cuts clips into one film. Wire the clips in the order they play, reorder them in the inspector, and running it writes the assembled cut, ready to download with the rest of the deliverables. It dispatches to no model and costs nothing to run: the cut is made locally, from clips already rendered, and it is a stream copy rather than a re-encode whenever the clips share a frame size. Silent for now — a clip with native audio loses it, rather than producing a film whose sound cuts in and out depending on which model rendered which shot.
 
 ## A still is rendered at the shape you ship
 
@@ -56,7 +56,7 @@ Every image node names its own **shape** — 1:1, 4:5, 9:16 or 16:9 — in the i
 
 A clip has no shape of its own. It is expected to take the shape of the still it starts from, which would make the shape of one keyframe the shape of the whole film — but that is an assumption about what each video endpoint does with a start frame, and no video row in this catalog has ever returned a file (`verifiedOn: null` on all of them). Check the first clip you render before re-shaping eleven more.
 
-Before this, nothing in the app asked fal for a shape, so every frame came back square while the project shipped 9:16 by default — and export refused the vertical every time, correctly, because it will not upscale a square into a portrait. If you see `9:16 needs at least 1080x1920; the source is 1080x1080`, the stills upstream are square: re-shape them, or drop the format on that export node, which overrides project settings.
+Before this, nothing in the app asked fal for a shape, so every frame came back square while the project shipped 9:16 by default — and the download refused the vertical every time, correctly, because it will not upscale a square into a portrait. If you see `9:16 needs at least 1080x1920; the source is 1080x1080`, the stills upstream are square: re-shape them, or drop the format from what you're downloading, which otherwise defaults to project settings.
 
 The control only appears on rows that can be told. `hailuo-2-3-pro` and the other video rows are not offered it, because an unknown key is dropped by fal without complaint — a select that quietly did nothing would look like it had worked and bill for a square frame anyway.
 
@@ -70,7 +70,7 @@ The asset library, the brand profile and the spend cap are shared across all of 
 
 Read these first. They are the immune system of this project.
 
-- **Not a general AI workflow engine.** That's ComfyUI. Four node types in v1 — `source`, `image`, `video`, `export`. Adding a fifth requires a written case showing it can't be expressed by the existing four.
+- **Not a general AI workflow engine.** That's ComfyUI. Four node types in v1 — `source`, `image`, `video`, `sequence`. Adding a fifth requires a written case showing it can't be expressed by the existing four.
 - **Not a SaaS.** No accounts, no cloud, no credit packs. The SQLite file, the generated assets, and your fal key stay on your machine.
 - **No agent in the execution path.** The chat agent authors the graph — it adds nodes, wires them, rewords prompts. It has no way to render anything: there is no run tool, and Run is a button a person presses after reading the price.
 - **No markup.** Bring your own fal key and pay what the models cost. Per-node cost tracking is a headline feature, not a hidden one.
@@ -124,7 +124,6 @@ Upgrading a database written before per-node models: `npm run migrate:model-ids`
 └───────────────┬──────────────────────────┘
         ./data/app.db       SQLite, WAL
         ./data/assets/      generated files
-        ./exports/          user-facing output
                 │
            fal.ai API       (your own key)
 ```
@@ -147,7 +146,7 @@ Every render is keyed by an input hash chained through the graph, so a second ru
 
 **Model rows are welcome.** A row you add to your own `models.json` needs nothing from anyone; to ship one as a default, add it to `SEED` in [`src/models/registry.ts`](./src/models/registry.ts), note where the price came from, and say whether you have made a live call against the endpoint.
 
-**Node types need a written case.** Four is the budget. Open an issue showing why the thing you want cannot be expressed by `source`, `image`, `video` and `export` before writing code.
+**Node types need a written case.** Four is the budget. Open an issue showing why the thing you want cannot be expressed by `source`, `image`, `video` and `sequence` before writing code.
 
 Tests are cumulative: a change never edits an earlier phase's test to go green. If an old test is genuinely wrong, that is its own commit with a reason.
 

@@ -51,13 +51,5 @@ export function hashableConfig(node: FlowNode): Record<string, JsonValue> {
       // lives on the edges. `planRun` folds it in — the same shape as a source
       // node's `version`, which also lives outside the node.
       return {}
-    case 'export':
-      return {
-        formats: node.formats as unknown as JsonValue,
-        fps: node.fps,
-        codec: node.codec,
-        // Changes the exported pixels, so it changes the hash.
-        overlay: (node.overlay ?? null) as unknown as JsonValue,
-      }
   }
 }

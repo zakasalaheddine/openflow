@@ -9,13 +9,8 @@ import { flowSchema } from '@/core/schema'
 const templates = loadTemplates()
 
 describe('the shipped templates', () => {
-  test('all four load and are valid graphs', () => {
-    expect(templates.map((t) => t.id).sort()).toEqual([
-      'before-after',
-      'headline-ad',
-      'hero-and-clips',
-      'three-scenes',
-    ])
+  test('all three load and are valid graphs', () => {
+    expect(templates.map((t) => t.id).sort()).toEqual(['before-after', 'hero-and-clips', 'three-scenes'])
     for (const template of templates) {
       expect(flowSchema.safeParse(template.flow).success).toBe(true)
     }
@@ -45,22 +40,6 @@ describe('parsing a response', () => {
     )
     expect(flow.nodes.map((n) => 'prompt' in n && n.prompt)).toContain('dull skin in flat light')
     expect(flowSchema.safeParse(flow).success).toBe(true)
-  })
-
-  test('fills headline and CTA, not just scene prompts', () => {
-    // Otherwise the ad ships with `{{headline}}` burned into it.
-    const flow = buildFlowFromBrief(
-      {
-        templateId: 'headline-ad',
-        prompts: { scene: 'the bottle on marble', headline: 'Bottled sunlight', cta: 'Shop now' },
-      },
-      templates,
-    )
-    const exported = flow.nodes.find((n) => n.type === 'export')!
-    expect(exported.type === 'export' && exported.overlay).toEqual({
-      headline: 'Bottled sunlight',
-      cta: 'Shop now',
-    })
   })
 
   test('rejects an unknown templateId and names the valid ones', () => {

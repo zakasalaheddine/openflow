@@ -103,19 +103,6 @@ export function buildFlowFromBrief(raw: unknown, templates: FlowTemplate[]): Flo
   return {
     nodes: template.flow.nodes.map((node) => {
       if ('prompt' in node) return { ...node, prompt: fill(node.prompt, prompts) }
-      // Headline and CTA are slots too — the copy is as much the brief's answer
-      // as the scene is, and a template that fills one but not the other ships
-      // an ad with `{{headline}}` burned into it.
-      if (node.type === 'export' && node.overlay) {
-        return {
-          ...node,
-          overlay: {
-            ...node.overlay,
-            ...(node.overlay.headline === undefined ? {} : { headline: fill(node.overlay.headline, prompts) }),
-            ...(node.overlay.cta === undefined ? {} : { cta: fill(node.overlay.cta, prompts) }),
-          },
-        }
-      }
       return node
     }),
     edges: template.flow.edges,

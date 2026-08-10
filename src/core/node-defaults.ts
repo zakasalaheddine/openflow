@@ -1,4 +1,4 @@
-import type { AdFormat, FlowNode, NodeId, NodePosition, NodeType, TextOverlay } from './types'
+import type { FlowNode, NodeId, NodePosition, NodeType } from './types'
 
 /**
  * Everything a caller may set on a fresh node. `id` is the only required
@@ -26,10 +26,6 @@ export type NewNodeOverrides = {
   seed?: number
   durationSec?: number
   audio?: boolean
-  formats?: AdFormat[]
-  fps?: number
-  codec?: string
-  overlay?: TextOverlay
 }
 
 /**
@@ -76,15 +72,6 @@ export function newNode(type: NodeType, overrides: NewNodeOverrides): FlowNode {
         audio: overrides.audio ?? false,
         modelId: modelId(),
         seed: overrides.seed ?? 1,
-      }
-    case 'export':
-      return {
-        ...base,
-        type,
-        formats: overrides.formats ?? [],
-        ...(overrides.fps !== undefined ? { fps: overrides.fps } : {}),
-        ...(overrides.codec !== undefined ? { codec: overrides.codec } : {}),
-        ...(overrides.overlay !== undefined ? { overlay: overrides.overlay } : {}),
       }
     case 'sequence':
       // Nothing to default. The cut is its incoming edges and their order.

@@ -24,10 +24,6 @@ describe('newNode', () => {
     })
   })
 
-  test('an export starts with no formats', () => {
-    expect(newNode('export', { id: 'x' })).toEqual({ id: 'x', type: 'export', formats: [] })
-  })
-
   test('a source starts with no sourceId', () => {
     expect(newNode('source', { id: 'x' })).toEqual({ id: 'x', type: 'source', sourceId: '' })
   })
@@ -49,7 +45,7 @@ describe('newNode', () => {
   })
 
   test('keeps a given position and label', () => {
-    const node = newNode('export', { id: 'x', position: { x: 10, y: 20 }, label: 'Final' })
+    const node = newNode('sequence', { id: 'x', position: { x: 10, y: 20 }, label: 'Final' })
     expect(node).toMatchObject({ position: { x: 10, y: 20 }, label: 'Final' })
   })
 })

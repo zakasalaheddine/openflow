@@ -15,12 +15,8 @@ const graph: Flow = {
   nodes: [
     { id: 'bottle', type: 'source', sourceId: 'source-1' },
     { id: 'shot', type: 'image', prompt: 'bottle on marble', modelId: 'flux-2-pro', seed: 7, label: 'shot' },
-    { id: 'out', type: 'export', formats: [{ name: '1:1', w: 1080, h: 1080 }] },
   ],
-  edges: [
-    { id: 'e1', from: 'bottle', to: 'shot', role: 'reference', position: null },
-    { id: 'e2', from: 'shot', to: 'out', role: 'input', position: null },
-  ],
+  edges: [{ id: 'e1', from: 'bottle', to: 'shot', role: 'reference', position: null }],
 }
 
 const FORMATS = [{ name: '1:1', w: 1080, h: 1080 }]
@@ -89,14 +85,7 @@ describe('manifest', () => {
     const { db } = tempDb()
     const projectId = seedProject(db)
     seedSource(db, projectId, 'source-1', { version: 3 })
-    const flowId = seedFlow(db, projectId, {
-      ...graph,
-      nodes: graph.nodes.map((n) =>
-        n.id === 'out'
-          ? { ...n, type: 'export' as const, formats: [{ name: '1:1', w: 1080, h: 1080 }, { name: '9:16', w: 1080, h: 1920 }] }
-          : n,
-      ),
-    })
+    const flowId = seedFlow(db, projectId, graph)
     seedRenderedNode(db, flowId, 'shot', { costCents: 30 })
     const dir = tempExportDir()
 

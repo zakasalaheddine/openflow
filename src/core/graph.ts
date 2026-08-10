@@ -80,10 +80,21 @@ export const descendants = (graph: GraphShape, id: NodeId) => walk(graph, id, 'd
 export const ancestors = (graph: GraphShape, id: NodeId) => walk(graph, id, 'up')
 
 /**
- * A stored `graph_json` as a `Flow`.
+ * A stored `graph_json` as a `Flow`, without the node type that no longer
+ * exists.
  *
- * One named place, rather than `flow.graphJson as Flow` scattered across the
- * executor, the exporter and three routes. The cast is unavoidable — the column
- * is JSON — but where it happens should not be.
+ * `export` was deleted when downloading stopped being something you wired. A
+ * graph saved before that still has one, and nothing was ever downstream of it —
+ * it was terminal — so dropping it and its edges loses nothing. The next write
+ * persists the graph without it; there is no migration script, and no inert node
+ * type kept alive to make old rows parse.
  */
-export const readGraph = (json: unknown): Flow => json as Flow
+export function readGraph(json: unknown): Flow {
+  const graph = json as Flow & { nodes: ({ type: string } & Flow['nodes'][number])[] }
+  const dropped = new Set(graph.nodes.filter((n) => (n.type as string) === 'export').map((n) => n.id))
+  if (dropped.size === 0) return graph as Flow
+  return {
+    nodes: graph.nodes.filter((n) => !dropped.has(n.id)) as Flow['nodes'],
+    edges: graph.edges.filter((e) => !dropped.has(e.from) && !dropped.has(e.to)),
+  }
+}

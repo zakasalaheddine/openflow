@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm'
 import { exportFlow } from '@/core/exporter'
 import { DEFAULT_SETTINGS } from '@/core/settings'
 import { exports } from '@/db/schema'
-import type { ExportNode, Flow } from '@/core/types'
+import type { AdFormat, Flow } from '@/core/types'
 import { tempDb, seedProject, seedFlow } from '../helpers/db'
 import { tempExportDir, seedRenderedNode } from '../helpers/exports'
 
@@ -15,22 +15,19 @@ import { tempExportDir, seedRenderedNode } from '../helpers/exports'
 
 const DOOH = { name: 'DOOH 4:5', w: 864, h: 1080 }
 
-const graph = (over: Partial<ExportNode> = {}): Flow => ({
-  nodes: [
-    { id: 'shot', type: 'image', prompt: 'bottle on marble', modelId: 'flux-2-pro', label: 'shot' },
-    { id: 'out', type: 'export', formats: [], ...over },
-  ],
-  edges: [{ id: 'e1', from: 'shot', to: 'out', role: 'input', position: null }],
+const graph = (): Flow => ({
+  nodes: [{ id: 'shot', type: 'image', prompt: 'bottle on marble', modelId: 'flux-2-pro', label: 'shot' }],
+  edges: [],
 })
 
-// The export node is gone, but the graph shape it left behind is still a
-// convenient way to describe "a node, plus the formats it used to carry" —
-// `resolveFormats`'s old fallback is reproduced here, at the call site, since
-// core no longer guesses what a caller means by "the project's formats".
-function prepared(over: Partial<ExportNode> = {}, settings = {}) {
+// exportFlow takes its formats explicitly (see core/exporter.ts) — there is
+// no export node to carry them, and no fallback core has to guess at. Project
+// settings' default formats are applied here, at the call site, the same way
+// the download route applies them.
+function prepared(over: { formats?: AdFormat[] } = {}, settings = {}) {
   const { db } = tempDb()
   const projectId = seedProject(db, settings)
-  const flowId = seedFlow(db, projectId, graph(over))
+  const flowId = seedFlow(db, projectId, graph())
   seedRenderedNode(db, flowId, 'shot')
   const merged = { ...DEFAULT_SETTINGS, ...settings }
   const formats = over.formats?.length ? over.formats : merged.formats

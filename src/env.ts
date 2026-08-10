@@ -56,8 +56,6 @@ export const dbPath = () => path.join(dataDir(), 'app.db')
  */
 export const modelsPath = () => path.join(dataDir(), 'models.json')
 export const assetsDir = () => path.join(dataDir(), 'assets')
-export const exportsDir = () =>
-  path.resolve(process.env.OPENFLOW_EXPORTS_DIR ?? './exports')
 
 /**
  * live   — real fal calls, real money. Dev only, never CI.

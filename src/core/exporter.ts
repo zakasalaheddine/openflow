@@ -456,11 +456,6 @@ export async function exportFlow(
  * a 1:1 export was paid for once, and a clip that ships both on its own and
  * inside a film was paid for once too. A manifest whose total disagrees with
  * the ledger is worse provenance than no manifest at all.
- *
- * Exported so a caller that must run `exportFlow` more than once for one
- * download — the transitional route, one export node at a time — can total
- * the union of every call's entries rather than summing their totals, which
- * would double-bill a run that two export nodes both happen to ship.
  */
 export function totalCostOf(db: Db, entries: ManifestEntry[]): number {
   const perRun = new Map<string, number>()

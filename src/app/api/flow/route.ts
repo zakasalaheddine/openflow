@@ -7,6 +7,7 @@ import { previewRun } from '@/core/preview'
 import { flowSchema } from '@/core/schema'
 import { catalog } from '@/models/catalog'
 import { UnsupportedCapabilityError } from '@/models/registry'
+import { readGraph } from '@/core/graph'
 import type { Flow } from '@/core/types'
 
 export const dynamic = 'force-dynamic'
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
   if (scoped instanceof NextResponse) return scoped
   const { db, projectId, flowId } = scoped
   const flow = db.select().from(flows).where(eq(flows.id, flowId)).get()!
-  const graph = flow.graphJson as Flow
+  const graph = readGraph(flow.graphJson)
   const preview = previewRun(db, flowId)
 
   const runs = db.select().from(nodeRuns).where(eq(nodeRuns.flowId, flowId)).all()
