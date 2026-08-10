@@ -87,3 +87,28 @@ test('a still cannot feed a cut', async ({ page, request }) => {
   await expect(page.getByTestId('notice')).toContainText('Only a video node can feed one')
   expect((await graphOf(request)).edges).toHaveLength(0)
 })
+
+test('a cut is rendered from the canvas and shows the film it made', async ({ page, request }) => {
+  await setGraph(request, {
+    ...film,
+    edges: [
+      { id: 'e1', from: 'one', to: 'cut', role: 'input', position: 0 },
+      { id: 'e2', from: 'two', to: 'cut', role: 'input', position: 1 },
+    ],
+  })
+  await page.goto('/')
+  await waitForLedger(page)
+  await closeChat(page)
+
+  // The cut has its own Run button now, same as any other node.
+  await expect(page.getByTestId('run-cut')).toBeEnabled()
+
+  // Two clips and a cut. Run all renders the clips, then cuts them.
+  await page.getByTestId('run').click()
+  await expect(page.getByTestId('status-cut')).toHaveText(/done/, { timeout: 30_000 })
+
+  // The film is on the card, not in a folder.
+  await expect(page.locator('[data-testid="node-cut"] video')).toBeVisible()
+  // Free: the clips were paid for.
+  await expect(page.getByTestId('price-cut')).toHaveText('$0.00')
+})
