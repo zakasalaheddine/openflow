@@ -1,4 +1,4 @@
-import type { Flow } from '@/core/types'
+import type { AdFormat, Flow, TextOverlay } from '@/core/types'
 
 export type NodeState = {
   status: 'stale' | 'queued' | 'claimed' | 'submitted' | 'polling' | 'succeeded' | 'failed'
@@ -149,6 +149,52 @@ export async function startExport(flow: string): Promise<ExportOutcome> {
   const body = await response.json()
   if (!response.ok) throw new Error(body.error ?? 'Export failed')
   return body as ExportOutcome
+}
+
+export type DownloadVerdict = { nodeId: string; format: string; pass: boolean; reasons: string[] }
+export type DownloadPreview = { verdicts: DownloadVerdict[]; stale: string[]; formats: AdFormat[] }
+
+export type DownloadBody = { nodeIds?: string[]; formats?: AdFormat[]; overlay?: TextOverlay }
+
+export async function previewDownload(flow: string, body: DownloadBody): Promise<DownloadPreview> {
+  const response = await fetch(scoped('/api/download', flow), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...body, preview: true }),
+  })
+  if (!response.ok) throw new Error('Could not check what can ship')
+  return response.json()
+}
+
+/**
+ * Fetch, then hand the bytes to the browser.
+ *
+ * A plain `<a download href="/api/download">` would be a GET, and the request
+ * carries a node list and an overlay. So the response is read as a blob and
+ * given to an anchor that is clicked and thrown away — the filename comes from
+ * `Content-Disposition`, which is the server's to decide.
+ */
+export async function runDownload(flow: string, body: DownloadBody): Promise<void> {
+  const response = await fetch(scoped('/api/download', flow), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    const failure = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(failure.error ?? 'Download failed')
+  }
+
+  const disposition = response.headers.get('Content-Disposition') ?? ''
+  const name = /filename="([^"]+)"/.exec(disposition)?.[1] ?? 'download'
+  const url = URL.createObjectURL(await response.blob())
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = name
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(url)
 }
 
 export type BriefState = {
