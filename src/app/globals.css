@@ -447,16 +447,19 @@
 
 /* A workspace called something long truncates rather than pushing the row into
    a scroll, and truncates harder once the labels have gone. The full name is in
-   the menu it opens, and it is the first thing in there. */
-.topbar .workspaces .chip {
-  display: inline-block;
+   the menu it opens, and it is the first thing in there.
+
+   The name truncates, not the chip: the caret is what says this opens something
+   and it has to survive a long name. */
+.topbar .workspaces__name {
   max-width: 24ch;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (max-width: 1080px) {
-  .topbar .workspaces .chip {
+  .topbar .workspaces__name {
     max-width: 12ch;
   }
 }
@@ -1971,35 +1974,26 @@
 /* ---------- workspace switcher ---------- */
 
 /*
- * It used to ride on `.assets__menu` and `.assets__item`, on the grounds that
- * the switcher and the asset menu were the same dropdown on the same kind of
- * chip. They are not any more: the asset menu is a Radix popper in the top
- * layer, and those rules went with it. This one is still hand-rolled — it holds
- * inline rename and delete-confirm forms, which is not what a menu is for — so
- * it now carries its own surface rather than borrowing one that has moved.
+ * Rows only. The panel around them is a Radix popover in the top layer, and it
+ * must stay there: `.topbar` above carries `overflow-x: auto`, which computes
+ * `overflow-y` to `auto` as well, and the bar is a fixed 52px row — so the
+ * `position: absolute; top: calc(100% + …)` panel this used to be was clipped
+ * to a 6px sliver and the switcher looked like a chip that did nothing.
  *
- * Same tokens, so the two still look like one family: `--overlay` at `--e-2`,
- * `--r-md`, and rows at `--r-sm`.
+ * Nothing here may set `position`, `top`, `left` or `z-index` on the panel. This
+ * layer is unlayered and outranks every utility, so a rule that did would beat
+ * Radix's own positioning and put the panel back under the clip. Sizing goes on
+ * the content's `className`; the surface comes from the primitive, which is why
+ * this and the asset menu are one floating layer by construction.
  */
-.workspaces {
-  position: relative;
-  display: flex;
+.workspaces__chip {
+  min-width: 0;
 }
 
-.workspaces__menu {
-  position: absolute;
-  top: calc(100% + var(--s-3));
-  left: 0;
-  z-index: 20;
-  min-width: 240px;
-  max-width: 320px;
-  max-height: 60vh;
-  overflow-y: auto;
-  padding: var(--s-1);
-  border: 1px solid var(--line-bright);
-  border-radius: var(--r-md);
-  background: var(--overlay);
-  box-shadow: var(--e-2);
+/* Down a step from the name it belongs to: it says "this opens", it is not
+   something you read. */
+.workspaces__caret {
+  color: var(--slate-dim);
 }
 
 .workspaces__item {
@@ -2017,6 +2011,10 @@
 
 .workspaces__item:hover {
   background: var(--raised);
+}
+
+.workspaces__failed {
+  color: var(--fault);
 }
 
 .workspaces__rule {
@@ -2045,24 +2043,53 @@
   text-decoration: none;
 }
 
-/* The open workspace, in the safelight. It is the one place amber does not mean
-   money — and it is a link to where you already are, so it never competes with
-   a price for attention. */
+/* The open workspace, on the beam.
+ *
+ * It was amber, arguing that a link to where you already are never competes
+ * with a price for attention. It does: amber means one thing in this interface
+ * and the eye has been trained to read it as money, so a workspace name wearing
+ * it is the exception that dissolves the rule. `--beam` is what the palette
+ * already reserves for the thing you are pointing at, and the filled ● beside
+ * it carries the same state without colour. */
 .workspaces__link[aria-current='page'] {
-  color: var(--safelight);
+  color: var(--beam);
 }
 
+/* Shared with the cut order's reorder arrows in the inspector, which carry a
+   glyph rather than an icon — hence the centring and the padding kept as they
+   were. Rename it the day a third place wants it. */
 .workspaces__action {
+  display: inline-flex;
   flex: none;
+  align-items: center;
+  justify-content: center;
   padding: 2px 5px;
   border-radius: var(--r-sm);
   color: var(--slate-dim);
   font-size: var(--fs-1);
 }
 
-.workspaces__action:hover {
+.workspaces__action svg {
+  width: 13px;
+  height: 13px;
+}
+
+.workspaces__action:hover:not(:disabled) {
   color: var(--ink);
   background: var(--line);
+}
+
+/* Also the cut order, which reuses this button for its reorder arrows. It is
+   the shared rule now: a disabled control reads disabled wherever it is. */
+.workspaces__action:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.workspaces__new svg {
+  width: 13px;
+  height: 13px;
+  color: var(--slate-dim);
 }
 
 .workspaces__input {
@@ -2138,10 +2165,6 @@
   font-size: var(--fs-1);
   font-variant-numeric: tabular-nums;
   color: var(--ink);
-}
-
-.cut__item .workspaces__action:disabled {
-  opacity: 0.3;
 }
 
 /* ---------- chat panel ---------- */
