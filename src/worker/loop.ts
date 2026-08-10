@@ -14,6 +14,8 @@ import { DEFAULT_SETTINGS, type ProjectSettings } from '../core/settings'
 import { probe, ffmpeg, encoderFor, FfmpegMissingError, type Probe } from '../core/ffmpeg'
 import { assetsDir } from '../env'
 import { IN_FLIGHT } from '../core/executor'
+import { cutSequence } from '../core/cut'
+import { LOCAL_CUT } from '../core/runs'
 import type { Adapter, ParsedOutput } from '../models/fal'
 import type { Flow, AssetRef } from '../core/types'
 
@@ -559,6 +561,25 @@ export async function tick(db: Db, options: TickOptions): Promise<void> {
 }
 
 async function dispatch(db: Db, run: NodeRun, adapter: Adapter, storeRoot: string) {
+  // A cut, before the catalog lookup: `LOCAL_CUT` is not a model and `byId`
+  // would fail the run as unknown. This is the whole of "the sequence runs
+  // locally" — the queue, the retry and the ledger are already generic.
+  if (run.modelId === LOCAL_CUT) {
+    try {
+      const assetId = await cutSequence(db, run, storeRoot)
+      db.update(nodeRuns)
+        .set({ status: 'succeeded', outputRefs: [assetId], costCents: 0, error: null, claimedAt: null })
+        .where(eq(nodeRuns.id, run.id))
+        .run()
+    } catch (error) {
+      // `CutRefused` and a genuine ffmpeg failure are both recorded the same
+      // way. The difference is in the message, which is the only thing anyone
+      // reading the card can act on.
+      fail(db, run, error instanceof Error ? error.message : String(error))
+    }
+    return
+  }
+
   const model = byId(run.modelId)
   if (!model) {
     fail(db, run, `Unknown model ${run.modelId}`)
