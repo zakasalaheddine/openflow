@@ -34,6 +34,11 @@ export async function closeChat(page: Page) {
   const toggle = page.getByTestId('chat-toggle')
   if ((await toggle.getAttribute('aria-pressed')) === 'true') {
     await toggle.click()
+    // Closing it gives the canvas back a strip of width, and React Flow answers
+    // a resize by moving the viewport. Waiting here rather than in each caller:
+    // this is the only thing in the suite that changes the pane's size, so it
+    // is the one place all of them route through.
+    await settled(page)
   }
 }
 
@@ -72,7 +77,50 @@ export async function uploadText(request: APIRequestContext, text: string) {
   return (await response.json()).id as string
 }
 
-export const waitForLedger = (page: Page) => page.getByTestId('ledger').waitFor()
+/**
+ * The canvas is up, and it has stopped moving.
+ *
+ * The ledger alone is not enough. `canvas.tsx` frames the graph 80ms after the
+ * first non-empty render — deliberately, so a card added later comes to you
+ * instead of teleporting the view — and the ledger paints before that fires. A
+ * spec that acts the moment the ledger appears is racing a `fitView`, and the
+ * node it aimed at moves between the two clicks of a double-click or out from
+ * under a hover. That is what made `assets.spec` fail on CI while passing on
+ * every developer machine: the same race, decided by how fast the box is.
+ *
+ * The `waitForTimeout(400)` that four specs carried after this call was the
+ * same wait, guessed at — both slower than it needs to be and still a guess.
+ */
+export async function waitForLedger(page: Page) {
+  await page.getByTestId('ledger').waitFor()
+  await settled(page)
+}
+
+/**
+ * The canvas has stopped moving.
+ *
+ * Two identical reads of the viewport transform, not a fixed sleep. Whatever
+ * the last thing to move it was — the framing above, a resize from the chat
+ * panel closing — this waits for it to finish rather than guessing how long it
+ * takes on the slowest box that will ever run the suite.
+ */
+export async function settled(page: Page) {
+  const transform = () =>
+    page.locator('.react-flow__viewport').evaluate((el) => el.style.transform)
+
+  let last = await transform()
+  await expect
+    .poll(
+      async () => {
+        const now = await transform()
+        const stable = now !== '' && now === last
+        last = now
+        return stable
+      },
+      { timeout: 10_000, intervals: [100] },
+    )
+    .toBe(true)
+}
 
 /**
  * React Flow wires up pointer events, not HTML5 drag-and-drop, so Playwright's
