@@ -110,7 +110,11 @@ export function ChatPanel({ flow }: { flow: string }) {
   return (
     <aside className="chat" data-testid="chat">
       <header className="chat__head">
-        <span className="slate">Direction</span>
+        {/* Not "Direction". A shot's direction is the prompt on its card and
+            the field in the inspector that edits it — one word for two panels
+            is one word too few, and the toolbar button that opens this one has
+            said Chat all along. */}
+        <span className="slate">Chat</span>
         <button
           className="chip"
           data-testid="chat-clear"

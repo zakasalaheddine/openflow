@@ -37,7 +37,6 @@ test('editing a prompt leaves the canvas exactly where it was', async ({ page, r
   await page.goto('/')
   await waitForLedger(page)
   await closeChat(page)
-  await page.waitForTimeout(400)
 
   const before = await viewport(page)
   await page.getByTestId('node-prompt-text').dblclick()
@@ -56,7 +55,6 @@ test('entering and leaving an edit does not change the size of the card', async 
   await page.goto('/')
   await waitForLedger(page)
   await closeChat(page)
-  await page.waitForTimeout(400)
 
   const card = page.getByTestId('node-marble')
   const resting = (await card.boundingBox())!.height
@@ -101,7 +99,6 @@ test('a card can be resized, and the size survives a reload', async ({ page, req
   await page.goto('/')
   await waitForLedger(page)
   await closeChat(page)
-  await page.waitForTimeout(400)
 
   await page.getByTestId('node-marble').click()
   const grip = page.locator('.react-flow__resize-control.handle.bottom.right')
@@ -369,7 +366,6 @@ test('a note keeps the height of its card while it is being rewritten', async ({
   await page.goto('/')
   await waitForLedger(page)
   await closeChat(page)
-  await page.waitForTimeout(400)
 
   const card = page.getByTestId('node-voice')
   const resting = (await card.boundingBox())!.height
