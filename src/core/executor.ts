@@ -13,6 +13,7 @@ import { composePrompt, hasImageReference } from './compose'
 import type { Flow, FlowNode, NodeId } from './types'
 import { assertAnchorsSupported, estimateCostCents, endpointFor, isPriced, UnpricedModelError } from '../models/registry'
 import { byId as modelOrNone, modelById } from '../models/catalog'
+import { LOCAL_CUT } from './runs'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = BetterSQLite3Database<any>
@@ -60,7 +61,10 @@ export type PlannedNode = {
   estimatedCents: number
 }
 
-/** Only image and video nodes dispatch. Source brings files in; export writes them out. */
+/**
+ * Only image and video dispatch to a model. A source brings files in, and a
+ * sequence is planned too but cut locally — see the `LOCAL_CUT` branch in walk.
+ */
 const isRunnable = (node: FlowNode): node is Extract<FlowNode, { modelId: string }> =>
   node.type === 'image' || node.type === 'video'
 
@@ -98,10 +102,10 @@ export function planRun(db: Db, flowId: string): PlannedNode[] {
 /**
  * Every node's input hash, including the ones that never dispatch.
  *
- * `planRun` returns only what a Run would pay for, so a sequence — which costs
- * nothing and is cut locally at export — is absent from it. The exporter still
- * needs that node's hash: it is what the assembled film is keyed on, and what
- * makes reordering the shots produce a different cut.
+ * `planRun` covers the nodes a Run acts on — the ones that dispatch, plus the
+ * sequences that are cut locally. It does not cover a `source`, and a source
+ * wired straight to a download still has to be told apart from a stale one. This
+ * is the only way to ask for the hash of a node that is never planned.
  */
 export function nodeHashes(db: Db, flowId: string): Map<NodeId, string> {
   return walk(db, flowId).hashes
@@ -142,19 +146,25 @@ function walk(
       // and re-ordering a cut rewrites `position`, not that array — so without
       // this, swapping shot three and shot seven would export the old film.
       const order = node.type === 'sequence' ? sequenceInputs(graph, nodeId) : []
-      hashes.set(
-        nodeId,
-        inputHash({
-          nodeType: node.type,
-          config: {
-            ...config,
-            ...(node.type === 'source' ? { version } : {}),
-            ...(node.type === 'sequence' ? { order } : {}),
-          },
-          upstreamHashes,
-          modelId: '',
-        }),
-      )
+      const hash = inputHash({
+        nodeType: node.type,
+        config: {
+          ...config,
+          ...(node.type === 'source' ? { version } : {}),
+          ...(node.type === 'sequence' ? { order } : {}),
+        },
+        upstreamHashes,
+        modelId: '',
+      })
+      hashes.set(nodeId, hash)
+
+      // Planned, but never dispatched. `estimatedCents: 0` is not a placeholder
+      // for a price nobody worked out — the clips were paid for and the cut is
+      // ffmpeg on this machine. It rides through the same queue as everything
+      // else so it gets the same staleness, the same cache and the same retry.
+      if (node.type === 'sequence') {
+        planned.push({ nodeId, inputHash: hash, modelId: LOCAL_CUT, endpoint: 'local', estimatedCents: 0 })
+      }
       continue
     }
 

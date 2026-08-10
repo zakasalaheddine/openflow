@@ -134,9 +134,9 @@ describe('a sequence', () => {
     expect(db.select().from(exports).all().at(-1)!.assetId).not.toBe(before)
   })
 
-  test('a sequence is never planned as a run — the cut costs nothing', async () => {
+  test('a sequence is planned with zero cost', () => {
     const { db, flowId } = prepared()
-    expect(planRun(db, flowId).map((p) => p.nodeId).sort()).toEqual(['one', 'two'])
+    expect(planRun(db, flowId).map((p) => p.nodeId).sort()).toEqual(['cut', 'one', 'two'])
   })
 
   test('re-cuts a film whose file has gone from disk', async () => {
