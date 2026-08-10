@@ -33,24 +33,38 @@ export function seedRenderedNode(
   db: Db,
   flowId: string,
   nodeId: string,
-  over: { file?: string; mime?: string; modelId?: string; costCents?: number } = {},
+  over: {
+    file?: string
+    mime?: string
+    modelId?: string
+    costCents?: number
+    /**
+     * Several outputs from one run, e.g. a multi-output model response
+     * (worker/loop.ts supports this). Overrides `file`/`mime` above, one pair
+     * per output. Defaults to the single-asset shape every other caller uses.
+     */
+    assets?: { file?: string; mime?: string }[]
+  } = {},
 ) {
   const runId = randomUUID()
-  const assetId = randomUUID()
-  const video = (over.mime ?? 'image/png').startsWith('video/')
+  const outputs = over.assets ?? [{ file: over.file, mime: over.mime }]
+  const assetIds = outputs.map(() => randomUUID())
 
-  db.insert(assets)
-    .values({
-      id: assetId,
-      path: over.file ?? (video ? STUB_MP4 : STUB_PNG),
-      mime: over.mime ?? 'image/png',
-      width: 1080,
-      height: 1920,
-      durationMs: video ? 1000 : null,
-      sourceRunId: runId,
-      createdAt: new Date().toISOString(),
-    })
-    .run()
+  outputs.forEach((output, i) => {
+    const video = (output.mime ?? 'image/png').startsWith('video/')
+    db.insert(assets)
+      .values({
+        id: assetIds[i],
+        path: output.file ?? (video ? STUB_MP4 : STUB_PNG),
+        mime: output.mime ?? 'image/png',
+        width: 1080,
+        height: 1920,
+        durationMs: video ? 1000 : null,
+        sourceRunId: runId,
+        createdAt: new Date().toISOString(),
+      })
+      .run()
+  })
 
   db.insert(nodeRuns)
     .values({
@@ -64,11 +78,11 @@ export function seedRenderedNode(
       status: 'succeeded',
       modelId: over.modelId ?? 'flux-2-pro',
       costCents: over.costCents ?? 12,
-      outputRefs: [assetId],
+      outputRefs: assetIds,
       attempt: 0,
       createdAt: new Date().toISOString(),
     })
     .run()
 
-  return { runId, assetId }
+  return { runId, assetId: assetIds[0], assetIds }
 }

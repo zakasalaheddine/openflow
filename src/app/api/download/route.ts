@@ -96,15 +96,15 @@ export async function POST(request: Request) {
         )
       }
 
-      // Exactly one node and exactly one format asked for, and it shipped.
-      // `nodeIds.length === 1` alone is not enough: one node with two
-      // requested formats where only one clears its spec check also leaves
-      // `entries.length === 1`, and handing that back as a bare file would
-      // silently drop the other placement's refusal instead of reporting it.
-      // Requiring `formats.length === 1` too means the single-file path only
-      // ever fires for a request that could not have produced more than one
-      // file in the first place.
-      const single = result.entries.length === 1 && nodeIds.length === 1 && formats.length === 1
+      // Nothing was refused, and exactly one file exists. That is the
+      // property that matters, not a count of nodes or formats requested:
+      // counting axes is how the previous version of this line broke — one
+      // node, one format, but a multi-output run (see worker/loop.ts) that
+      // shipped one asset and refused a second still left `entries.length`
+      // at 1 while hiding that refusal in a bare file with no manifest to
+      // carry it. `rejected.length === 0` closes that and every axis like it
+      // at once: a zip is only skipped when there is truly nothing to report.
+      const single = result.entries.length === 1 && result.rejected.length === 0
       if (single) {
         const name = result.entries[0].file
         const bytes = readFileSync(path.join(dir, name))
@@ -116,8 +116,10 @@ export async function POST(request: Request) {
         })
       }
 
-      // Stored, not deflated: PNG and MP4 are already compressed, so deflating
-      // them spends CPU to save nothing.
+      // `level: 0` does not select fflate's stored (uncompressed) method —
+      // entries are still written deflate-format, just at zero compression
+      // effort. PNG and MP4 are already compressed, so spending CPU hunting
+      // for redundancy that is not there would only make the response slower.
       const files: Record<string, [Uint8Array, { level: 0 }]> = {}
       for (const name of readdirSync(dir)) {
         files[name] = [new Uint8Array(readFileSync(path.join(dir, name))), { level: 0 }]
