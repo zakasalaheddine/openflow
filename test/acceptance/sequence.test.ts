@@ -104,6 +104,36 @@ describe('a sequence', () => {
     expect(result.rejected[0].specCheck.findings[0].message).toContain('cut has no rendered output')
   })
 
+  test('names the clip when the cut itself refuses, rather than the generic sentence', async () => {
+    // Both clips are cached at enqueue time, so nothing holds the cut and it
+    // dispatches in the same tick — unlike the test above, where a clip still
+    // in flight holds it back. Reshooting 'two' between enqueue and tick is
+    // what makes its already-rendered output stale rather than simply
+    // missing, so `cutSequence` throws naming it, and the worker records that
+    // message on the cut's own run. Export must read it rather than falling
+    // back to "cut has no rendered output" — on a six-shot film that sentence
+    // gives no clue which shot is the problem.
+    const { db } = tempDb()
+    const projectId = seedProject(db)
+    const flowId = seedFlow(db, projectId, film())
+    seedRenderedNode(db, flowId, 'one', { file: STUB_MP4, mime: 'video/mp4', costCents: 50 })
+    seedRenderedNode(db, flowId, 'two', { file: STUB_MP4, mime: 'video/mp4', costCents: 50 })
+    enqueueRun(db, flowId)
+
+    const reshot: Flow = { ...film(), nodes: film().nodes.map((n) => (n.id === 'two' ? clip('two', 'a reshot two') : n)) }
+    db.update(flows).set({ graphJson: reshot }).where(eq(flows.id, flowId)).run()
+
+    await tick(db, { adapter: createAdapter({ mode: 'stub' }) })
+
+    const dir = tempExportDir()
+    const result = await exportFlow(db, flowId, { dir })
+
+    expect(result.entries).toEqual([])
+    expect(result.rejected).toHaveLength(1)
+    expect(result.rejected[0].nodeId).toBe('cut')
+    expect(result.rejected[0].specCheck.findings[0].message).toContain('two')
+  })
+
   test('re-exporting an unchanged film re-cuts nothing', async () => {
     // The cut ran once, as part of the run, and exporting only ever reads
     // its output — a second export finds the same run and the same file.

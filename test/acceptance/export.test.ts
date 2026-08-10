@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { existsSync, readdirSync } from 'node:fs'
+import { copyFileSync, existsSync, readdirSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import sharp from 'sharp'
 import { eq } from 'drizzle-orm'
@@ -8,7 +8,7 @@ import { probe } from '@/core/ffmpeg'
 import { exports, flows } from '@/db/schema'
 import type { ExportNode, Flow, TextOverlay } from '@/core/types'
 import { tempDb, seedProject, seedFlow } from '../helpers/db'
-import { tempExportDir, seedRenderedNode } from '../helpers/exports'
+import { tempExportDir, seedRenderedNode, STUB_PNG } from '../helpers/exports'
 
 const SQUARE = { name: '1:1', w: 1080, h: 1080 }
 
@@ -85,6 +85,30 @@ describe('an edit since the last render', () => {
     const result = await exportFlow(db, flowId, { dir: tempExportDir() })
     expect(result.entries).toEqual([])
     expect(result.rejected[0].specCheck.findings[0].message).toMatch(/Run before exporting/)
+  })
+})
+
+describe('a render whose file has gone from disk', () => {
+  test('is refused by name, not thrown as a raw fs error', async () => {
+    // The row survives in the ledger; the bytes don't always — space
+    // reclaimed, a data dir moved. Handing that path to sharp or ffprobe
+    // would surface a raw ENOENT instead of an export result a person can
+    // act on. Copied into the export dir and deleted, rather than deleting
+    // the fixture every other test in this file reads from.
+    const { db } = tempDb()
+    const projectId = seedProject(db)
+    const flowId = seedFlow(db, projectId, graph({}))
+    const dir = tempExportDir()
+    const copy = path.join(dir, 'gone.png')
+    copyFileSync(STUB_PNG, copy)
+    seedRenderedNode(db, flowId, 'shot', { file: copy })
+    rmSync(copy)
+
+    const result = await exportFlow(db, flowId, { dir })
+    expect(result.entries).toEqual([])
+    expect(result.rejected).toHaveLength(1)
+    expect(result.rejected[0].specCheck.findings[0].message).toContain('shot')
+    expect(result.rejected[0].specCheck.findings[0].message).toMatch(/missing from disk/)
   })
 })
 

@@ -155,8 +155,9 @@ export type ExportNode = NodeBase & {
  * content of this node and it lives on the incoming edges' `position`, because
  * an ordering stored twice is an ordering that will disagree with itself.
  *
- * It dispatches to no model and costs nothing to run: the cut happens locally
- * at export, from clips that have already been paid for.
+ * It dispatches to no model. It is planned and run like any other node — cut
+ * locally by the worker, not at export — and costs nothing because its clips
+ * have already been paid for.
  */
 export type SequenceNode = NodeBase & {
   type: 'sequence'

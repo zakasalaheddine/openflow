@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import sharp from 'sharp'
-import { eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { assets, exports, flows, nodeRuns, projects, sources } from '../db/schema'
 import { DEFAULT_SETTINGS, type ProjectSettings } from './settings'
@@ -58,16 +58,64 @@ export const resolveFormats = (node: ExportNode, settings: ProjectSettings): AdF
 /** `9:16` is a fine format name and a terrible filename. */
 const slug = (text: string) => text.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase()
 
-const STALE_CHECK = (nodeId: NodeId, format: AdFormat): SpecCheck => ({
+const STALE_CHECK = (nodeId: NodeId, format: AdFormat, reason?: string): SpecCheck => ({
   pass: false,
   format: format.name,
   findings: [
     {
       rule: 'stale',
-      message: `${nodeId} has no rendered output matching its current settings. Run before exporting.`,
+      message: reason
+        ? `${nodeId}: ${reason}`
+        : `${nodeId} has no rendered output matching its current settings. Run before exporting.`,
     },
   ],
 })
+
+// Not "run it again": the succeeded run this file came from is still on
+// record, so `enqueueRun` would see its hash already satisfied and skip it —
+// an instruction the system will not honour. Naming the fact is honest;
+// telling someone to do something that silently no-ops is not.
+const MISSING_FILE_CHECK = (nodeId: NodeId, format: AdFormat): SpecCheck => ({
+  pass: false,
+  format: format.name,
+  findings: [
+    {
+      rule: 'missing-file',
+      message: `${nodeId}'s render file is missing from disk.`,
+    },
+  ],
+})
+
+/**
+ * Why a node's most recent *settled* attempt didn't succeed, if there was one.
+ *
+ * A node that has simply never been run has no such attempt and keeps
+ * `STALE_CHECK`'s generic sentence. One that has — most sharply, a sequence
+ * whose cut refused because a clip went stale mid-run — has the actionable
+ * reason sitting in `error` and nowhere else. On a six-shot film "cut has no
+ * rendered output" names nothing; the clip's own name, read from here, does.
+ *
+ * Deliberately not "the newest non-succeeded run": `claimed`, `submitted` and
+ * `polling` are attempts genuinely in flight right now, and `fail()` never
+ * clears the previous attempt's `error` when a row is reclaimed for a retry —
+ * so a run actively being retried can still carry a stale message from the
+ * attempt before it, one that may be moments from being overwritten by a
+ * success. Only `failed` and a `queued` row that already carries an `error`
+ * (this task's shape: `fail()` requeues below the retry ceiling) are
+ * attempts that have actually stopped and have something to report.
+ */
+function lastFailureReason(db: Db, flowId: string, nodeId: NodeId): string | undefined {
+  return (
+    db
+      .select()
+      .from(nodeRuns)
+      .where(and(eq(nodeRuns.flowId, flowId), eq(nodeRuns.nodeId, nodeId)))
+      .orderBy(desc(nodeRuns.createdAt))
+      .all()
+      .find((run) => run.status === 'failed' || (run.status === 'queued' && run.error !== null))?.error ??
+    undefined
+  )
+}
 
 /** One file to export, plus the provenance that belongs to it. */
 type Exportable = {
@@ -161,9 +209,12 @@ export async function exportFlow(
         // Never rendered and edited-since-rendered land here together, and are
         // reported the same way: refused, with the reason, rather than shipping
         // last week's pixels under this week's prompt. A film whose cut failed
-        // arrives here too, which is why the reason is on the card.
+        // arrives here too, which is why the reason is on the card — read from
+        // the run's own `error` when there is one, so a stale clip is named
+        // rather than only the sequence that could not be cut around it.
+        const reason = lastFailureReason(db, flowId, nodeId)
         for (const format of formats) {
-          rejected.push({ nodeId, format: format.name, specCheck: STALE_CHECK(nodeId, format) })
+          rejected.push({ nodeId, format: format.name, specCheck: STALE_CHECK(nodeId, format, reason) })
         }
         continue
       }
@@ -190,6 +241,20 @@ export async function exportFlow(
 
       const refs = exportable.assets
       for (const [index, asset] of refs.entries()) {
+        // The row survives; the bytes don't always — space reclaimed, a data
+        // dir moved. The cache that used to guard exactly this for a cut was
+        // removed on purpose (nothing here recuts or re-renders); reporting it
+        // by name beats handing a missing path to ffprobe or sharp and letting
+        // a raw ENOENT stand in for an export result. Every asset kind reads
+        // its file the same way below, so this one check covers stills, clips
+        // and films alike.
+        if (!existsSync(asset.path)) {
+          for (const format of formats) {
+            rejected.push({ nodeId, format: format.name, specCheck: MISSING_FILE_CHECK(nodeId, format) })
+          }
+          continue
+        }
+
         const video = asset.mime.startsWith('video/')
         // The file, not the row: a width column written from a model's promise
         // makes every check downstream a check of our own optimism.
