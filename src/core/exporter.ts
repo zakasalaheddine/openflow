@@ -141,6 +141,13 @@ export type Verdict = {
    * have changed. Same measurement, same crop, by construction.
    */
   measured: { width: number; height: number; durationMs: number }
+  /**
+   * The file was never measured, so `specCheck` is `MISSING_FILE_CHECK` rather
+   * than a real verdict. A dedicated flag, not a scan of `specCheck.findings`
+   * for a rule name: a second finding ordered ahead of it would otherwise
+   * resurrect a check that never ran.
+   */
+  missingFile: boolean
 }
 
 /**
@@ -276,6 +283,7 @@ export async function verdictsFor(
             format: format.name,
             specCheck: MISSING_FILE_CHECK(item.nodeId, format),
             measured: { width: 0, height: 0, durationMs: 0 },
+            missingFile: true,
           })
         }
         continue
@@ -303,6 +311,7 @@ export async function verdictsFor(
             ...(video ? { durationSec: measured.durationMs / 1000 } : {}),
             ...(textBox ? { textBox } : {}),
           }),
+          missingFile: false,
         })
       }
     }
@@ -362,7 +371,7 @@ export async function exportFlow(
 
     // A missing file was never measured, so there is nothing to ground an
     // `exports` row in — the same as a stale node, it is reported without one.
-    if (verdict.specCheck.findings[0]?.rule === 'missing-file') {
+    if (verdict.missingFile) {
       rejected.push({ nodeId: verdict.nodeId, format: format.name, specCheck: verdict.specCheck })
       continue
     }
@@ -377,8 +386,10 @@ export async function exportFlow(
       `${slug(node?.label ?? verdict.nodeId)}-${slug(format.name)}${suffix}${video ? '.mp4' : '.png'}`,
     )
 
-    // The row exists on a pass and on a failure. A record that only exists when
-    // the check passed cannot distinguish "checked" from "never run".
+    // The row exists on a pass and on a failure — every verdict that reaches
+    // this point was actually checked. `missingFile` is the one case with no
+    // row at all: its bytes are gone, so there is nothing a check could have
+    // measured, and it is refused above before it gets here.
     db.insert(exports)
       .values({
         id: randomUUID(),
@@ -429,10 +440,29 @@ export async function exportFlow(
     })
   }
 
-  // Summed over distinct *runs*, not over files: one render feeding a 9:16 and
-  // a 1:1 export was paid for once, and a clip that ships both on its own and
-  // inside a film was paid for once too. A manifest whose total disagrees with
-  // the ledger is worse provenance than no manifest at all.
+  const totalCostCents = totalCostOf(db, entries)
+
+  const manifestPath = path.join(outDir, 'manifest.json')
+  writeFileSync(
+    manifestPath,
+    JSON.stringify({ flowId, totalCostCents, files: entries, rejected }, null, 2),
+  )
+
+  return { entries, rejected, manifestPath, totalCostCents }
+}
+
+/**
+ * Summed over distinct *runs*, not over files: one render feeding a 9:16 and
+ * a 1:1 export was paid for once, and a clip that ships both on its own and
+ * inside a film was paid for once too. A manifest whose total disagrees with
+ * the ledger is worse provenance than no manifest at all.
+ *
+ * Exported so a caller that must run `exportFlow` more than once for one
+ * download — the transitional route, one export node at a time — can total
+ * the union of every call's entries rather than summing their totals, which
+ * would double-bill a run that two export nodes both happen to ship.
+ */
+export function totalCostOf(db: Db, entries: ManifestEntry[]): number {
   const perRun = new Map<string, number>()
   for (const entry of entries) {
     if (entry.runIds.length === 1) {
@@ -446,15 +476,7 @@ export async function exportFlow(
       perRun.set(runId, db.select().from(nodeRuns).where(eq(nodeRuns.id, runId)).get()?.costCents ?? 0)
     }
   }
-  const totalCostCents = [...perRun.values()].reduce((sum, cents) => sum + cents, 0)
-
-  const manifestPath = path.join(outDir, 'manifest.json')
-  writeFileSync(
-    manifestPath,
-    JSON.stringify({ flowId, totalCostCents, files: entries, rejected }, null, 2),
-  )
-
-  return { entries, rejected, manifestPath, totalCostCents }
+  return [...perRun.values()].reduce((sum, cents) => sum + cents, 0)
 }
 
 function sourceVersionsFor(

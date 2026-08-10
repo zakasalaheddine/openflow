@@ -75,8 +75,10 @@ describe('hashableConfig', () => {
   })
 
   test('keeps formats, fps, codec and the text overlay on an export node', () => {
-    // `overlay` joined the whitelist in Phase 3: the export node composites the
-    // headline itself, so changing it changes the exported pixels.
+    // `overlay` joined the whitelist in Phase 3: it is what `render` composites
+    // into the file (sourced from this node only by the transitional export
+    // route, until the node is gone), so changing it changes the exported
+    // pixels.
     const exportNode: FlowNode = {
       id: 'e',
       type: 'export',
