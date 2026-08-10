@@ -1,4 +1,4 @@
-import type { GraphShape, NodeId } from './types'
+import type { Flow, GraphShape, NodeId } from './types'
 
 export class CycleError extends Error {
   constructor(public readonly nodeIds: NodeId[]) {
@@ -78,3 +78,12 @@ export const descendants = (graph: GraphShape, id: NodeId) => walk(graph, id, 'd
 
 /** Every node upstream. Feeds `upstreamHashes` when hashing a node. */
 export const ancestors = (graph: GraphShape, id: NodeId) => walk(graph, id, 'up')
+
+/**
+ * A stored `graph_json` as a `Flow`.
+ *
+ * One named place, rather than `flow.graphJson as Flow` scattered across the
+ * executor, the exporter and three routes. The cast is unavoidable — the column
+ * is JSON — but where it happens should not be.
+ */
+export const readGraph = (json: unknown): Flow => json as Flow

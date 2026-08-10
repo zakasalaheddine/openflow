@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import sharp from 'sharp'
-import { desc, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { assets, exports, flows, nodeRuns, projects, sources } from '../db/schema'
 import { DEFAULT_SETTINGS, type ProjectSettings } from './settings'
@@ -12,6 +12,7 @@ import { boxOf, hasText, overlaySvg } from './overlay'
 import { probe, ffmpeg, encoderFor, concat } from './ffmpeg'
 import { composePrompt } from './compose'
 import { sequenceInputs } from './wiring'
+import { currentRun } from './runs'
 import { assetsDir } from '../env'
 import type { AdFormat, ExportNode, Flow, NodeId } from './types'
 
@@ -57,25 +58,6 @@ export const resolveFormats = (node: ExportNode, settings: ProjectSettings): AdF
 
 /** `9:16` is a fine format name and a terrible filename. */
 const slug = (text: string) => text.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase()
-
-/**
- * The run that produced the pixels the graph currently describes.
- *
- * Matched on `inputHash`, never just on node id. The manifest records the
- * prompt and asset versions from the *current* graph, so exporting the newest
- * succeeded run regardless would attribute a prompt to output it never
- * produced — one prompt edit away, and provenance that lies is worse than none.
- */
-function currentRun(db: Db, flowId: string, nodeId: NodeId, inputHash: string | undefined) {
-  if (!inputHash) return undefined
-  return db
-    .select()
-    .from(nodeRuns)
-    .where(eq(nodeRuns.flowId, flowId))
-    .orderBy(desc(nodeRuns.createdAt))
-    .all()
-    .find((run) => run.nodeId === nodeId && run.status === 'succeeded' && run.inputHash === inputHash)
-}
 
 const STALE_CHECK = (nodeId: NodeId, format: AdFormat): SpecCheck => ({
   pass: false,
