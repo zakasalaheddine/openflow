@@ -260,10 +260,10 @@ export function NodeCard({ data }: NodeProps) {
             <Peek item={{ url: output.url, mime: output.mime, label: node.id }} onPreview={onPreview} />
           </>
         ) : node.type === 'sequence' ? (
-          // A cut has no frame of its own until Export writes one, so the card
-          // shows the thing you actually need before then: how long the film is,
-          // out of how many shots. Every video row caps at eight or ten seconds,
-          // so reaching sixty is arithmetic, not a feeling.
+          // Before it is cut, the card shows the thing you need in order to
+          // decide whether to cut it: how long the film will be, out of how
+          // many shots. Every video row caps at eight or ten seconds, so
+          // reaching sixty is arithmetic, not a feeling.
           <span className="node__empty" data-testid={`runtime-${node.id}`}>
             {runtime && runtime.clipCount > 0
               ? `${runtime.clipCount} shot${runtime.clipCount === 1 ? '' : 's'} · ${runtime.seconds}s`
@@ -316,13 +316,16 @@ export function NodeCard({ data }: NodeProps) {
             renders itself and whatever upstream it still needs — nothing else.
             `nodrag` and the stopped propagation keep the click off React Flow's
             drag handler and off the canvas's alt-click fan-out. */}
-        {/* A cut is assembled at Export from clips already paid for, so there is
-            nothing here to run — the same reason an export node has no button. */}
-        {node.type !== 'export' && node.type !== 'sequence' && (
+        {/* A cut runs like anything else, and its button says $0.00 because it
+            is: the clips were paid for and ffmpeg is local. An export node had
+            no button because it had no run; a sequence has one. */}
+        {node.type !== 'export' && (
           <Hint
             label={
               state.status === 'succeeded'
-                ? 'Already rendered. Re-roll the seed to render it again.'
+                ? 'seed' in node
+                  ? 'Already rendered. Re-roll the seed to render it again.'
+                  : 'Already cut. Reorder the clips to cut it again.'
                 : `Render this shot alone, and whatever upstream it still needs · ${money(state.estimatedCents)}`
             }
             side="top"
