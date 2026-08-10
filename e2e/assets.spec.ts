@@ -26,6 +26,7 @@ test('an uploaded asset becomes a node on the canvas', async ({ page, request })
 
   await page.goto('/')
   await waitForLedger(page)
+  await closeChat(page)
 
   await expect(page.getByTestId('node-bottle')).toBeVisible()
   await expect(page.getByTestId('version-bottle')).toHaveText('v1')
@@ -47,6 +48,7 @@ test('one asset feeds many shots, each wire a reference', async ({ page, request
 
   await page.goto('/')
   await waitForLedger(page)
+  await closeChat(page)
 
   for (const shot of ['marble', 'slate', 'linen']) await wire(page, 'bottle', shot)
 
@@ -76,6 +78,7 @@ test('reference edges can be taken off screen, and the toolbar says how many', a
 
   await page.goto('/')
   await waitForLedger(page)
+  await closeChat(page)
   await expect(page.locator('.react-flow__edge')).toHaveCount(2)
 
   await page.getByTestId('toggle-refs').click()
@@ -103,6 +106,7 @@ test('hovering an asset lights up everything it feeds', async ({ page, request }
 
   await page.goto('/')
   await waitForLedger(page)
+  await closeChat(page)
 
   await page.getByTestId('node-bottle').hover()
   await expect(page.locator('.react-flow__node.lit')).toHaveCount(1)
@@ -125,6 +129,7 @@ test('replacing an asset prices the blast radius before committing', async ({ pa
 
   await page.goto('/')
   await waitForLedger(page)
+  await closeChat(page)
   await page.getByTestId('replace-bottle').click()
 
   // The shot referencing it, and the clip chained to that shot. The asset node
@@ -157,6 +162,7 @@ test('a text asset composes ahead of the shot prompt', async ({ page, request })
 
   await page.goto('/')
   await waitForLedger(page)
+  await closeChat(page)
 
   await expect(page.getByTestId('node-tone')).toContainText('warm, unfussy')
   // Composition is asserted as a unit in core/compose; here the point is only
@@ -218,6 +224,7 @@ test('refuses a sixth reference into a model that accepts four', async ({ page, 
 
   await page.goto('/')
   await waitForLedger(page)
+  await closeChat(page)
   await expect(page.locator('.react-flow__edge')).toHaveCount(4)
 
   await wire(page, 'asset-4', 'marble', { expectEdge: false })

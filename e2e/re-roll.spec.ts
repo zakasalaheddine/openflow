@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { resetWorkspace, setGraph, waitForLedger, graphOf } from './helpers'
+import { closeChat, graphOf, resetWorkspace, setGraph, waitForLedger } from './helpers'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -16,6 +16,7 @@ test.beforeEach(async ({ request }) => {
 test('re-roll keeps the prompt and changes the seed', async ({ page, request }) => {
   await page.goto('/')
   await waitForLedger(page)
+  await closeChat(page)
 
   await page.getByTestId('node-marble').click()
   await page.getByTestId('reroll').click()
@@ -31,6 +32,7 @@ test('editing the prompt changes the direction, and stales the shot', async ({ p
   // idea forever, or losing a good frame to a typo fix.
   await page.goto('/')
   await waitForLedger(page)
+  await closeChat(page)
 
   await page.getByTestId('node-prompt-text').dblclick()
   await page.getByTestId('node-prompt-input').fill('bottle on slate')
