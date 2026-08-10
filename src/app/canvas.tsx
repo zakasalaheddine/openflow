@@ -62,6 +62,7 @@ import { newNode } from '@/core/node-defaults'
 import { UnsupportedCapabilityError } from '@/models/registry'
 import type { Flow, FlowNode, NodeId } from '@/core/types'
 import { NodeCard } from './node-card'
+import { DownloadDialog } from './download-dialog'
 import { Inspector } from './inspector'
 import { CARD_SOURCE, COLUMN, MIN_CARD, ROW, fitToFrame, freeSlot, sizeOf, slotFor } from './slots'
 import { Lightbox, type Preview } from './lightbox'
@@ -73,7 +74,6 @@ import {
   saveGraph,
   StaleGraphError,
   startRun,
-  startExport,
   fetchBrief,
   saveBrandProfile,
   uploadFile,
@@ -157,7 +157,10 @@ const ADD_NODE = [
   { type: 'image', icon: ImageIcon, hint: 'A still frame, rendered from a prompt' },
   { type: 'video', icon: VideoIcon, hint: 'A clip that starts from the frame you wire into it' },
   { type: 'sequence', icon: FilmIcon, hint: 'Clips cut together in order, into one film' },
-  { type: 'export', icon: PackageIcon, hint: 'Crops and text overlays, written to ./exports' },
+  // Formats and overlay text live on the Download dialog now (see
+  // download-dialog.tsx); this node type is otherwise unused, kept only so an
+  // existing graph that already carries one still loads.
+  { type: 'export', icon: PackageIcon, hint: 'Legacy: crops and text overlays, superseded by Download' },
 ] as const
 
 let counter = 0
@@ -215,7 +218,11 @@ function CanvasInner({ flow }: { flow: string }) {
     text?: string
   } | null>(null)
   const [dropping, setDropping] = useState(false)
-  const [exported, setExported] = useState<{ written: number; refusals: string[] } | null>(null)
+  // `nodeId: null` is the toolbar's whole-flow download; a nodeId is the
+  // card's own. Replaces `exported`/`export-result`, which went with the old
+  // route: a download previews and streams, it does not leave a notice to
+  // dismiss.
+  const [downloading, setDownloading] = useState<{ nodeId: string | null } | null>(null)
   const [brief, setBrief] = useState<{ profile: string } | null>(null)
   const [preview, setPreview] = useState<Preview | null>(null)
 
@@ -474,36 +481,6 @@ function CanvasInner({ flow }: { flow: string }) {
     })
   }, [notice])
 
-  useEffect(() => {
-    if (!exported) {
-      toast.dismiss('export')
-      return
-    }
-    toast[exported.refusals.length > 0 ? 'warning' : 'success'](
-      <span data-testid="export-result">
-        {exported.written} {exported.written === 1 ? 'file' : 'files'} written to ./exports
-        {exported.refusals.length > 0 ? ` · ${exported.refusals.length} refused` : ''}
-      </span>,
-      {
-        id: 'export',
-        duration: Infinity,
-        onDismiss: () => setExported(null),
-        // Every refusal, named. A count alone tells you something was refused
-        // and nothing about what to drag two pixels to fix.
-        description:
-          exported.refusals.length > 0 ? (
-            <span className="flex flex-col gap-1">
-              {exported.refusals.map((reason) => (
-                <span key={reason} data-testid="export-refusal">
-                  {reason}
-                </span>
-              ))}
-            </span>
-          ) : undefined,
-      },
-    )
-  }, [exported])
-
   const graph = state?.graph
   const selected = graph?.nodes.find((n) => n.id === selectedId) ?? null
   const sourcesById = useMemo(() => new Map((state?.sources ?? []).map((s) => [s.id, s])), [state])
@@ -564,6 +541,8 @@ function CanvasInner({ flow }: { flow: string }) {
     },
     [commit],
   )
+
+  const onDownload = useCallback((nodeId: NodeId) => setDownloading({ nodeId }), [])
 
   /**
    * Rewrites a text asset in place.
@@ -657,6 +636,7 @@ function CanvasInner({ flow }: { flow: string }) {
             onReroll: reroll,
             onFanOut,
             onDelete: deleteNode,
+            onDownload,
           },
         }
       }),
@@ -674,6 +654,7 @@ function CanvasInner({ flow }: { flow: string }) {
       reroll,
       onFanOut,
       deleteNode,
+      onDownload,
     ],
   )
 
@@ -900,21 +881,6 @@ function CanvasInner({ flow }: { flow: string }) {
     }, 0)
   }
 
-  async function exportAll() {
-    setNotice(null)
-    try {
-      const outcome = await startExport(flow)
-      setExported({
-        written: outcome.written.length,
-        // Every refusal, named. A count alone tells you something was refused
-        // and nothing about what to drag two pixels to fix.
-        refusals: outcome.rejected.flatMap((r) => r.reasons),
-      })
-    } catch (error) {
-      say(error instanceof Error ? error.message : 'Export failed')
-    }
-  }
-
   async function openBrand() {
     const { brandProfile } = await fetchBrief()
     setBrief({ profile: brandProfile })
@@ -1038,10 +1004,14 @@ function CanvasInner({ flow }: { flow: string }) {
             </button>
           </Hint>
 
-          <Hint label="Write every rendered frame to ./exports">
-            <button className="chip" onClick={() => void exportAll()} data-testid="export">
+          <Hint label="Crop to your placements and download">
+            <button
+              className="chip"
+              onClick={() => setDownloading({ nodeId: null })}
+              data-testid="download-flow"
+            >
               <DownloadIcon aria-hidden="true" />
-              <span className="chip__label">Export</span>
+              <span className="chip__label">Download</span>
             </button>
           </Hint>
 
@@ -1252,8 +1222,8 @@ function CanvasInner({ flow }: { flow: string }) {
         {dropping && <div className="drop-veil">Drop to add an asset</div>}
 
         {/*
-          `notice`, `exported`, `confirming`, `replacing` and `brief` all used to
-          render into `.floating` at the same `left: 16px; bottom: 16px`. Any two
+          `notice`, `confirming`, `replacing` and `brief` all used to render into
+          `.floating` at the same `left: 16px; bottom: 16px`. Any two
           at once landed exactly on top of each other — a refused wire could hide
           the spend confirmation that was waiting for an answer.
 
@@ -1330,6 +1300,14 @@ function CanvasInner({ flow }: { flow: string }) {
         layer or a portal, never in the layout.
       */}
       <Lightbox item={preview} onClose={() => setPreview(null)} />
+
+      <DownloadDialog
+        flow={flow}
+        nodeId={downloading?.nodeId ?? null}
+        open={downloading !== null}
+        onClose={() => setDownloading(null)}
+        onError={say}
+      />
 
       {/*
         Both of these are the same shape and neither is a modal for the sake of

@@ -1,60 +1,88 @@
 import { test, expect } from '@playwright/test'
-import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs'
-import path from 'node:path'
+import { unzipSync } from 'fflate'
+import { readFileSync } from 'node:fs'
+import sharp from 'sharp'
 import { resetWorkspace, setGraph, waitForLedger } from './helpers'
 
 test.describe.configure({ mode: 'serial' })
 
-const EXPORTS = path.resolve(import.meta.dirname, '..', '.playwright-exports')
-
-const shotThenExport = (overlay?: Record<string, unknown>, formats: unknown[] = []) => ({
+/** One rendered shot. Formats and overlay come from the Download dialog now,
+ * not from a node on the canvas — see download-dialog.tsx. */
+const marbleShot = () => ({
   nodes: [
-    { id: 'marble', type: 'image', position: { x: 60, y: 80 }, prompt: 'bottle on marble', modelId: 'flux-2-pro', seed: 1, label: 'marble' },
-    { id: 'out', type: 'export', position: { x: 420, y: 80 }, formats, ...(overlay ? { overlay } : {}) },
+    {
+      id: 'marble',
+      type: 'image',
+      position: { x: 60, y: 80 },
+      prompt: 'bottle on marble',
+      modelId: 'flux-2-pro',
+      seed: 1,
+      label: 'marble',
+    },
   ],
-  edges: [{ id: 'e1', from: 'marble', to: 'out', role: 'input', position: null }],
+  edges: [],
 })
 
-/** Rendered, then exported — the export path reads files, so they must exist. */
-async function renderAndExport(page: import('@playwright/test').Page) {
+async function rendered(page: import('@playwright/test').Page) {
   await page.goto('/')
   await waitForLedger(page)
   await page.getByTestId('run').click()
   await expect(page.getByTestId('ledger')).toContainText('all rendered', { timeout: 30_000 })
-
-  await page.getByTestId('export').click()
-  await expect(page.getByTestId('export-result')).toBeVisible({ timeout: 30_000 })
 }
 
 test.beforeEach(async ({ request }) => {
   await resetWorkspace(request)
-  rmSync(EXPORTS, { recursive: true, force: true })
 })
 
-test('exports every project format to ./exports with a manifest', async ({ page, request }) => {
-  await setGraph(request, shotThenExport())
-  await renderAndExport(page)
+test('downloads every project format as a zip carrying a manifest', async ({ page, request }) => {
+  await setGraph(request, marbleShot())
+  await rendered(page)
 
-  const files = readdirSync(EXPORTS)
-  // The project defaults are 9:16 and 1:1.
-  expect(files.filter((f) => f.endsWith('.png')).length).toBe(2)
-  expect(files).toContain('manifest.json')
+  await page.getByTestId('download-flow').click()
+  // The project defaults are 9:16 and 1:1, and the fixture fills both — the
+  // preview is async, so wait for the dialog's own answer rather than
+  // assuming a tick the instant the checkbox exists.
+  await expect(page.getByTestId('download-format-9:16')).toBeChecked()
+  await expect(page.getByTestId('download-format-1:1')).toBeChecked()
 
-  const manifest = JSON.parse(readFileSync(path.join(EXPORTS, 'manifest.json'), 'utf8'))
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByTestId('download-confirm').click(),
+  ])
+
+  const path = await download.path()
+  const entries = unzipSync(new Uint8Array(readFileSync(path!)))
+  expect(Object.keys(entries).filter((name) => name.endsWith('.png'))).toHaveLength(2)
+  expect(Object.keys(entries)).toContain('manifest.json')
+
+  const manifest = JSON.parse(Buffer.from(entries['manifest.json']).toString('utf8'))
   expect(manifest.files.map((f: { format: string }) => f.format).sort()).toEqual(['1:1', '9:16'])
-  // Provenance that names a file which is not there is worse than none.
-  for (const entry of manifest.files) expect(existsSync(path.join(EXPORTS, entry.file))).toBe(true)
+  // Provenance that names a file which is not in the archive is worse than none.
+  for (const entry of manifest.files) expect(Object.keys(entries)).toContain(entry.file)
 })
 
-test('a custom format exports at its own dimensions', async ({ page, request }) => {
+test('a custom format ships at its own dimensions', async ({ page, request }) => {
   // Agencies carry client-specific placements; a fixed list blocks them on day
   // one, so this is a real requirement rather than a setting nobody changes.
-  await setGraph(request, shotThenExport(undefined, [{ name: 'DOOH 4:5', w: 864, h: 1080 }]))
-  await renderAndExport(page)
+  //
+  // Not reachable from the dialog: project formats are not writable over
+  // HTTP, and the dialog never sends its own `formats` in the preview
+  // request (see download-dialog.tsx), so it only ever offers the project's.
+  // A custom format is still a real capability of the route itself — this
+  // asserts it there, the same way download.spec.ts's own format tests do.
+  await setGraph(request, marbleShot())
+  await rendered(page)
 
-  const manifest = JSON.parse(readFileSync(path.join(EXPORTS, 'manifest.json'), 'utf8'))
-  expect(manifest.files).toHaveLength(1)
-  expect(manifest.files[0].format).toBe('DOOH 4:5')
+  const response = await request.post('/api/download?flow=default', {
+    data: { nodeIds: ['marble'], formats: [{ name: 'DOOH 4:5', w: 864, h: 1080 }] },
+  })
+  expect(response.ok()).toBe(true)
+  // One node, one format: the bare-file path, not a zip.
+  expect(response.headers()['content-disposition']).toMatch(/marble-dooh-4-5\.png"$/)
+
+  const metadata = await sharp(await response.body()).metadata()
+  expect(metadata.width).toBe(864)
+  expect(metadata.height).toBe(1080)
 })
 
 test('the manifest price agrees with what the inspector shows for that node', async ({
@@ -62,12 +90,23 @@ test('the manifest price agrees with what the inspector shows for that node', as
   request,
 }) => {
   // Not the toolbar ledger: that sums every run on the flow, including ones
-  // from graphs this spec never built. The per-node figure is the one a client
-  // is actually shown beside the file.
-  await setGraph(request, shotThenExport())
-  await renderAndExport(page)
+  // from graphs this spec never built. The per-node figure is the one a
+  // client is actually shown beside the file.
+  await setGraph(request, marbleShot())
+  await rendered(page)
 
-  const manifest = JSON.parse(readFileSync(path.join(EXPORTS, 'manifest.json'), 'utf8'))
+  await page.getByTestId('download-flow').click()
+  await expect(page.getByTestId('download-format-9:16')).toBeChecked()
+  await expect(page.getByTestId('download-format-1:1')).toBeChecked()
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByTestId('download-confirm').click(),
+  ])
+
+  const path = await download.path()
+  const entries = unzipSync(new Uint8Array(readFileSync(path!)))
+  const manifest = JSON.parse(Buffer.from(entries['manifest.json']).toString('utf8'))
   const entry = manifest.files[0]
   expect(entry.costCents).toBeGreaterThan(0)
 

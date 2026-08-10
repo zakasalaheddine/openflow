@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Handle, NodeResizer, NodeToolbar, Position, type NodeProps } from '@xyflow/react'
-import { DicesIcon, GitBranchIcon, Trash2Icon } from 'lucide-react'
+import { DicesIcon, DownloadIcon, GitBranchIcon, Trash2Icon } from 'lucide-react'
 import { Hint } from '@/ui/hint'
 import type { FlowNode } from '@/core/types'
 import { MIN_CARD } from './slots'
@@ -53,6 +53,7 @@ export type CardData = {
   onReroll: (nodeId: string) => void
   onFanOut: (nodeId: string) => void
   onDelete: (nodeId: string) => void
+  onDownload: (nodeId: string) => void
 }
 
 /**
@@ -186,6 +187,7 @@ export function NodeCard({ data }: NodeProps) {
     onReroll,
     onFanOut,
     onDelete,
+    onDownload,
   } = data as unknown as CardData
 
   if (node.type === 'source') {
@@ -348,6 +350,24 @@ export function NodeCard({ data }: NodeProps) {
                 {state.status === 'failed' ? 'Retry' : 'Run'}
               </button>
             </span>
+          </Hint>
+        )}
+
+        {/* Beside Run, not on hover: no control here may exist only while the
+            pointer happens to be over the card, and this is the one action a
+            finished card most wants next. */}
+        {state.status === 'succeeded' && (
+          <Hint label="Crop to your placements and download" side="top">
+            <button
+              className="node__run nodrag"
+              data-testid={`download-${node.id}`}
+              onClick={(event) => {
+                event.stopPropagation()
+                onDownload(node.id)
+              }}
+            >
+              <DownloadIcon aria-hidden="true" />
+            </button>
           </Hint>
         )}
 
