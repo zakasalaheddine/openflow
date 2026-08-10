@@ -323,10 +323,12 @@ export function NodeCard({ data }: NodeProps) {
           <Hint
             label={
               state.status === 'succeeded'
-                ? 'seed' in node
-                  ? 'Already rendered. Re-roll the seed to render it again.'
-                  : 'Already cut. Reorder the clips to cut it again.'
-                : `Render this shot alone, and whatever upstream it still needs · ${money(state.estimatedCents)}`
+                ? node.type === 'sequence'
+                  ? 'Already cut. Reorder the clips to cut it again.'
+                  : 'Already rendered. Re-roll the seed to render it again.'
+                : node.type === 'sequence'
+                  ? `Cut the film, and whatever clips it still needs rendered · ${money(state.estimatedCents)}`
+                  : `Render this shot alone, and whatever upstream it still needs · ${money(state.estimatedCents)}`
             }
             side="top"
           >
