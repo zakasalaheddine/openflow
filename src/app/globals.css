@@ -1496,9 +1496,9 @@
 /*
  * The download dialog's own rows — a `fieldset` per group (what ships, which
  * placements) with no border of its own, and a reason in `--fault` sitting
- * right beside the checkbox it explains rather than in a summary at the
- * bottom. Nothing here is amber: a download spends nothing, and amber is
- * reserved for what will be billed.
+ * with the checkbox it explains rather than in a summary at the bottom.
+ * Nothing here is amber: a download spends nothing, and amber is reserved for
+ * what will be billed.
  */
 .download__group {
   display: grid;
@@ -1508,16 +1508,22 @@
   margin: 0;
 }
 
+/* Wraps rather than overflowing a narrow dialog: a long refusal is common
+   once it names the node (see download-dialog.tsx), and `.download__reason`'s
+   `flex-basis: 100%` is what actually drops it to its own line, under the
+   placement it refuses, instead of squeezing beside the checkbox. */
 .download__row {
   display: flex;
   align-items: center;
   gap: var(--s-2);
+  flex-wrap: wrap;
 }
 
 .download__reason {
   font-size: var(--fs-1);
   color: var(--fault);
   margin: 0;
+  flex-basis: 100%;
 }
 
 .banner {

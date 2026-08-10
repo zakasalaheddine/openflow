@@ -1,7 +1,9 @@
 import { expect, test } from '@playwright/test'
 import { unzipSync } from 'fflate'
-import { readdirSync } from 'node:fs'
+import { readdirSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import path from 'node:path'
+import sharp from 'sharp'
 import { resetWorkspace, setGraph, waitForLedger } from './helpers'
 
 test.describe.configure({ mode: 'serial' })
@@ -61,6 +63,34 @@ async function rendered(page: import('@playwright/test').Page) {
 /** Anything the route's non-preview branch would have left behind. */
 const orphanedDownloadDirs = () =>
   readdirSync(tmpdir()).filter((name) => name.startsWith('openflow-download-'))
+
+// The e2e server's own asset store — the same directory playwright.config.ts
+// points OPENFLOW_DATA_DIR at, so this is the one place a spec may legitimately
+// reach onto disk rather than through an endpoint.
+const ASSETS_DIR = path.resolve(import.meta.dirname, '..', '.playwright-data', 'assets')
+
+/**
+ * The file backing a rendered node's first output.
+ *
+ * FAL_MODE=stub always answers the same fixture regardless of aspect (see
+ * `STUB_MEDIA` in src/models/fal.ts), so two stub renders are always the same
+ * 1080x1920 — there is no lever in the UI to make one node's real dimensions
+ * differ from another's. Overwriting the file a render already produced, in
+ * place, is the only way to give a node a genuinely different measured size
+ * for the spec check to disagree on, short of forging a live fal response.
+ */
+function assetFileFor(id: string): string {
+  const stack = [ASSETS_DIR]
+  while (stack.length > 0) {
+    const dir = stack.pop()!
+    for (const name of readdirSync(dir)) {
+      const full = path.join(dir, name)
+      if (statSync(full).isDirectory()) stack.push(full)
+      else if (name.startsWith(id)) return full
+    }
+  }
+  throw new Error(`no asset file found for ${id} under ${ASSETS_DIR}`)
+}
 
 test('the API refuses a format the render cannot fill, and writes nothing doing it', async ({ request }) => {
   const before = orphanedDownloadDirs().length
@@ -235,24 +265,57 @@ test('a headline in the safe zone cannot be ticked past', async ({ page, request
   await expect(page.getByTestId('download-confirm')).toBeDisabled()
 })
 
-test('unticking a node in the whole-flow picker drops it from what ships', async ({
+test('a node that fails a placement does not disable it for every node once unticked', async ({
   page,
   request,
 }) => {
   await setGraph(request, twoShots())
   await rendered(page)
 
-  await page.getByTestId('download-flow').click()
-  await expect(page.getByTestId('download-node-second')).toBeChecked()
-  await page.getByTestId('download-node-second').uncheck()
-  await page.getByTestId('download-format-1:1').uncheck()
+  // Shrink `second`'s real output after the fact — the only way, under
+  // FAL_MODE=stub, to give one node a verdict the other genuinely does not
+  // share (see assetFileFor above).
+  const flow = await (await request.get('/api/flow')).json()
+  const assetId = (flow.nodes.second.outputs[0].url as string).split('/').pop()!
+  await sharp({ create: { width: 400, height: 400, channels: 3, background: { r: 0, g: 0, b: 0 } } })
+    .png()
+    .toFile(assetFileFor(assetId))
 
+  await page.getByTestId('download-flow').click()
+
+  // Both nodes ship by default, and `second` genuinely cannot fill either
+  // placement at 400x400 — both start disabled, and the reason names the
+  // offending node, since a refusal with no node attached in a flow-wide
+  // dialog is not something anyone could act on.
+  await expect(page.getByTestId('download-format-9:16')).toBeDisabled()
+  await expect(page.getByTestId('download-format-1:1')).toBeDisabled()
+  await expect(page.getByTestId('download-dialog')).toContainText('second: 9:16 needs at least')
+
+  // Drop `second`. This is client-side — no refetch fires on a node tick —
+  // so what is under test is the dialog scoping `failing` to the nodes still
+  // ticked, not the route: before the fix, one failing node anywhere in the
+  // flow disabled a placement for good, and unticking the offender could
+  // never clear it.
+  await page.getByTestId('download-node-second').uncheck()
+  await expect(page.getByTestId('download-format-9:16')).toBeEnabled()
+  await expect(page.getByTestId('download-format-1:1')).toBeEnabled()
+  await expect(page.getByTestId('download-dialog')).not.toContainText('second:')
+
+  // Unticking every node is the same fact one level up from unticking every
+  // format: nothing is left to ship, so Download has to go dead too rather
+  // than produce a bare 422 on click.
+  await page.getByTestId('download-node-marble').uncheck()
+  await expect(page.getByTestId('download-confirm')).toBeDisabled()
+  await page.getByTestId('download-node-marble').check()
+
+  await page.getByTestId('download-format-9:16').check()
+  await page.getByTestId('download-format-1:1').uncheck()
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     page.getByTestId('download-confirm').click(),
   ])
-
-  // A bare file, not a zip: if `second` had leaked back in despite being
-  // unticked, this would ship two entries and take the zip path instead.
+  // A bare file, not a zip, and named for `marble` alone: proof `second` —
+  // still unfit for either placement — was genuinely excluded rather than
+  // merely hidden behind a disabled checkbox.
   expect(download.suggestedFilename()).toMatch(/^marble-9-16\.png$/)
 })
