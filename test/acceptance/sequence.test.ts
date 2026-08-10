@@ -1,11 +1,13 @@
 import { describe, test, expect } from 'vitest'
-import { existsSync, rmSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { exportFlow } from '@/core/exporter'
 import { probe } from '@/core/ffmpeg'
-import { planRun } from '@/core/executor'
+import { planRun, enqueueRun } from '@/core/executor'
+import { tick } from '@/worker/loop'
+import { createAdapter } from '@/models/fal'
 import { reorderSequence } from '@/core/wiring'
-import { assets, exports, flows } from '@/db/schema'
+import { flows } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import type { Flow } from '@/core/types'
 import { tempDb, seedProject, seedFlow } from '../helpers/db'
@@ -31,19 +33,23 @@ const film = (): Flow => ({
   ],
 })
 
-function prepared(graph: Flow = film(), rendered = ['one', 'two']) {
+async function prepared(graph: Flow = film(), rendered = ['one', 'two']) {
   const { db } = tempDb()
   const projectId = seedProject(db)
   const flowId = seedFlow(db, projectId, graph)
   for (const nodeId of rendered) {
     seedRenderedNode(db, flowId, nodeId, { file: STUB_MP4, mime: 'video/mp4', costCents: 50 })
   }
+  // The film is a render now, so it has to be rendered. A test that exported a
+  // cut nobody made would be testing the thing this change deleted.
+  enqueueRun(db, flowId)
+  await tick(db, { adapter: createAdapter({ mode: 'stub' }) })
   return { db, flowId, dir: tempExportDir() }
 }
 
 describe('a sequence', () => {
   test('cuts its clips into one file, priced as the sum of what they cost', async () => {
-    const { db, flowId, dir } = prepared()
+    const { db, flowId, dir } = await prepared()
     const result = await exportFlow(db, flowId, { dir })
 
     expect(result.rejected).toEqual([])
@@ -60,7 +66,7 @@ describe('a sequence', () => {
   test('the film is as long as the clips it was cut from', async () => {
     // The whole promise of the node. A cut that silently dropped a shot would
     // still export, still pass its spec check, and still look finished.
-    const { db, flowId, dir } = prepared()
+    const { db, flowId, dir } = await prepared()
     const one = await probe(STUB_MP4)
     const result = await exportFlow(db, flowId, { dir })
 
@@ -76,53 +82,46 @@ describe('a sequence', () => {
     // number a client can be shown and later disproved.
     const graph = film()
     graph.edges.push({ id: 'e4', from: 'one', to: 'out', role: 'input', position: null })
-    const { db, flowId, dir } = prepared(graph)
+    const { db, flowId, dir } = await prepared(graph)
 
     const result = await exportFlow(db, flowId, { dir })
     expect(result.entries).toHaveLength(2)
     expect(result.totalCostCents).toBe(100)
   })
 
-  test('refuses to cut a film around a shot that has not been rendered', async () => {
-    // Half a film assembled from one fresh clip and one missing one is worse
-    // than no film: it exports, it plays, and it looks finished.
-    const { db, flowId, dir } = prepared(film(), ['one'])
+  test('reports the sequence as stale when a clip has not been rendered', async () => {
+    // A cut cannot run without every clip, so it cannot run at all here: 'two'
+    // is still queued when the one tick ends, and 'cut' never even dispatches
+    // — it is held behind it. The sequence itself has no current render, so
+    // exportFlow refuses it the same way it refuses any other unrun node,
+    // rather than assembling half a film that plays and looks finished.
+    const { db, flowId, dir } = await prepared(film(), ['one'])
     const result = await exportFlow(db, flowId, { dir })
 
     expect(result.entries).toEqual([])
     expect(result.rejected).toHaveLength(1)
-    expect(result.rejected[0].specCheck.findings[0].message).toContain('two has no render')
-  })
-
-  test('refuses an empty sequence rather than writing a zero-length file', async () => {
-    const graph = film()
-    graph.edges = graph.edges.filter((e) => e.to !== 'cut')
-    const { db, flowId, dir } = prepared(graph, [])
-
-    const result = await exportFlow(db, flowId, { dir })
-    expect(result.entries).toEqual([])
-    expect(result.rejected[0].specCheck.findings[0].message).toContain('no clips')
+    expect(result.rejected[0].nodeId).toBe('cut')
+    expect(result.rejected[0].specCheck.findings[0].message).toContain('cut has no rendered output')
   })
 
   test('re-exporting an unchanged film re-cuts nothing', async () => {
-    // The cut is keyed by the sequence's input hash, so the second export finds
-    // the file it made the first time.
-    const { db, flowId, dir } = prepared()
+    // The cut ran once, as part of the run, and exporting only ever reads
+    // its output — a second export finds the same run and the same file.
+    const { db, flowId, dir } = await prepared()
     const first = await exportFlow(db, flowId, { dir })
     const second = await exportFlow(db, flowId, { dir })
     expect(second.entries[0].runIds).toEqual(first.entries[0].runIds)
   })
 
-  test('reordering the shots cuts a different film', async () => {
-    // `upstreamHashes` cannot see this: reordering rewrites each edge's
-    // `position`, not the edge array itself. Without the order folded into the
-    // sequence's hash, swapping two shots re-serves the cut made before the
-    // swap — same file, same manifest, wrong film.
-    //
-    // The cut's asset id is `sequence:<hash>`, so it is the hash, observable.
-    const { db, flowId, dir } = prepared()
-    await exportFlow(db, flowId, { dir })
-    const before = db.select().from(exports).all().at(-1)!.assetId
+  test('reordering the shots refuses the export until the cut is re-run', async () => {
+    // The order lives on the edges, not the node, so swapping two shots
+    // changes the sequence's hash without anyone re-running it. Shipping the
+    // old cut under the new order would be shipping last week's film under
+    // this week's edit — export refuses until the sequence is cut again,
+    // the same hash-mismatch refusal any other node gets.
+    const { db, flowId, dir } = await prepared()
+    const first = await exportFlow(db, flowId, { dir })
+    expect(first.rejected).toEqual([])
 
     const graph = db.select().from(flows).where(eq(flows.id, flowId)).get()!.graphJson as Flow
     db.update(flows)
@@ -130,27 +129,14 @@ describe('a sequence', () => {
       .where(eq(flows.id, flowId))
       .run()
 
-    await exportFlow(db, flowId, { dir })
-    expect(db.select().from(exports).all().at(-1)!.assetId).not.toBe(before)
-  })
-
-  test('a sequence is planned with zero cost', () => {
-    const { db, flowId } = prepared()
-    expect(planRun(db, flowId).map((p) => p.nodeId).sort()).toEqual(['cut', 'one', 'two'])
-  })
-
-  test('re-cuts a film whose file has gone from disk', async () => {
-    // The row is not the film. Space reclaimed, a data dir moved — and the
-    // cached path would otherwise be handed to ffprobe and fail as a tool
-    // error rather than as one of this function's named refusals.
-    const { db, flowId, dir } = prepared()
-    const first = await exportFlow(db, flowId, { dir })
-    const cut = db.select().from(assets).all().find((a) => a.id.startsWith('sequence:'))!
-    rmSync(cut.path)
-
     const second = await exportFlow(db, flowId, { dir })
-    expect(second.rejected).toEqual([])
-    expect(second.entries[0].file).toBe(first.entries[0].file)
-    expect(existsSync(cut.path)).toBe(true)
+    expect(second.entries).toEqual([])
+    expect(second.rejected).toHaveLength(1)
+    expect(second.rejected[0].nodeId).toBe('cut')
+  })
+
+  test('a sequence is planned with zero cost', async () => {
+    const { db, flowId } = await prepared()
+    expect(planRun(db, flowId).map((p) => p.nodeId).sort()).toEqual(['cut', 'one', 'two'])
   })
 })
