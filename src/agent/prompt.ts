@@ -34,7 +34,7 @@ export function systemPrompt(input: { brandProfile: string; ops: Ops }) {
     '- source: an asset already uploaded to the project. Reference an existing id from list_sources.',
     '- image: one still, from a prompt.',
     '- video: one clip, from a prompt, optionally starting from an image node.',
-    '- sequence: several clips cut into one film, in the order they were wired. Costs nothing to run — the cut is made at export from clips already paid for.',
+    '- sequence: several clips cut into one film, in the order they were wired. Runs and is cut locally by the worker, like any other node — it costs nothing because its clips were already paid for.',
     '- export: the deliverable formats and any burned-in copy.',
     '',
     'Wiring rules, enforced — a refusal is information, not an error to retry blindly:',
