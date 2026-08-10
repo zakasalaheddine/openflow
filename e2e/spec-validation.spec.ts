@@ -71,8 +71,14 @@ test('moving the headline out of the safe zone lets the same download through', 
   // frame's default safe position.
   await page.getByTestId('download-box-y').fill('55')
   await expect(page.getByTestId('download-format-9:16')).toBeEnabled()
-  await expect(page.getByTestId('download-format-9:16')).toBeChecked()
+  await expect(page.getByTestId('download-format-1:1')).toBeEnabled()
   await expect(page.getByTestId('download-dialog')).not.toContainText('top safe zone')
+
+  // Re-enabled, not re-ticked: the refusal cleared both ticks, and a fix does
+  // not silently re-tick them on your behalf any more than a headline typed
+  // afterwards may — see the dialog's own refetch-preserves-picks comment.
+  await page.getByTestId('download-format-9:16').check()
+  await page.getByTestId('download-format-1:1').check()
 
   // Both formats pass now, so this ships as a zip rather than a bare file —
   // the point is that it ships at all, where a moment ago it could not.

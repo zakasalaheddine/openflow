@@ -56,18 +56,47 @@ export function DownloadDialog({ flow, nodeId, open, onClose, onError }: Props) 
   useEffect(() => {
     if (!open) return
     let cancelled = false
+    // Captured before the request goes out: whether this is the dialog's
+    // first answer for this open, or a refetch of one already showing.
+    const first = preview === null
     previewDownload(flow, body)
       .then((next) => {
         if (cancelled) return
+        const allNow = new Set(next.verdicts.map((v) => v.nodeId))
+        // What ships next tick, so "passing" below can be scoped to it rather
+        // than to every node in the flow — the same scope the checkboxes
+        // themselves use to decide `disabled`.
+        const nextNodes = first ? allNow : intersect(nodes, allNow)
+        const passingNow = passingFormats(next, nextNodes)
+
         setPreview(next)
-        setChosen(new Set(next.formats.filter((f) => passes(next, f.name)).map((f) => f.name)))
-        setNodes(new Set(next.verdicts.map((v) => v.nodeId)))
+        setNodes(nextNodes)
+        // First answer: tick everything that fills — the useful default
+        // nobody wants to click through by hand. A refetch (moving the box,
+        // adding text) instead keeps what the person picked, only dropping a
+        // tick that just became refused: typing a headline must not silently
+        // re-tick a format someone unticked on purpose.
+        setChosen((prev) => (first ? passingNow : intersect(prev, passingNow)))
       })
       .catch(() => onError('Could not check what can ship'))
     return () => {
       cancelled = true
     }
   }, [open, flow, nodeId, hasText, boxY])
+
+  // A close carries nothing forward: without this, a headline typed for one
+  // node's dialog would still be sitting in the field the next time any
+  // dialog opens, and the "preserve picks across a refetch" logic above would
+  // filter a brand new node's answer through a previous node's ticks. An
+  // event handler, not an effect keyed on `open` going false — resetting
+  // state from an effect body fires a second, avoidable render.
+  const closeAndReset = () => {
+    setPreview(null)
+    setChosen(new Set())
+    setNodes(new Set())
+    setOverlay({})
+    onClose()
+  }
 
   const download = async () => {
     setBusy(true)
@@ -77,7 +106,7 @@ export function DownloadDialog({ flow, nodeId, open, onClose, onError }: Props) 
         ...(nodeId ? {} : { nodeIds: [...nodes] }),
         formats: preview?.formats.filter((f) => chosen.has(f.name)),
       })
-      onClose()
+      closeAndReset()
     } catch (error) {
       onError(error instanceof Error ? error.message : 'Download failed')
     } finally {
@@ -86,7 +115,7 @@ export function DownloadDialog({ flow, nodeId, open, onClose, onError }: Props) 
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+    <Dialog open={open} onOpenChange={(next) => !next && closeAndReset()}>
       <DialogContent data-testid="download-dialog">
         <DialogHeader>
           <DialogTitle>{nodeId ? `Download ${nodeId}` : 'Download this flow'}</DialogTitle>
@@ -121,7 +150,14 @@ export function DownloadDialog({ flow, nodeId, open, onClose, onError }: Props) 
         <fieldset className="download__group">
           <legend className="slate">Placements</legend>
           {preview?.formats.map((format) => {
-            const failing = preview.verdicts.filter((v) => v.format === format.name && !v.pass)
+            // Scoped to the nodes actually ticked: a node you have already
+            // dropped from "What ships" cannot be the reason a placement stays
+            // refused. Without this, one failing node — anywhere in the flow,
+            // ticked or not — disabled that placement for everyone, and
+            // unticking the offender could never clear it.
+            const failing = preview.verdicts.filter(
+              (v) => v.format === format.name && !v.pass && nodes.has(v.nodeId),
+            )
             return (
               <div className="download__row" key={format.name}>
                 <label>
@@ -137,9 +173,12 @@ export function DownloadDialog({ flow, nodeId, open, onClose, onError }: Props) 
                   </span>
                 </label>
                 {/* The reason, next to the thing it refuses. A refusal you have
-                    to go looking for is a bug report from the client later. */}
-                {failing.map((verdict) => (
-                  <p className="download__reason" key={verdict.nodeId}>
+                    to go looking for is a bug report from the client later.
+                    Named by node in the whole-flow dialog: "top safe zone" is
+                    not actionable when it could be any of a dozen cards. */}
+                {failing.map((verdict, i) => (
+                  <p className="download__reason" key={`${verdict.nodeId}-${i}`}>
+                    {nodeId === null ? `${verdict.nodeId}: ` : ''}
                     {verdict.reasons.join(' ')}
                   </p>
                 ))}
@@ -195,13 +234,18 @@ export function DownloadDialog({ flow, nodeId, open, onClose, onError }: Props) 
         </label>
 
         <DialogFooter>
-          <button className="chip" onClick={onClose}>
+          <button className="chip" onClick={closeAndReset}>
             Cancel
           </button>
           <button
             className="run"
             data-testid="download-confirm"
-            disabled={busy || chosen.size === 0}
+            // `chosen` empty is "nothing to ship"; in the whole-flow dialog,
+            // `nodes` empty is the same fact one level up — every node
+            // unticked, so a chosen format has nothing left to check it
+            // against. Without this second guard, unticking every node left
+            // the button live and produced a bare 422 on click.
+            disabled={busy || chosen.size === 0 || (nodeId === null && nodes.size === 0)}
             onClick={() => void download()}
           >
             Download
@@ -212,8 +256,15 @@ export function DownloadDialog({ flow, nodeId, open, onClose, onError }: Props) 
   )
 }
 
-const passes = (preview: DownloadPreview, format: string) =>
-  preview.verdicts.filter((v) => v.format === format).every((v) => v.pass)
+/** Every format that fills for every node in `nodeIds` — the ticked scope, not the whole flow. */
+const passingFormats = (preview: DownloadPreview, nodeIds: Set<string>) =>
+  new Set(
+    preview.formats
+      .filter((f) =>
+        preview.verdicts.filter((v) => v.format === f.name && nodeIds.has(v.nodeId)).every((v) => v.pass),
+      )
+      .map((f) => f.name),
+  )
 
 const toggle = (set: Set<string>, key: string, on: boolean) => {
   const next = new Set(set)
@@ -221,3 +272,6 @@ const toggle = (set: Set<string>, key: string, on: boolean) => {
   else next.delete(key)
   return next
 }
+
+/** What of `a` is still in `b` — how a refetch keeps a pick without reviving one that has expired. */
+const intersect = (a: Set<string>, b: Set<string>) => new Set([...a].filter((x) => b.has(x)))

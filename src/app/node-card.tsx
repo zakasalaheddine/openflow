@@ -358,9 +358,14 @@ export function NodeCard({ data }: NodeProps) {
             finished card most wants next. */}
         {state.status === 'succeeded' && (
           <Hint label="Crop to your placements and download" side="top">
+            {/* `aria-label`, not just the tooltip: `TooltipTrigger asChild`
+                wires `aria-describedby`, a description, and an icon-only
+                button with no visible text has no accessible name without
+                one of its own. */}
             <button
               className="node__run nodrag"
               data-testid={`download-${node.id}`}
+              aria-label={`Download ${node.id}`}
               onClick={(event) => {
                 event.stopPropagation()
                 onDownload(node.id)
