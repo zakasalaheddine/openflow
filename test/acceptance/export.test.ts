@@ -25,15 +25,16 @@ function prepared(over: Partial<ExportNode> = {}, seed: Parameters<typeof seedRe
   const projectId = seedProject(db)
   const flowId = seedFlow(db, projectId, graph(over))
   seedRenderedNode(db, flowId, 'shot', seed)
-  return { db, flowId, dir: tempExportDir() }
+  const formats = over.formats?.length ? over.formats : [SQUARE]
+  return { db, flowId, dir: tempExportDir(), nodeIds: ['shot'], formats, overlay: over.overlay }
 }
 
 describe('an export that fails its spec check', () => {
   const breaching: TextOverlay = { headline: 'BUY NOW', box: { x: 0.1, y: 0.01, w: 0.8, h: 0.15 } }
 
   test('does not silently ship', async () => {
-    const { db, flowId, dir } = prepared({ overlay: breaching })
-    const result = await exportFlow(db, flowId, { dir })
+    const { db, flowId, dir, nodeIds, formats, overlay } = prepared({ overlay: breaching })
+    const result = await exportFlow(db, flowId, { dir, nodeIds, formats, overlay })
 
     expect(result.entries).toEqual([])
     expect(result.rejected).toHaveLength(1)
@@ -44,8 +45,8 @@ describe('an export that fails its spec check', () => {
   })
 
   test('still records the check that refused it', async () => {
-    const { db, flowId, dir } = prepared({ overlay: breaching })
-    await exportFlow(db, flowId, { dir })
+    const { db, flowId, dir, nodeIds, formats, overlay } = prepared({ overlay: breaching })
+    await exportFlow(db, flowId, { dir, nodeIds, formats, overlay })
 
     const [row] = db.select().from(exports).where(eq(exports.flowId, flowId)).all()
     expect(row.specCheck).toMatchObject({ pass: false, format: '1:1' })
@@ -71,7 +72,7 @@ describe('an edit since the last render', () => {
     }
     db.update(flows).set({ graphJson: edited }).where(eq(flows.id, flowId)).run()
 
-    const result = await exportFlow(db, flowId, { dir })
+    const result = await exportFlow(db, flowId, { dir, nodeIds: ['shot'], formats: [SQUARE] })
     expect(result.entries).toEqual([])
     expect(result.rejected[0].specCheck.findings[0].rule).toBe('stale')
     expect(readdirSync(dir)).toEqual(['manifest.json'])
@@ -82,7 +83,11 @@ describe('an edit since the last render', () => {
     const projectId = seedProject(db)
     const flowId = seedFlow(db, projectId, graph({}))
 
-    const result = await exportFlow(db, flowId, { dir: tempExportDir() })
+    const result = await exportFlow(db, flowId, {
+      dir: tempExportDir(),
+      nodeIds: ['shot'],
+      formats: [SQUARE],
+    })
     expect(result.entries).toEqual([])
     expect(result.rejected[0].specCheck.findings[0].message).toMatch(/Run before exporting/)
   })
@@ -104,7 +109,7 @@ describe('a render whose file has gone from disk', () => {
     seedRenderedNode(db, flowId, 'shot', { file: copy })
     rmSync(copy)
 
-    const result = await exportFlow(db, flowId, { dir })
+    const result = await exportFlow(db, flowId, { dir, nodeIds: ['shot'], formats: [SQUARE] })
     expect(result.entries).toEqual([])
     expect(result.rejected).toHaveLength(1)
     expect(result.rejected[0].specCheck.findings[0].message).toContain('shot')
@@ -114,10 +119,10 @@ describe('a render whose file has gone from disk', () => {
 
 describe('the text overlay', () => {
   test('is composited into the exported file', async () => {
-    const { db, flowId, dir } = prepared({
+    const { db, flowId, dir, nodeIds, formats, overlay } = prepared({
       overlay: { headline: 'Bottled sunlight', cta: 'Shop now' },
     })
-    const result = await exportFlow(db, flowId, { dir })
+    const result = await exportFlow(db, flowId, { dir, nodeIds, formats, overlay })
 
     const file = path.join(dir, result.entries[0].file)
     const { data, info } = await sharp(file).raw().toBuffer({ resolveWithObject: true })
@@ -132,16 +137,16 @@ describe('the text overlay', () => {
   })
 
   test('an empty overlay leaves the frame alone and is not spec-checked', async () => {
-    const { db, flowId, dir } = prepared({ overlay: { headline: '   ' } })
-    const result = await exportFlow(db, flowId, { dir })
+    const { db, flowId, dir, nodeIds, formats, overlay } = prepared({ overlay: { headline: '   ' } })
+    const result = await exportFlow(db, flowId, { dir, nodeIds, formats, overlay })
     expect(result.entries[0].specCheck.findings).toEqual([])
   })
 })
 
 describe('video export', () => {
   test('writes a clip cropped to the format', async () => {
-    const { db, flowId, dir } = prepared({}, { mime: 'video/mp4' })
-    const result = await exportFlow(db, flowId, { dir })
+    const { db, flowId, dir, nodeIds, formats } = prepared({}, { mime: 'video/mp4' })
+    const result = await exportFlow(db, flowId, { dir, nodeIds, formats })
 
     const file = path.join(dir, result.entries[0].file)
     expect(existsSync(file)).toBe(true)
@@ -150,18 +155,21 @@ describe('video export', () => {
   })
 
   test('a clip over the format duration limit is refused', async () => {
-    const { db, flowId, dir } = prepared(
+    const { db, flowId, dir, nodeIds, formats } = prepared(
       { formats: [{ ...SQUARE, spec: { maxDurationSec: 0.5 } }] },
       { mime: 'video/mp4' },
     )
-    const result = await exportFlow(db, flowId, { dir })
+    const result = await exportFlow(db, flowId, { dir, nodeIds, formats })
     expect(result.entries).toEqual([])
     expect(result.rejected[0].specCheck.findings[0].rule).toBe('duration')
   })
 
   test('burns the overlay onto the clip, from the same renderer as the still', async () => {
-    const { db, flowId, dir } = prepared({ overlay: { headline: 'Bottled sunlight' } }, { mime: 'video/mp4' })
-    const result = await exportFlow(db, flowId, { dir })
+    const { db, flowId, dir, nodeIds, formats, overlay } = prepared(
+      { overlay: { headline: 'Bottled sunlight' } },
+      { mime: 'video/mp4' },
+    )
+    const result = await exportFlow(db, flowId, { dir, nodeIds, formats, overlay })
 
     expect(result.entries).toHaveLength(1)
     // The scratch PNG the compositor needs must not be left behind looking

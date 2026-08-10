@@ -1,9 +1,11 @@
 import type { AdFormat } from './types'
 
 /**
- * Everything here is user-editable per project, and overridable per export
- * node. Custom formats matter on day one: agencies carry client-specific
- * placements (DOOH, in-app, bumpers) and a fixed list blocks them immediately.
+ * Everything here is user-editable per project. `exportFlow` takes fps and
+ * codec from here alone now — a download is asked for, not read off a node,
+ * and there is no longer a per-node override to consult. Custom formats matter
+ * on day one: agencies carry client-specific placements (DOOH, in-app,
+ * bumpers) and a fixed list blocks them immediately.
  */
 export type ProjectSettings = {
   fps: number

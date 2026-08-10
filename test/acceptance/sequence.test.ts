@@ -16,6 +16,8 @@ import { tempExportDir, seedRenderedNode, STUB_MP4 } from '../helpers/exports'
 // A film, not a folder of clips. Everything here is about the one thing a cut
 // has that a node does not: an order, and a total that must not double-count.
 
+const SEQ_FORMATS = [{ name: '9:16', w: 1080, h: 1920 }]
+
 const clip = (id: string, prompt: string) =>
   ({ id, type: 'video', prompt, durationSec: 5, audio: false, modelId: 'hailuo-2-3-pro', seed: 1 }) as const
 
@@ -50,7 +52,7 @@ async function prepared(graph: Flow = film(), rendered = ['one', 'two']) {
 describe('a sequence', () => {
   test('cuts its clips into one file, priced as the sum of what they cost', async () => {
     const { db, flowId, dir } = await prepared()
-    const result = await exportFlow(db, flowId, { dir })
+    const result = await exportFlow(db, flowId, { dir, nodeIds: ['cut'], formats: SEQ_FORMATS })
 
     expect(result.rejected).toEqual([])
     expect(result.entries).toHaveLength(1)
@@ -68,7 +70,7 @@ describe('a sequence', () => {
     // still export, still pass its spec check, and still look finished.
     const { db, flowId, dir } = await prepared()
     const one = await probe(STUB_MP4)
-    const result = await exportFlow(db, flowId, { dir })
+    const result = await exportFlow(db, flowId, { dir, nodeIds: ['cut'], formats: SEQ_FORMATS })
 
     const film = await probe(path.join(dir, result.entries[0].file))
     // Encoders round to whole frames; a quarter-second either way is the tail
@@ -84,7 +86,9 @@ describe('a sequence', () => {
     graph.edges.push({ id: 'e4', from: 'one', to: 'out', role: 'input', position: null })
     const { db, flowId, dir } = await prepared(graph)
 
-    const result = await exportFlow(db, flowId, { dir })
+    // 'out' is wired straight from both 'cut' and 'one' now, and the caller
+    // decides what "everything" means — here, both.
+    const result = await exportFlow(db, flowId, { dir, nodeIds: ['cut', 'one'], formats: SEQ_FORMATS })
     expect(result.entries).toHaveLength(2)
     expect(result.totalCostCents).toBe(100)
   })
@@ -96,7 +100,7 @@ describe('a sequence', () => {
     // exportFlow refuses it the same way it refuses any other unrun node,
     // rather than assembling half a film that plays and looks finished.
     const { db, flowId, dir } = await prepared(film(), ['one'])
-    const result = await exportFlow(db, flowId, { dir })
+    const result = await exportFlow(db, flowId, { dir, nodeIds: ['cut'], formats: SEQ_FORMATS })
 
     expect(result.entries).toEqual([])
     expect(result.rejected).toHaveLength(1)
@@ -126,7 +130,7 @@ describe('a sequence', () => {
     await tick(db, { adapter: createAdapter({ mode: 'stub' }) })
 
     const dir = tempExportDir()
-    const result = await exportFlow(db, flowId, { dir })
+    const result = await exportFlow(db, flowId, { dir, nodeIds: ['cut'], formats: SEQ_FORMATS })
 
     expect(result.entries).toEqual([])
     expect(result.rejected).toHaveLength(1)
@@ -138,8 +142,8 @@ describe('a sequence', () => {
     // The cut ran once, as part of the run, and exporting only ever reads
     // its output — a second export finds the same run and the same file.
     const { db, flowId, dir } = await prepared()
-    const first = await exportFlow(db, flowId, { dir })
-    const second = await exportFlow(db, flowId, { dir })
+    const first = await exportFlow(db, flowId, { dir, nodeIds: ['cut'], formats: SEQ_FORMATS })
+    const second = await exportFlow(db, flowId, { dir, nodeIds: ['cut'], formats: SEQ_FORMATS })
     expect(second.entries[0].runIds).toEqual(first.entries[0].runIds)
   })
 
@@ -150,7 +154,7 @@ describe('a sequence', () => {
     // this week's edit — export refuses until the sequence is cut again,
     // the same hash-mismatch refusal any other node gets.
     const { db, flowId, dir } = await prepared()
-    const first = await exportFlow(db, flowId, { dir })
+    const first = await exportFlow(db, flowId, { dir, nodeIds: ['cut'], formats: SEQ_FORMATS })
     expect(first.rejected).toEqual([])
 
     const graph = db.select().from(flows).where(eq(flows.id, flowId)).get()!.graphJson as Flow
@@ -159,7 +163,7 @@ describe('a sequence', () => {
       .where(eq(flows.id, flowId))
       .run()
 
-    const second = await exportFlow(db, flowId, { dir })
+    const second = await exportFlow(db, flowId, { dir, nodeIds: ['cut'], formats: SEQ_FORMATS })
     expect(second.entries).toEqual([])
     expect(second.rejected).toHaveLength(1)
     expect(second.rejected[0].nodeId).toBe('cut')
