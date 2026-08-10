@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import sharp from 'sharp'
 import { eq } from 'drizzle-orm'
@@ -9,11 +9,10 @@ import { DEFAULT_SETTINGS, type ProjectSettings } from './settings'
 import { nodeHashes } from './executor'
 import { checkSpec, coverCrop, type SpecCheck } from './spec'
 import { boxOf, hasText, overlaySvg } from './overlay'
-import { probe, ffmpeg, encoderFor, concat } from './ffmpeg'
+import { probe, ffmpeg, encoderFor } from './ffmpeg'
 import { composePrompt } from './compose'
 import { sequenceInputs } from './wiring'
 import { currentRun } from './runs'
-import { assetsDir } from '../env'
 import type { AdFormat, ExportNode, Flow, NodeId } from './types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -70,12 +69,6 @@ const STALE_CHECK = (nodeId: NodeId, format: AdFormat): SpecCheck => ({
   ],
 })
 
-const REFUSED = (nodeId: NodeId, format: AdFormat, message: string): SpecCheck => ({
-  pass: false,
-  format: format.name,
-  findings: [{ rule: 'sequence', message: `${nodeId}: ${message}` }],
-})
-
 /** One file to export, plus the provenance that belongs to it. */
 type Exportable = {
   assets: { id: string; path: string; mime: string }[]
@@ -87,92 +80,38 @@ type Exportable = {
 }
 
 /**
- * Cuts a sequence's clips into one file, in order.
+ * Who to credit a film to, and what it really cost.
  *
- * Every clip must have a render matching its *current* settings — the same bar
- * a single node has to clear. Half a film assembled from three fresh shots and
- * two stale ones is worse than no film: it looks finished.
- *
- * The cut is written into the asset store and given a row of its own, keyed by
- * the sequence's input hash. Re-exporting an unchanged film finds that row and
- * re-cuts nothing; changing one shot, or the order, changes the hash and
- * produces a new one — the old file stays where it is, because it may already
- * have been sent to somebody.
+ * The cut's own run costs nothing — ffmpeg on this machine — so crediting the
+ * manifest with that run alone would report a film that cost $0.00. The truth is
+ * the clips, which is also why `runIds` is a list: `totalCostCents` is summed
+ * over distinct runs, so a clip that ships inside a film *and* on its own is
+ * paid for once.
  */
-async function assembleSequence(input: {
-  db: Db
-  flowId: string
-  graph: Flow
-  nodeId: NodeId
-  hash: string | undefined
-  settings: ProjectSettings
-  currentHash: Map<NodeId, string>
-  storeRoot: string
-}): Promise<Exportable | { refused: string }> {
-  const { db, flowId, graph, nodeId, hash, settings, currentHash, storeRoot } = input
-  const clips = sequenceInputs(graph, nodeId)
-  if (clips.length === 0) return { refused: 'no clips are wired into this sequence.' }
-  if (!hash) return { refused: 'this sequence could not be planned.' }
-
+function sequenceProvenance(
+  db: Db,
+  flowId: string,
+  graph: Flow,
+  nodeId: NodeId,
+  currentHash: Map<NodeId, string>,
+): { runIds: string[]; costCents: number; prompt: string } {
   const byNodeId = new Map(graph.nodes.map((n) => [n.id, n]))
-  const parts: { file: string; runId: string; costCents: number; prompt: string }[] = []
+  const runIds: string[] = []
+  const prompts: string[] = []
+  let costCents = 0
 
-  for (const clipId of clips) {
+  for (const clipId of sequenceInputs(graph, nodeId)) {
     const run = currentRun(db, flowId, clipId, currentHash.get(clipId))
-    if (!run) return { refused: `${clipId} has no render matching its current settings.` }
-
-    const assetId = ((run.outputRefs as string[] | null) ?? [])[0]
-    const asset = assetId ? db.select().from(assets).where(eq(assets.id, assetId)).get() : undefined
-    if (!asset) return { refused: `${clipId} rendered nothing to cut.` }
-    if (!asset.mime.startsWith('video/')) return { refused: `${clipId} did not render a clip.` }
-
+    if (!run) continue
+    runIds.push(run.id)
+    costCents += run.costCents
     const clip = byNodeId.get(clipId)
-    parts.push({
-      file: asset.path,
-      runId: run.id,
-      costCents: run.costCents,
-      prompt: clip && 'prompt' in clip ? clip.prompt : '',
-    })
+    prompts.push(clip && 'prompt' in clip ? clip.prompt : '')
   }
 
-  const id = `sequence:${hash}`
-  const existing = db.select().from(assets).where(eq(assets.id, id)).get()
-  const file = existing?.path ?? path.join(storeRoot, 'sequences', `${hash}.mp4`)
-  // The row is not the film. A cut deleted off disk — space reclaimed, a data
-  // dir moved — would otherwise be handed to ffprobe and fail as a tool error
-  // rather than as one of the named refusals this whole function is built from.
-  const cached = existing !== undefined && existsSync(existing.path)
-
-  if (!cached) {
-    mkdirSync(path.dirname(file), { recursive: true })
-    await concat(parts.map((p) => p.file), file, settings)
-    // Written back only when there is no row yet. A row whose file went missing
-    // is re-cut in place — inserting again would collide on the primary key and
-    // turn a recovered export into a crash.
-    if (!existing) {
-      db.insert(assets)
-        .values({
-          id,
-          path: file,
-          mime: 'video/mp4',
-          // No `sourceRunId`: no single run produced this. What it was cut from
-          // is in the manifest's `runIds`, the only place it could be honest.
-          createdAt: new Date().toISOString(),
-        })
-        .run()
-    }
-  }
-
-  return {
-    assets: [{ id, path: file, mime: 'video/mp4' }],
-    runIds: parts.map((p) => p.runId),
-    costCents: parts.reduce((sum, p) => sum + p.costCents, 0),
-    modelId: 'sequence',
-    seed: null,
-    // Every shot's direction, in order. Long, and the only honest answer to
-    // "what was this film asked for".
-    prompt: parts.map((p) => p.prompt).join('\n\n'),
-  }
+  // Every shot's direction, in order. Long, and the only honest answer to
+  // "what was this film asked for".
+  return { runIds, costCents, prompt: prompts.join('\n\n') }
 }
 
 /**
@@ -217,48 +156,36 @@ export async function exportFlow(
       const node = byNodeId.get(nodeId)
       if (!node) continue
 
-      let exportable: Exportable
+      const run = currentRun(db, flowId, nodeId, currentHash.get(nodeId))
+      if (!run) {
+        // Never rendered and edited-since-rendered land here together, and are
+        // reported the same way: refused, with the reason, rather than shipping
+        // last week's pixels under this week's prompt. A film whose cut failed
+        // arrives here too, which is why the reason is on the card.
+        for (const format of formats) {
+          rejected.push({ nodeId, format: format.name, specCheck: STALE_CHECK(nodeId, format) })
+        }
+        continue
+      }
 
-      if (node.type === 'sequence') {
-        const cut = await assembleSequence({
-          db,
-          flowId,
-          graph,
-          nodeId,
-          hash: currentHash.get(nodeId),
-          settings,
-          currentHash,
-          storeRoot: assetsDir(),
-        })
-        if ('refused' in cut) {
-          for (const format of formats) {
-            rejected.push({ nodeId, format: format.name, specCheck: REFUSED(nodeId, format, cut.refused) })
-          }
-          continue
-        }
-        exportable = cut
-      } else {
-        const run = currentRun(db, flowId, nodeId, currentHash.get(nodeId))
-        if (!run) {
-          // Never rendered and edited-since-rendered land here together, and are
-          // reported the same way: refused, with the reason, rather than shipping
-          // last week's pixels under this week's prompt.
-          for (const format of formats) {
-            rejected.push({ nodeId, format: format.name, specCheck: STALE_CHECK(nodeId, format) })
-          }
-          continue
-        }
-        const rows = ((run.outputRefs as string[] | null) ?? [])
-          .map((assetId) => db.select().from(assets).where(eq(assets.id, assetId)).get())
-          .filter((row) => row !== undefined)
-        exportable = {
-          assets: rows.map((row) => ({ id: row.id, path: row.path, mime: row.mime })),
-          runIds: [run.id],
-          costCents: run.costCents,
-          modelId: run.modelId,
-          seed: 'seed' in node ? (node.seed ?? null) : null,
-          prompt: composePrompt(graph, nodeId, library),
-        }
+      const rows = ((run.outputRefs as string[] | null) ?? [])
+        .map((assetId) => db.select().from(assets).where(eq(assets.id, assetId)).get())
+        .filter((row) => row !== undefined)
+
+      const provenance =
+        node.type === 'sequence'
+          ? sequenceProvenance(db, flowId, graph, nodeId, currentHash)
+          : {
+              runIds: [run.id],
+              costCents: run.costCents,
+              prompt: composePrompt(graph, nodeId, library),
+            }
+
+      const exportable: Exportable = {
+        assets: rows.map((row) => ({ id: row.id, path: row.path, mime: row.mime })),
+        modelId: run.modelId,
+        seed: 'seed' in node ? (node.seed ?? null) : null,
+        ...provenance,
       }
 
       const refs = exportable.assets
