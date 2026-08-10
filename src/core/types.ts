@@ -4,12 +4,12 @@ export type NodeId = string
 export type SourceId = string
 
 /**
- * Scarce by design. Four in v1; a sixth requires a written case.
+ * Scarce by design. Four in v1; a fifth requires a written case.
  *
- * `export` was the fifth, and it is gone: downloading stopped being something
- * you wired, so the node that wrote files had nothing left to do. `sequence`
- * took its place — a cut is planned and run like any other node, not produced
- * at export time.
+ * `export` was that fifth once, and it is gone: downloading stopped being
+ * something you wired, so the node that wrote files had nothing left to do.
+ * `sequence` took its place among the four — a cut is planned and run like any
+ * other node, not produced at export time.
  */
 export type NodeType = 'source' | 'image' | 'video' | 'sequence'
 

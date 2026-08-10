@@ -224,7 +224,10 @@ export function NodeCard({ data }: NodeProps) {
         onDelete={onDelete}
       />
       <Handle type="target" position={Position.Left} />
-      <Handle type="source" position={Position.Right} />
+      {/* A film is the last step (see wiring.ts's `validateWire`) — every wire
+          out of a sequence is refused, so the handle that invites one is worse
+          than no handle at all. */}
+      {node.type !== 'sequence' && <Handle type="source" position={Position.Right} />}
 
       {/*
         The frame, at the size of the card.

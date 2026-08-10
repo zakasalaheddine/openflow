@@ -146,10 +146,11 @@ export class LastFlowError extends Error {
  * so an orphan counts toward nothing until an id is reused, and then a deleted
  * workspace's renders, costs and errors reappear on a fresh canvas.
  *
- * The files are deliberately kept — both the assets a run paid for and anything
- * already written to the exports directory. Deleting a workspace forgets the
- * build; it does not reach onto the disk and delete finished work, which may
- * already have been sent to a client.
+ * The files are deliberately kept — the assets a run paid for. A download is
+ * assembled fresh from them into a temp directory per request and cleaned up
+ * once the response is sent (see api/download/route.ts), so there is no
+ * separate deliverables folder to reach onto and delete. Deleting a workspace
+ * forgets the build; it does not delete finished work.
  */
 export function deleteFlow(db: Db, flowId: string) {
   const row = db.select().from(flows).where(eq(flows.id, flowId)).get()

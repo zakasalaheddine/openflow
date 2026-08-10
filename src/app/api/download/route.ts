@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { NextResponse } from 'next/server'
 import { zipSync } from 'fflate'
+import { z } from 'zod'
 import { scope } from '../scope'
 import {
   collectDownloadables,
@@ -16,16 +17,57 @@ import { nodeHashes } from '@/core/executor'
 import { currentRun } from '@/core/runs'
 import { flows, projects } from '@/db/schema'
 import { eq } from 'drizzle-orm'
-import type { AdFormat, NodeId, TextOverlay } from '@/core/types'
+import type { NodeId } from '@/core/types'
 
 export const dynamic = 'force-dynamic'
 
-type Body = {
-  nodeIds?: NodeId[]
-  formats?: AdFormat[]
-  overlay?: TextOverlay
-  preview?: boolean
-}
+/**
+ * The trust boundary for this route, the same job `flowSchema` does for
+ * `graph_json` (see core/schema.ts) — a bad value refused here is a 400; the
+ * same value reaching `overlaySvg`, sharp or ffmpeg unrefused is a crash deep
+ * inside the worker with a person's format request as the input. There is no
+ * node carrying these fields to validate on the way in any more, so the body
+ * is the only place left to check them.
+ */
+const fraction = z.number().min(0).max(1)
+
+const formatSpecBody = z
+  .object({
+    // Not `.partial()`: `FormatSpec.safeZone` is all-or-nothing (see
+    // core/types.ts) — a safe zone missing an edge is a rule that silently
+    // never fires on that edge, not a rule with a sensible default.
+    safeZone: z.object({ top: fraction, right: fraction, bottom: fraction, left: fraction }).optional(),
+    minScale: z.number().min(0).optional(),
+    maxDurationSec: z.number().min(0).optional(),
+    maxTextCoverage: fraction.optional(),
+  })
+  .optional()
+
+const adFormatBody = z.object({
+  name: z.string().min(1),
+  // Positive integers, not "a number": a placement is pixels, and a zero,
+  // negative or fractional edge is not a size sharp or ffmpeg can crop to.
+  w: z.number().int().positive(),
+  h: z.number().int().positive(),
+  spec: formatSpecBody,
+})
+
+const textOverlayBody = z
+  .object({
+    headline: z.string().optional(),
+    cta: z.string().optional(),
+    box: z.object({ x: fraction, y: fraction, w: fraction, h: fraction }).optional(),
+  })
+  .optional()
+
+const downloadBodySchema = z.object({
+  nodeIds: z.array(z.string().min(1)).optional(),
+  formats: z.array(adFormatBody).optional(),
+  overlay: textOverlayBody,
+  preview: z.boolean().optional(),
+})
+
+type Body = z.infer<typeof downloadBodySchema>
 
 /**
  * Everything in this flow that could ship right now.
@@ -35,11 +77,6 @@ type Body = {
  * for "shipped alone and inside a cut" — and terminal-only would silently drop
  * a hero still that feeds a clip. The dialog's tick boxes are how you drop what
  * you do not want.
- *
- * An `export` node needs no exclusion of its own: it never dispatches (see
- * `isRunnable` in executor.ts), so no `node_runs` row is ever written for one
- * and `currentRun` returns nothing for it here, same as for a node that was
- * simply never run.
  */
 function everythingRendered(db: Parameters<typeof collectDownloadables>[0], flowId: string): NodeId[] {
   const flow = db.select().from(flows).where(eq(flows.id, flowId)).get()
@@ -57,7 +94,15 @@ export async function POST(request: Request) {
   if (scoped instanceof NextResponse) return scoped
   const { db, flowId } = scoped
 
-  const body = (await request.json().catch(() => ({}))) as Body
+  const raw = await request.json().catch(() => ({}))
+  const parsedBody = downloadBodySchema.safeParse(raw)
+  if (!parsedBody.success) {
+    return NextResponse.json(
+      { error: parsedBody.error.issues[0]?.message ?? 'Invalid request body' },
+      { status: 400 },
+    )
+  }
+  const body: Body = parsedBody.data
 
   const flow = db.select().from(flows).where(eq(flows.id, flowId)).get()
   if (!flow) return NextResponse.json({ error: 'No such workspace' }, { status: 404 })
