@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { unzipSync } from 'fflate'
-import { readdirSync, statSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import sharp from 'sharp'
@@ -318,4 +318,58 @@ test('a node that fails a placement does not disable it for every node once unti
   // still unfit for either placement — was genuinely excluded rather than
   // merely hidden behind a disabled checkbox.
   expect(download.suggestedFilename()).toMatch(/^marble-9-16\.png$/)
+})
+
+test('a placement cannot be checked while it is disabled, even after the failing node is re-ticked', async ({
+  page,
+  request,
+}) => {
+  await setGraph(request, twoShots())
+  await rendered(page)
+
+  // Corrupt `second` to exactly `1:1`'s floor and short of `9:16`'s: 1:1
+  // stays fine throughout, so its checkbox proves nothing here was broken by
+  // this fix, while 9:16 is the placement under test.
+  const flow = await (await request.get('/api/flow')).json()
+  const assetId = (flow.nodes.second.outputs[0].url as string).split('/').pop()!
+  await sharp({ create: { width: 1080, height: 1080, channels: 3, background: { r: 0, g: 0, b: 0 } } })
+    .png()
+    .toFile(assetFileFor(assetId))
+
+  await page.getByTestId('download-flow').click()
+  await expect(page.getByTestId('download-format-9:16')).toBeDisabled()
+
+  // Drop `second`. 9:16 now genuinely passes for what is left ticked
+  // (`marble` alone), and this is a real person ticking it in good faith,
+  // not a client bug — the checkbox is enabled precisely because the pick is
+  // valid right now.
+  await page.getByTestId('download-node-second').uncheck()
+  await expect(page.getByTestId('download-format-9:16')).toBeEnabled()
+  await page.getByTestId('download-format-9:16').check()
+
+  // Bring `second` back. `chosen` only reconciles against a fresh verdict on
+  // a refetch — moving the box, adding text — and ticking a node is neither:
+  // it never refetches and never touches `chosen`. Before this fix, the
+  // checkbox rendered disabled *and* checked here, and Download would submit
+  // 9:16 anyway — `exportFlow` would have quietly dropped it into
+  // `rejected`, recorded only in `manifest.json`, with the person never told
+  // the file they expected was not in the zip.
+  await page.getByTestId('download-node-second').check()
+  await expect(page.getByTestId('download-format-9:16')).toBeDisabled()
+  await expect(page.getByTestId('download-format-9:16')).not.toBeChecked()
+
+  // Confirm it is not merely hidden on screen but actually never asked for:
+  // 1:1 still ships for both nodes, and nothing named 9:16 is in the result.
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByTestId('download-confirm').click(),
+  ])
+  const path = await download.path()
+  const entries = unzipSync(new Uint8Array(readFileSync(path!)))
+  expect(Object.keys(entries).filter((name) => name.endsWith('.png'))).toEqual(
+    expect.arrayContaining(['marble-1-1.png', 'second-1-1.png']),
+  )
+  expect(Object.keys(entries).some((name) => name.includes('9-16'))).toBe(false)
+  const manifest = JSON.parse(Buffer.from(entries['manifest.json']).toString('utf8'))
+  expect(manifest.files.map((f: { format: string }) => f.format)).toEqual(['1:1', '1:1'])
 })

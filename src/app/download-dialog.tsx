@@ -53,6 +53,25 @@ export function DownloadDialog({ flow, nodeId, open, onClose, onError }: Props) 
   const hasText = Boolean(overlay.headline?.trim() || overlay.cta?.trim())
   const boxY = overlay.box?.y
 
+  /**
+   * What actually ships, not what was last ticked.
+   *
+   * `chosen` only reconciles against a fresh verdict on a refetch — moving
+   * the box, adding text — and toggling a node checkbox is neither: it never
+   * refetches (see the effect below) and never touches `chosen` either. Tick
+   * a placement, untick the node that was the only thing failing it, and
+   * `chosen` still says yes even though the checkbox itself would now render
+   * unchecked-and-enabled. Re-tick that node and `chosen` still says yes,
+   * but the checkbox is disabled — checked and disabled at once, which is
+   * exactly the "refusal, but overridable" shape this dialog exists to
+   * refuse. Deriving the effective pick fresh on every render, from `chosen`
+   * intersected with whatever currently passes for the ticked nodes, closes
+   * that: a format cannot be selected while it is refused, on any path that
+   * gets here, without giving up "re-ticking a node returns your pick."
+   */
+  const passingNow = preview ? passingFormats(preview, nodes) : new Set<string>()
+  const willShip = intersect(chosen, passingNow)
+
   useEffect(() => {
     if (!open) return
     let cancelled = false
@@ -67,7 +86,7 @@ export function DownloadDialog({ flow, nodeId, open, onClose, onError }: Props) 
         // than to every node in the flow — the same scope the checkboxes
         // themselves use to decide `disabled`.
         const nextNodes = first ? allNow : intersect(nodes, allNow)
-        const passingNow = passingFormats(next, nextNodes)
+        const passingNext = passingFormats(next, nextNodes)
 
         setPreview(next)
         setNodes(nextNodes)
@@ -76,7 +95,7 @@ export function DownloadDialog({ flow, nodeId, open, onClose, onError }: Props) 
         // adding text) instead keeps what the person picked, only dropping a
         // tick that just became refused: typing a headline must not silently
         // re-tick a format someone unticked on purpose.
-        setChosen((prev) => (first ? passingNow : intersect(prev, passingNow)))
+        setChosen((prev) => (first ? passingNext : intersect(prev, passingNext)))
       })
       .catch(() => onError('Could not check what can ship'))
     return () => {
@@ -104,7 +123,7 @@ export function DownloadDialog({ flow, nodeId, open, onClose, onError }: Props) 
       await runDownload(flow, {
         ...body,
         ...(nodeId ? {} : { nodeIds: [...nodes] }),
-        formats: preview?.formats.filter((f) => chosen.has(f.name)),
+        formats: preview?.formats.filter((f) => willShip.has(f.name)),
       })
       closeAndReset()
     } catch (error) {
@@ -165,7 +184,13 @@ export function DownloadDialog({ flow, nodeId, open, onClose, onError }: Props) 
                     type="checkbox"
                     data-testid={`download-format-${format.name}`}
                     disabled={failing.length > 0}
-                    checked={chosen.has(format.name)}
+                    // The effective pick, not the raw one: a format cannot
+                    // render checked while it is also disabled, on any path
+                    // that reaches this row. `onChange` still writes `chosen`
+                    // itself — the person's actual pick — so re-ticking the
+                    // node that was the only thing refusing it hands the
+                    // selection back rather than losing it.
+                    checked={willShip.has(format.name)}
                     onChange={(event) => setChosen(toggle(chosen, format.name, event.target.checked))}
                   />
                   <span>
@@ -240,12 +265,14 @@ export function DownloadDialog({ flow, nodeId, open, onClose, onError }: Props) 
           <button
             className="run"
             data-testid="download-confirm"
-            // `chosen` empty is "nothing to ship"; in the whole-flow dialog,
-            // `nodes` empty is the same fact one level up — every node
+            // `willShip` empty is "nothing to ship" — the effective pick, not
+            // the raw one, or a placement re-disabled by a re-ticked node
+            // could still submit on a stale `chosen`. In the whole-flow
+            // dialog, `nodes` empty is the same fact one level up: every node
             // unticked, so a chosen format has nothing left to check it
-            // against. Without this second guard, unticking every node left
+            // against. Without that second guard, unticking every node left
             // the button live and produced a bare 422 on click.
-            disabled={busy || chosen.size === 0 || (nodeId === null && nodes.size === 0)}
+            disabled={busy || willShip.size === 0 || (nodeId === null && nodes.size === 0)}
             onClick={() => void download()}
           >
             Download
