@@ -24,8 +24,7 @@ RUN npm run build
 # The database and generated assets belong on a volume; without one they die
 # with the container, and every render has to be paid for again.
 ENV OPENFLOW_DATA_DIR=/data
-ENV OPENFLOW_EXPORTS_DIR=/exports
-VOLUME ["/data", "/exports"]
+VOLUME ["/data"]
 
 EXPOSE 3000
 # No FAL_KEY baked in. Pass it at run time, or run with DEMO=1 for the

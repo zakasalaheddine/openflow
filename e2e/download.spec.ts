@@ -12,7 +12,7 @@ test.beforeEach(async ({ request }) => {
   await resetWorkspace(request)
 })
 
-/** The same shot `e2e/export.spec.ts` uses, minus the export node. */
+/** The same shot `e2e/export.spec.ts` uses. */
 const marbleShot = () => ({
   nodes: [
     {

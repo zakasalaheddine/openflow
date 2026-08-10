@@ -2188,8 +2188,8 @@
  * The film's running time, in ink rather than the safelight it arrived in.
  *
  * Amber means one thing here and it is money (see DESIGN.md). A runtime is a
- * fact about the cut, not a bill — and a sequence is assembled at Export from
- * clips already paid for, so this figure is the one number on screen that
+ * fact about the cut, not a bill — and running a sequence assembles it locally
+ * from clips already paid for, so this figure is the one number on screen that
  * cannot cost anything. Amber on it teaches the eye to stop trusting amber.
  */
 .cut__total {

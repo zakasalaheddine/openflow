@@ -377,9 +377,9 @@ export async function exportFlow(
     }
 
     // Named for the node and format, not the asset. A re-roll then re-export
-    // overwrites its own file instead of leaving last week's version sitting
-    // in ./exports looking like a deliverable — the manifest is rewritten
-    // each run and would not mention it.
+    // overwrites its own file instead of leaving last week's version sitting in
+    // the output directory looking like a deliverable — the manifest is
+    // rewritten each run and would not mention it.
     const suffix = item.assets.length > 1 ? `-${verdict.assetIndex + 1}` : ''
     const file = path.join(
       outDir,
@@ -532,7 +532,7 @@ async function render(input: {
       file,
     ])
   } finally {
-    // Or ./exports fills with scratch PNGs that look like deliverables.
+    // Or the output directory fills with scratch PNGs that look like deliverables.
     rmSync(overlayPng, { force: true })
   }
 }
