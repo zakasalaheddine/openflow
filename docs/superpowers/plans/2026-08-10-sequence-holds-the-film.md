@@ -1055,6 +1055,14 @@ export type Verdict = {
   assetIndex: number
   format: string
   specCheck: SpecCheck
+  /**
+   * What the file measured, carried rather than re-derived.
+   *
+   * `render` needs the same numbers `checkSpec` was given, and probing an mp4
+   * twice per format is a subprocess per placement for an answer that cannot
+   * have changed. Same measurement, same crop, by construction.
+   */
+  measured: { width: number; height: number; durationMs: number }
 }
 
 /**
@@ -1152,6 +1160,7 @@ export async function verdictsFor(
           nodeId: item.nodeId,
           assetIndex,
           format: format.name,
+          measured,
           specCheck: checkSpec({
             format,
             sourceWidth: measured.width,
@@ -1239,17 +1248,15 @@ export async function exportFlow(
       continue
     }
 
-    const measured = video
-      ? await probe(asset.path)
-      : await sharp(asset.path).metadata().then((m) => ({ width: m.width ?? 0, height: m.height ?? 0 }))
-
     await render({
       source: asset.path,
       file,
       format,
       overlay: options.overlay,
       video,
-      measured,
+      // From the verdict, not a second probe: the crop must be computed from the
+      // same numbers the check passed.
+      measured: verdict.measured,
       fps: settings.fps,
       codec: settings.codec,
     })
@@ -1373,7 +1380,7 @@ Create `e2e/download.spec.ts`:
 import { expect, test } from '@playwright/test'
 import { unzipSync } from 'fflate'
 import { readFileSync } from 'node:fs'
-import { closeChat, resetWorkspace, setGraph } from './helpers'
+import { resetWorkspace, setGraph, waitForLedger } from './helpers'
 
 test.beforeEach(async ({ request }) => {
   await resetWorkspace(request)
@@ -1390,27 +1397,51 @@ test('the API refuses a format the render cannot fill, and writes nothing doing 
   expect(Array.isArray(body.verdicts)).toBe(true)
 })
 
-test('a flow-wide download arrives as a zip carrying the manifest', async ({ page, request }) => {
-  await setGraph(request, /* a graph with one image node */)
-  await page.goto('/f/default')
-  await closeChat(page)
-  await page.getByTestId('run').click()
-  await expect(page.getByTestId('status-hero')).toHaveText(/done/, { timeout: 30_000 })
+/** The same shot `e2e/export.spec.ts` uses, minus the export node. */
+const marbleShot = () => ({
+  nodes: [
+    {
+      id: 'marble',
+      type: 'image',
+      position: { x: 60, y: 80 },
+      prompt: 'bottle on marble',
+      modelId: 'flux-2-pro',
+      seed: 1,
+      label: 'marble',
+    },
+  ],
+  edges: [],
+})
 
-  const download = await Promise.all([
+async function rendered(page: import('@playwright/test').Page) {
+  await page.goto('/')
+  await waitForLedger(page)
+  await page.getByTestId('run').click()
+  await expect(page.getByTestId('ledger')).toContainText('all rendered', { timeout: 30_000 })
+}
+
+test('a flow-wide download arrives as a zip carrying the manifest', async ({ page, request }) => {
+  await setGraph(request, marbleShot())
+  await rendered(page)
+
+  await page.getByTestId('download-flow').click()
+  const [download] = await Promise.all([
     page.waitForEvent('download'),
-    page.getByTestId('download-flow').click().then(() => page.getByTestId('download-confirm').click()),
-  ]).then(([event]) => event)
+    page.getByTestId('download-confirm').click(),
+  ])
 
   expect(download.suggestedFilename()).toMatch(/\.zip$/)
-  const entries = unzipSync(readFileSync(await download.path()))
+  const entries = unzipSync(new Uint8Array(readFileSync((await download.path())!)))
   expect(Object.keys(entries)).toContain('manifest.json')
+  // The project defaults are 9:16 and 1:1, and the fixture is exactly 1080x1920,
+  // so both ship.
+  expect(Object.keys(entries).filter((name) => name.endsWith('.png'))).toHaveLength(2)
 })
 ```
 
-Fill the graph literal from an existing spec — `e2e/export.spec.ts` already
-builds one with a rendered image node; copy its shape and its node id so
-`status-hero` matches.
+`waitForLedger`, `setGraph` and `resetWorkspace` are the existing helpers in
+`e2e/helpers.ts`. `marbleShot` is `e2e/export.spec.ts`'s `shotThenExport` with
+the export node removed.
 
 - [ ] **Step 3: Run and watch it fail**
 
@@ -1642,45 +1673,49 @@ Extend `e2e/download.spec.ts` with the single-file and refusal cases:
 
 ```ts
 test('one frame downloads as one file, no zip to unpack', async ({ page, request }) => {
-  await setGraph(request, /* one image node, id 'hero' */)
-  await page.goto('/f/default')
-  await closeChat(page)
-  await page.getByTestId('run').click()
-  await expect(page.getByTestId('status-hero')).toHaveText(/done/, { timeout: 30_000 })
+  await setGraph(request, marbleShot())
+  await rendered(page)
 
-  await page.getByTestId('download-hero').click()
+  // One node, one format ticked: the common case must not hand you an archive.
+  await page.getByTestId('download-marble').click()
+  await page.getByTestId('download-format-1:1').uncheck()
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     page.getByTestId('download-confirm').click(),
   ])
 
-  expect(download.suggestedFilename()).toMatch(/^hero-.*\.png$/)
+  expect(download.suggestedFilename()).toMatch(/^marble-9-16\.png$/)
 })
 
-test('a format the render cannot fill cannot be ticked', async ({ page, request }) => {
+test('a headline in the safe zone cannot be ticked past', async ({ page, request }) => {
   // The refusal is the product rule, not a nicety: shipping it anyway is the
-  // same as not checking, and the rejection arrives from the client instead.
-  await setGraph(request, /* one image node, id 'hero' */)
-  await page.goto('/f/default')
-  await closeChat(page)
-  await page.getByTestId('run').click()
-  await expect(page.getByTestId('status-hero')).toHaveText(/done/, { timeout: 30_000 })
+  // same as not checking, and the rejection arrives from the client instead,
+  // with the buy already booked. Driven from the dialog's own field, because
+  // that is where the overlay lives now.
+  await setGraph(request, marbleShot())
+  await rendered(page)
 
-  // Seed a project format the stub render is far too small to fill.
-  await request.patch('/api/brief', { data: { formats: [{ name: 'billboard', w: 6000, h: 6000 }] } })
-  await page.reload()
-  await closeChat(page)
-  await page.getByTestId('download-hero').click()
+  await page.getByTestId('download-marble').click()
+  // The default text box sits low in the frame, inside 9:16's bottom safe zone.
+  await page.getByTestId('download-headline').fill('Bottled sunlight')
 
-  await expect(page.getByTestId('download-format-billboard')).toBeDisabled()
-  await expect(page.getByTestId('download-dialog')).toContainText(/minScale|cover/i)
+  await expect(page.getByTestId('download-format-9:16')).toBeDisabled()
+  await expect(page.getByTestId('download-confirm')).toBeDisabled()
 })
 ```
 
-Check how project formats are actually written before using `/api/brief` — if
-settings are not writable over HTTP, seed them by building the graph with a
-node whose render is small and asking for an oversized format in the dialog
-instead. Do not invent an endpoint.
+Project formats are not writable over HTTP — there is no settings endpoint, and
+this task does not add one. That is why the UI refusal here is the safe-zone
+one, driven from the dialog's own headline field: it needs no seeding. The
+size refusal is covered at the API level in Task 7.
+
+Before writing the second test, confirm against `test/acceptance/export.test.ts`
+or `src/core/spec.ts` that `DEFAULT_TEXT_BOX` really does violate 9:16's bottom
+safe zone with the default spec. `e2e/spec-validation.spec.ts` asserts exactly
+this pair today ("an export that violates a safe zone names the reason", and
+"moving the headline out of the safe zone lets the same export through"), so
+the answer is in that file. If the default box passes, use whatever box that
+spec uses to fail.
 
 - [ ] **Step 2: Run and watch it fail**
 
@@ -1787,8 +1822,74 @@ export function DownloadDialog({ flow, nodeId, open, onClose, onError }: Props) 
           </DialogDescription>
         </DialogHeader>
 
-        {/* formats, per-node ticks when nodeId is null, headline and cta fields,
-            each format's reasons underneath when it fails */}
+        {nodeId === null && preview && (
+          <fieldset className="download__group">
+            <legend className="slate">What ships</legend>
+            {[...new Set(preview.verdicts.map((v) => v.nodeId))].map((id) => (
+              <label className="download__row" key={id}>
+                <input
+                  type="checkbox"
+                  data-testid={`download-node-${id}`}
+                  checked={nodes.has(id)}
+                  onChange={(event) => setNodes(toggle(nodes, id, event.target.checked))}
+                />
+                <span>{id}</span>
+              </label>
+            ))}
+            {preview.stale.length > 0 && (
+              <p className="download__reason">
+                Not yet rendered, so not listed: {preview.stale.join(', ')}
+              </p>
+            )}
+          </fieldset>
+        )}
+
+        <fieldset className="download__group">
+          <legend className="slate">Placements</legend>
+          {preview?.formats.map((format) => {
+            const failing = preview.verdicts.filter((v) => v.format === format.name && !v.pass)
+            return (
+              <div className="download__row" key={format.name}>
+                <label>
+                  <input
+                    type="checkbox"
+                    data-testid={`download-format-${format.name}`}
+                    disabled={failing.length > 0}
+                    checked={chosen.has(format.name)}
+                    onChange={(event) => setChosen(toggle(chosen, format.name, event.target.checked))}
+                  />
+                  <span>
+                    {format.name} · {format.w}×{format.h}
+                  </span>
+                </label>
+                {/* The reason, next to the thing it refuses. A refusal you have
+                    to go looking for is a bug report from the client later. */}
+                {failing.map((verdict) => (
+                  <p className="download__reason" key={verdict.nodeId}>
+                    {verdict.reasons.join(' ')}
+                  </p>
+                ))}
+              </div>
+            )
+          })}
+        </fieldset>
+
+        <label className="field">
+          <span className="slate">Headline</span>
+          <input
+            data-testid="download-headline"
+            value={overlay.headline ?? ''}
+            onChange={(event) => setOverlay({ ...overlay, headline: event.target.value })}
+          />
+        </label>
+        <label className="field">
+          <span className="slate">Call to action</span>
+          <input
+            data-testid="download-cta"
+            value={overlay.cta ?? ''}
+            onChange={(event) => setOverlay({ ...overlay, cta: event.target.value })}
+          />
+        </label>
 
         <DialogFooter>
           <button className="chip" onClick={onClose}>
@@ -1810,17 +1911,23 @@ export function DownloadDialog({ flow, nodeId, open, onClose, onError }: Props) 
 
 const passes = (preview: DownloadPreview, format: string) =>
   preview.verdicts.filter((v) => v.format === format).every((v) => v.pass)
+
+const toggle = (set: Set<string>, key: string, on: boolean) => {
+  const next = new Set(set)
+  if (on) next.add(key)
+  else next.delete(key)
+  return next
+}
 ```
 
-Fill in the marked body with the format list, the node list and the two text
-fields. Each format is a `<label>` holding a checkbox with
-`data-testid={'download-format-' + format.name}`, `disabled={!passes(...)}`, and
-the failing verdict's `reasons` rendered beneath it in `--fault`. Each node in
-the flow-wide case is a checkbox with
-`data-testid={'download-node-' + nodeId}`. The two text inputs carry
-`data-testid="download-headline"` and `download-cta` and set `overlay` on
-change. Follow the field markup already used in `inspector.tsx` for the overlay
-fields you are deleting in Task 9 — same `.field` class, same shape.
+Three CSS rules go in `globals.css` beside the other dialog styles. `.download__group`
+is a `display: grid` with `gap: var(--s-2)` and no fieldset border;
+`.download__row` is a flex row at `gap: var(--s-2)`; `.download__reason` is
+`font-size: var(--fs-1)` in `var(--fault)`. Nothing here is amber.
+
+A refused placement is disabled rather than merely warned, and the Download
+button is disabled when `chosen` is empty — together they are the whole of "no
+override", which is the product rule this dialog exists to carry.
 
 - [ ] **Step 4: Wire the two entry points**
 
@@ -2119,9 +2226,10 @@ No gaps.
   dimensions from a first run, and to check how project formats are written
   before using `/api/brief`. Those are verification steps, not placeholders —
   the plan does not invent an endpoint or a pixel count it has not read.
-- Task 8 Step 3 leaves the dialog's list markup to the implementer with the exact
-  test ids, classes and behaviour specified. Writing out three checkbox lists in
-  full here would be transcription, not design.
+- Task 6 Step 6 has `/api/export` reproduce, transitionally, what `exportFlow`
+  used to do internally. A reviewer will flag it as code with no future, and it
+  is: Task 8 deletes the route. It exists so that commit leaves a working app.
+  The ruling is recorded here rather than argued per review.
 
 **Type consistency**
 
