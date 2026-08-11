@@ -218,6 +218,30 @@ export const SEED: ModelSpec[] = [
     cost: { unit: 'second', amount: 19 },
     verifiedOn: null,
   },
+  {
+    id: 'seedance-2.5',
+    format: 'video',
+    // Read off fal by `npm run models:add`, not typed: the caps come from the
+    // endpoint's OpenAPI schema and the price from the sentence kept below.
+    falEndpoint: 'bytedance/seedance-2.5/image-to-video',
+    caps: {
+      refImages: 0,
+      textRendering: false,
+      startEndFrame: true,
+      nativeAudio: true,
+      maxDurationSec: 30,
+    },
+    // The dearest row in the catalog — 2.4× hailuo. A 5s clip is $2.37 and the
+    // 30s its schema allows is $14. This is the 720p figure, which is the
+    // resolution the endpoint defaults to, so the estimate is the one billed.
+    cost: { unit: 'second', amount: 47.3 },
+    pricingNote:
+      'For 720p, you will be charged roughly $0.4730 per second of generated video, and for 480p, ' +
+      'roughly $0.2205 per second of generated video. Your request will cost $0.0214 per 1000 ' +
+      'tokens for 480p and 720p video. The number of tokens is roughly given by (height of output ' +
+      'video  width of output video  duration  24) / 1024.',
+    verifiedOn: null,
+  },
 ]
 
 /**

@@ -4,7 +4,7 @@ import { estimateCostCents } from '@/models/registry'
 import { modelById } from '@/models/catalog'
 import { hashableConfig } from '@/core/hashable'
 import { pixelsFor } from '@/core/aspect'
-import type { ImageNode } from '@/core/types'
+import type { ImageNode, VideoNode } from '@/core/types'
 
 const still = (aspect?: ImageNode['aspect'], modelId = 'flux-2-pro'): ImageNode => ({
   id: 'shot',
@@ -51,6 +51,42 @@ describe('aspect reaches the payload', () => {
     })
     // The model decides, not the node: `flux-2-pro` here carries the field.
     expect(input.image_size).toBeDefined()
+  })
+})
+
+describe('duration reaches the payload in the spelling each endpoint reads', () => {
+  const clip = (modelId: string): VideoNode => ({
+    id: 'clip',
+    type: 'video',
+    prompt: 'a slow push in',
+    durationSec: 8,
+    audio: false,
+    modelId,
+  })
+
+  const durationFor = (modelId: string) =>
+    buildModelInput(clip(modelId), modelById(modelId), { anchorRefs: [] }).duration
+
+  test.each([
+    // fal's own enums: veo3.1 ["4s","6s","8s"], kling and seedance ["4","5",…],
+    // hailuo has no duration field at all. A value outside the enum is a 422 —
+    // a clip that was never rendered rather than one billed at the wrong shape.
+    ['veo-3-1', '8s'],
+    ['kling-3-pro', '8'],
+    ['seedance-2.5', '8'],
+    ['hailuo-2-3-pro', 8],
+  ])('%s is told %o', (modelId, expected) => {
+    expect(durationFor(modelId)).toBe(expected)
+  })
+
+  test('and seedance is asked for its audio, which it can make', () => {
+    expect(modelById('seedance-2.5').caps.nativeAudio).toBe(true)
+    const input = buildModelInput({ ...clip('seedance-2.5'), audio: true }, modelById('seedance-2.5'), {
+      anchorRefs: [],
+    })
+    expect(input.generate_audio).toBe(true)
+    // `image_url`, not kling's `start_image_url` — per its published schema.
+    expect(input.start_image_url).toBeUndefined()
   })
 })
 

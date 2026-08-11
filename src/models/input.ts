@@ -58,6 +58,24 @@ const ASPECT_INPUT: Record<string, (aspect: Aspect) => Record<string, unknown>> 
 /** Whether this row can be asked for a shape at all. Read by the inspector. */
 export const honoursAspect = (modelId: string) => modelId in ASPECT_INPUT
 
+/**
+ * How each endpoint spells a number of seconds.
+ *
+ * Three spellings, all from fal's published enums: veo takes `"8s"`, kling and
+ * seedance take `"8"`, flux-3's draft takes `8`. Unlike a wrong key name this
+ * one is loud — a value outside the enum is a 422 rather than a silent default
+ * — but it is still a clip that never rendered, so the row that knows its own
+ * spelling is cheaper than finding out per model at submit time.
+ *
+ * A row that is not in here is sent the plain number, which is what every row
+ * was sent before this map existed.
+ */
+const DURATION_INPUT: Record<string, (seconds: number) => string | number> = {
+  'veo-3-1': (seconds) => `${seconds}s`,
+  'kling-3-pro': (seconds) => String(seconds),
+  'seedance-2.5': (seconds) => String(seconds),
+}
+
 export function buildModelInput(
   node: FlowNode,
   model: ModelSpec,
@@ -89,7 +107,7 @@ export function buildModelInput(
 
       return {
         prompt: context.prompt ?? node.prompt,
-        duration: node.durationSec,
+        duration: DURATION_INPUT[model.id]?.(node.durationSec) ?? node.durationSec,
         ...(node.seed === undefined ? {} : { seed: node.seed }),
         // `generate_audio`, per veo3.1's and kling's schemas. `audio` is not a
         // field either endpoint has, and would have been silently ignored.
