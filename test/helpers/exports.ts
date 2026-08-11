@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -85,4 +86,23 @@ export function seedRenderedNode(
     .run()
 
   return { runId, assetId: assetIds[0], assetIds }
+}
+
+/**
+ * A clip encoded here rather than committed, with sound or without.
+ *
+ * The whole point of the pair is the difference between them, and two
+ * near-identical binaries in the fixture folder would say nothing about which
+ * one carries audio. `stub.mp4` is silent, so it cannot stand in for either.
+ */
+export function encodeClip(dir: string, name: string, sound: boolean): string {
+  const file = path.join(dir, `${name}.mp4`)
+  execFileSync('ffmpeg', [
+    '-v', 'error', '-y',
+    '-f', 'lavfi', '-i', 'testsrc=size=1080x1920:rate=30:duration=1',
+    ...(sound ? ['-f', 'lavfi', '-i', 'sine=frequency=440:duration=1', '-c:a', 'aac'] : []),
+    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-shortest',
+    file,
+  ])
+  return file
 }

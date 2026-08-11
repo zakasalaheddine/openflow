@@ -2,7 +2,7 @@ import { describe, test, expect } from 'vitest'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { exportFlow } from '@/core/exporter'
-import { probe } from '@/core/ffmpeg'
+import { audioOf, probe } from '@/core/ffmpeg'
 import { planRun, enqueueRun } from '@/core/executor'
 import { tick } from '@/worker/loop'
 import { createAdapter } from '@/models/fal'
@@ -11,7 +11,7 @@ import { flows } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import type { Flow } from '@/core/types'
 import { tempDb, seedProject, seedFlow } from '../helpers/db'
-import { tempExportDir, seedRenderedNode, STUB_MP4 } from '../helpers/exports'
+import { encodeClip, tempExportDir, seedRenderedNode, STUB_MP4 } from '../helpers/exports'
 
 // A film, not a folder of clips. Everything here is about the one thing a cut
 // has that a node does not: an order, and a total that must not double-count.
@@ -33,12 +33,16 @@ const film = (): Flow => ({
   ],
 })
 
-async function prepared(graph: Flow = film(), rendered = ['one', 'two']) {
+async function prepared(
+  graph: Flow = film(),
+  rendered = ['one', 'two'],
+  files: Record<string, string> = {},
+) {
   const { db } = tempDb()
   const projectId = seedProject(db)
   const flowId = seedFlow(db, projectId, graph)
   for (const nodeId of rendered) {
-    seedRenderedNode(db, flowId, nodeId, { file: STUB_MP4, mime: 'video/mp4', costCents: 50 })
+    seedRenderedNode(db, flowId, nodeId, { file: files[nodeId] ?? STUB_MP4, mime: 'video/mp4', costCents: 50 })
   }
   // The film is a render now, so it has to be rendered. A test that exported a
   // cut nobody made would be testing the thing this change deleted.
@@ -74,6 +78,29 @@ describe('a sequence', () => {
     // Encoders round to whole frames; a quarter-second either way is the tail
     // of one clip, not a missing shot.
     expect(film.durationMs).toBeGreaterThan(one.durationMs * 2 - 250)
+  })
+
+  test('the film that ships still has the sound the clips were rendered with', async () => {
+    // The export re-encodes to each format's frame, and the download is that
+    // file. Keeping audio through the cut buys nothing if the crop drops it on
+    // the way out, and a text overlay routes through a different ffmpeg
+    // invocation than a bare resize — so the one with the overlay is the one
+    // worth checking.
+    const clips = tempExportDir()
+    const { db, flowId, dir } = await prepared(film(), ['one', 'two'], {
+      one: encodeClip(clips, 'one', true),
+      two: encodeClip(clips, 'two', true),
+    })
+
+    const result = await exportFlow(db, flowId, {
+      dir,
+      nodeIds: ['cut'],
+      formats: SEQ_FORMATS,
+      overlay: { headline: 'she opens the door' },
+    })
+
+    expect(result.rejected).toEqual([])
+    expect(await audioOf(path.join(dir, result.entries[0].file))).not.toBeNull()
   })
 
   test('the total counts a clip once, however many ways it ships', async () => {
