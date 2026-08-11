@@ -166,6 +166,12 @@ export function DownloadDialog({ flow, nodeId, open, onClose, onError }: Props) 
           </fieldset>
         )}
 
+        {nodeId !== null && preview && preview.stale.includes(nodeId) && (
+          <p className="download__reason" data-testid="download-not-rendered">
+            Not yet rendered, so nothing to ship.
+          </p>
+        )}
+
         <fieldset className="download__group">
           <legend className="slate">Placements</legend>
           {preview?.formats.map((format) => {
@@ -283,13 +289,21 @@ export function DownloadDialog({ flow, nodeId, open, onClose, onError }: Props) 
   )
 }
 
-/** Every format that fills for every node in `nodeIds` — the ticked scope, not the whole flow. */
-const passingFormats = (preview: DownloadPreview, nodeIds: Set<string>) =>
+/**
+ * Every format that fills for every node in `nodeIds` — the ticked scope, not the whole flow.
+ *
+ * A format with no verdict in scope does not pass: `[].every()` is `true`, so
+ * without the length check a ticked scope with nothing rendered yet — the
+ * per-card dialog before its node has a frame — would count every format as
+ * passing and enable Download on nothing to ship.
+ */
+export const passingFormats = (preview: DownloadPreview, nodeIds: Set<string>) =>
   new Set(
     preview.formats
-      .filter((f) =>
-        preview.verdicts.filter((v) => v.format === f.name && nodeIds.has(v.nodeId)).every((v) => v.pass),
-      )
+      .filter((f) => {
+        const scoped = preview.verdicts.filter((v) => v.format === f.name && nodeIds.has(v.nodeId))
+        return scoped.length > 0 && scoped.every((v) => v.pass)
+      })
       .map((f) => f.name),
   )
 

@@ -173,6 +173,15 @@ function sequenceProvenance(
 
   for (const clipId of sequenceInputs(graph, nodeId)) {
     const run = currentRun(db, flowId, clipId, currentHash.get(clipId))
+    // Traced, not observed: unreachable in practice, because this only runs
+    // once collectDownloadables has already found a current run for the
+    // sequence itself. A clip going stale, losing its model or being deleted
+    // all change the sequence's own hash first (it is chained from its
+    // clips' hashes, and a deleted clip drops out of sequenceInputs), so the
+    // film goes stale — and gets refused before reaching here — before any
+    // one clip could turn up missing on its own. Left in rather than asserted
+    // on: a silent under-price is the worse failure mode if this reasoning
+    // is ever wrong, so a defensive `continue` stays cheaper than a throw.
     if (!run) continue
     runIds.push(run.id)
     costCents += run.costCents
@@ -351,6 +360,21 @@ export async function exportFlow(
   const entries: ManifestEntry[] = []
   const rejected: ExportResult['rejected'] = []
 
+  // How many nodes in this batch would write the same base filename, were
+  // the label all a file were named for. A label is user-editable, not
+  // unique, and can be cleared to empty — two cards both labelled "Hero", or
+  // both left blank, land on the same slug here. Counted once, over every
+  // node this download touches, not per verdict: two formats off one node
+  // are not a collision, and this must not flag one on their account.
+  const labelSlugs = new Map<NodeId, string>()
+  const labelCounts = new Map<string, number>()
+  for (const nodeId of new Set(verdicts.map((v) => v.nodeId))) {
+    const label = byNodeId.get(nodeId)?.label
+    const base = label ? slug(label) : slug(nodeId)
+    labelSlugs.set(nodeId, base)
+    labelCounts.set(base, (labelCounts.get(base) ?? 0) + 1)
+  }
+
   for (const nodeId of stale) {
     // A film whose cut failed arrives here too, which is why the reason is on
     // the card — read from the run's own `error` when there is one, so a
@@ -366,7 +390,6 @@ export async function exportFlow(
     const item = ready.find((r) => r.nodeId === verdict.nodeId)!
     const asset = item.assets[verdict.assetIndex]
     const format = options.formats.find((f) => f.name === verdict.format)!
-    const node = byNodeId.get(verdict.nodeId)
     const video = asset.mime.startsWith('video/')
 
     // A missing file was never measured, so there is nothing to ground an
@@ -381,10 +404,13 @@ export async function exportFlow(
     // the output directory looking like a deliverable — the manifest is
     // rewritten each run and would not mention it.
     const suffix = item.assets.length > 1 ? `-${verdict.assetIndex + 1}` : ''
-    const file = path.join(
-      outDir,
-      `${slug(node?.label ?? verdict.nodeId)}-${slug(format.name)}${suffix}${video ? '.mp4' : '.png'}`,
-    )
+    // The label, disambiguated by the node id only when two nodes in this
+    // batch would otherwise collide on it — the ordinary one-node case keeps
+    // the plain, readable name, and only a genuine "Hero" vs. "Hero" (or
+    // blank vs. blank) gets the node id appended to tell the files apart.
+    const labelSlug = labelSlugs.get(verdict.nodeId)!
+    const base = (labelCounts.get(labelSlug) ?? 0) > 1 ? `${labelSlug}-${slug(verdict.nodeId)}` : labelSlug
+    const file = path.join(outDir, `${base}-${slug(format.name)}${suffix}${video ? '.mp4' : '.png'}`)
 
     // The row exists on a pass and on a failure — every verdict that reaches
     // this point was actually checked. `missingFile` is the one case with no
@@ -457,7 +483,7 @@ export async function exportFlow(
  * inside a film was paid for once too. A manifest whose total disagrees with
  * the ledger is worse provenance than no manifest at all.
  */
-export function totalCostOf(db: Db, entries: ManifestEntry[]): number {
+function totalCostOf(db: Db, entries: ManifestEntry[]): number {
   const perRun = new Map<string, number>()
   for (const entry of entries) {
     if (entry.runIds.length === 1) {

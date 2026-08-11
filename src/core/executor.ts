@@ -100,12 +100,16 @@ export function planRun(db: Db, flowId: string): PlannedNode[] {
 }
 
 /**
- * Every node's input hash, including the ones that never dispatch.
+ * Every node's input hash, keyed by id.
  *
- * `planRun` covers the nodes a Run acts on — the ones that dispatch, plus the
- * sequences that are cut locally. It does not cover a `source`, and a source
- * wired straight to a download still has to be told apart from a stale one. This
- * is the only way to ask for the hash of a node that is never planned.
+ * `planRun` returns an array shaped for pricing a Run, not for answering "what
+ * is this one node's hash right now". `cutSequence` and `collectDownloadables`
+ * both need exactly that, for a node id that comes off an edge or a request
+ * rather than off the plan — a clip wired into a sequence, a node named in a
+ * download — and so is not necessarily one `planRun` even walked as far as
+ * (a `source`, in particular, never dispatches and `planRun` skips it). Reusing
+ * the one walk `planRun` already does is what keeps this hash from ever
+ * drifting from the one a Run would compute.
  */
 export function nodeHashes(db: Db, flowId: string): Map<NodeId, string> {
   return walk(db, flowId).hashes
