@@ -84,6 +84,36 @@ export async function probe(file: string): Promise<Probe> {
 
 export const ffmpeg = (args: string[]) => call('ffmpeg', ['-v', 'error', '-y', ...args])
 
+export type AudioStream = { codec: string; sampleRate: number; channels: number }
+
+/**
+ * The clip's first audio stream, or null when it is silent.
+ *
+ * Its own ffprobe rather than a wider `probe`: that one selects `v:0`, and its
+ * width and height are what asset rows and the export crop are computed from.
+ * Widening its stream selection to notice audio risks handing a caller the
+ * dimensions of a stream that has none.
+ */
+export async function audioOf(file: string): Promise<AudioStream | null> {
+  const stdout = await call('ffprobe', [
+    '-v', 'error',
+    '-select_streams', 'a:0',
+    '-show_entries', 'stream=codec_name,sample_rate,channels',
+    '-of', 'json',
+    file,
+  ])
+  const parsed = JSON.parse(stdout) as {
+    streams?: { codec_name?: string; sample_rate?: string; channels?: number }[]
+  }
+  const stream = parsed.streams?.[0]
+  if (!stream) return null
+  return {
+    codec: stream.codec_name ?? 'unknown',
+    sampleRate: Number(stream.sample_rate ?? 0),
+    channels: stream.channels ?? 0,
+  }
+}
+
 /**
  * Project settings name a codec the way a person does; ffmpeg wants an encoder.
  * An unknown name passes through, so a user can name an encoder directly.
@@ -101,10 +131,10 @@ export const encoderFor = (codec: string) => ENCODERS[codec] ?? codec
  * are probed first: all equal is a copy, which is instant and loses nothing;
  * anything else scales every clip to the first one's frame and re-encodes.
  *
- * ponytail: video only. A clip with native audio (veo-3-1 with `generate_audio`)
- * loses it here, in both paths, rather than producing a film whose sound cuts
- * in and out depending on which model rendered which shot. Mixing a real
- * soundtrack is its own feature.
+ * Sound comes along. A clip rendered with native audio (veo-3-1 with
+ * `generate_audio`) keeps it, and a silent clip in the same film becomes
+ * silence of its own length rather than dropping the whole soundtrack — so the
+ * cut is quiet only where the shot was.
  */
 export async function concat(
   files: string[],
@@ -112,15 +142,28 @@ export async function concat(
   settings: { fps: number; codec: string },
 ): Promise<void> {
   if (files.length === 0) throw new Error('Nothing to cut together.')
+
+  // `0:a?` is the optional audio map: it carries the sound through when there
+  // is any, and does not fail the command when there is none.
+  const copy = ['-map', '0:v:0', '-map', '0:a?', '-c', 'copy']
   if (files.length === 1) {
-    await ffmpeg(['-i', files[0], '-c', 'copy', '-an', out])
+    await ffmpeg(['-i', files[0], ...copy, out])
     return
   }
 
   const probed = await Promise.all(files.map(probe))
+  const sound = await Promise.all(files.map(audioOf))
   const [first] = probed
 
-  if (probed.every((clip) => clip.width === first.width && clip.height === first.height)) {
+  // Audio has to match as strictly as the frame does: a stream copy cannot
+  // reconcile two AAC streams recorded at different rates any more than it can
+  // two frame sizes.
+  const same = (clip: Probe, i: number) =>
+    clip.width === first.width &&
+    clip.height === first.height &&
+    JSON.stringify(sound[i]) === JSON.stringify(sound[0])
+
+  if (probed.every(same)) {
     // The concat demuxer reads a list file rather than a filter graph, and
     // `-safe 0` is what lets that list hold absolute paths.
     const list = `${out}.concat.txt`
@@ -129,26 +172,40 @@ export async function concat(
     // belt and braces rather than a live risk.
     writeFileSync(list, files.map((file) => `file '${file.replaceAll("'", "'\\''")}'\n`).join(''))
     try {
-      await ffmpeg(['-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', '-an', out])
+      await ffmpeg(['-f', 'concat', '-safe', '0', '-i', list, ...copy, out])
     } finally {
       rmSync(list, { force: true })
     }
     return
   }
 
+  const audible = sound.some(Boolean)
   const inputs = files.flatMap((file) => ['-i', file])
-  const scaled = probed
-    .map((_, i) => `[${i}:v]scale=${first.width}:${first.height},setsar=1[v${i}]`)
-    .join(';')
-  const joined = probed.map((_, i) => `[v${i}]`).join('')
+  const chains = probed.map((_, i) => `[${i}:v]scale=${first.width}:${first.height},setsar=1[v${i}]`)
+  if (audible) {
+    // Both branches end in the same `aformat`, sample format included: the
+    // concat filter refuses segments whose audio does not agree, and generated
+    // silence agrees with a decoded AAC stream on none of it by default.
+    chains.push(
+      ...probed.map((clip, i) =>
+        sound[i]
+          ? `[${i}:a:0]${AUDIO_FORMAT}[a${i}]`
+          : `anullsrc=r=48000:cl=stereo,atrim=0:${(clip.durationMs / 1000).toFixed(3)},${AUDIO_FORMAT}[a${i}]`,
+      ),
+    )
+  }
+  const joined = probed.map((_, i) => (audible ? `[v${i}][a${i}]` : `[v${i}]`)).join('')
   await ffmpeg([
     ...inputs,
     '-filter_complex',
-    `${scaled};${joined}concat=n=${files.length}:v=1:a=0[out]`,
+    `${chains.join(';')};${joined}concat=n=${files.length}:v=1:a=${audible ? 1 : 0}[out]${audible ? '[aout]' : ''}`,
     '-map', '[out]',
+    ...(audible ? ['-map', '[aout]', '-c:a', 'aac'] : []),
     '-r', String(settings.fps),
     '-c:v', encoderFor(settings.codec),
     '-pix_fmt', 'yuv420p',
     out,
   ])
 }
+
+const AUDIO_FORMAT = 'aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo'

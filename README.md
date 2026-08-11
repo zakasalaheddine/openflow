@@ -48,7 +48,7 @@ Assets live on your machine. Set `CLOUDINARY_URL` and uploads and rendered frame
 
 A rendered still can be wired into another still as a **reference**. That is how a character stays the same person: generate a sheet of them once, wire it into every shot, and the sheet arrives with each prompt. Re-roll the sheet and every shot built on it greys out — the same blast radius a replaced product gets, for the same reason.
 
-A **sequence** node cuts clips into one film. Wire the clips in the order they play, reorder them in the inspector, and running it writes the assembled cut, ready to download with the rest of the deliverables. It dispatches to no model and costs nothing to run: the cut is made locally, from clips already rendered, and it is a stream copy rather than a re-encode whenever the clips share a frame size. Silent for now — a clip with native audio loses it, rather than producing a film whose sound cuts in and out depending on which model rendered which shot.
+A **sequence** node cuts clips into one film. Wire the clips in the order they play, reorder them in the inspector, and running it writes the assembled cut, ready to download with the rest of the deliverables. It dispatches to no model and costs nothing to run: the cut is made locally, from clips already rendered, and it is a stream copy rather than a re-encode whenever the clips share a frame size and audio format. Sound comes along: a clip rendered with native audio keeps it, and a silent clip in the same film becomes silence of its own length, so the cut is quiet only where the shot was.
 
 ## A still is rendered at the shape you ship
 
