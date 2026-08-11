@@ -60,12 +60,23 @@ const textOverlayBody = z
   })
   .optional()
 
-const downloadBodySchema = z.object({
-  nodeIds: z.array(z.string().min(1)).optional(),
-  formats: z.array(adFormatBody).optional(),
-  overlay: textOverlayBody,
-  preview: z.boolean().optional(),
-})
+const downloadBodySchema = z
+  .object({
+    nodeIds: z.array(z.string().min(1)).optional(),
+    formats: z.array(adFormatBody).optional(),
+    overlay: textOverlayBody,
+    preview: z.boolean().optional(),
+  })
+  // exportFlow pairs a verdict to its format by name (`formats.find(f =>
+  // f.name === verdict.format)`) but to its asset by index. Two formats
+  // sharing a name resolve to the same one on the way back out — a verdict
+  // genuinely checked against the second format's dimensions gets rendered
+  // against the first's instead, and the second overwrites the first's file
+  // on disk. Refused here rather than reached.
+  .refine(
+    (body) => !body.formats || new Set(body.formats.map((f) => f.name)).size === body.formats.length,
+    { message: 'names must be unique', path: ['formats'] },
+  )
 
 type Body = z.infer<typeof downloadBodySchema>
 

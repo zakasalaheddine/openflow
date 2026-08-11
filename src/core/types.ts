@@ -166,7 +166,12 @@ export type Edge = {
   from: NodeId
   to: NodeId
   role: 'reference' | 'start_frame' | 'end_frame' | 'input'
-  /** Reserved for v2 sequence ordering. Always null in v1. */
+  /**
+   * A sequence input's place in the cut, set by `positionFor` (wiring.ts) —
+   * `sequenceInputs` (wiring.ts) reads it to order a film's clips, and
+   * `executor.ts` folds that order into the sequence's hash. `null` for every
+   * other role, which carries no ordering.
+   */
   position: number | null
 }
 

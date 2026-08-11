@@ -132,6 +132,26 @@ describe('POST /api/download: downloadBodySchema rejects a malformed body', () =
     expect(json.error).toMatch(/formats\.0\.spec\.safeZone\.left/)
   })
 
+  test('rejects two formats sharing a name', async () => {
+    // exportFlow pairs a verdict back to its format by name and to its asset
+    // by index (core/exporter.ts). Two formats named the same collapse to
+    // whichever one `.find()` reaches first, so a verdict genuinely checked
+    // against the second format's dimensions renders against the first's and
+    // overwrites its file. The trust boundary is this schema; refuse it here.
+    const response = await post({
+      formats: [
+        { name: '1:1', w: 1080, h: 1080 },
+        { name: '1:1', w: 500, h: 500 },
+      ],
+    })
+
+    expect(response.status).toBe(400)
+    const json = await response.json()
+    expect(typeof json.error).toBe('string')
+    expect(json.error).toMatch(/formats/)
+    expect(json.error).toMatch(/unique/)
+  })
+
   test('a well-formed body still succeeds — the schema discriminates, not just refuses', async () => {
     const response = await post({
       nodeIds: [],

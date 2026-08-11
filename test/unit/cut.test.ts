@@ -64,9 +64,11 @@ describe('cutSequence', () => {
     await expect(cutSequence(db, runRow(flowId), assetsDir())).rejects.toThrow(/no clips/)
   })
 
-  test('records the run ids and the total the film was cut from', async () => {
-    // Not on the asset — provenance rides in the manifest. What matters here is
-    // that the cut itself is free: the clips were paid for.
+  test('cutting adds no cost of its own — the clips already paid for it', async () => {
+    // Not on the asset — provenance rides in the manifest (see exporter.ts's
+    // sequenceProvenance, which records the run ids). What matters here is
+    // that the cut itself is free: the clips' recorded total is unchanged by
+    // it, not topped up by a charge of the cut's own.
     const { db, flowId } = prepared()
     await cutSequence(db, runRow(flowId), assetsDir())
 

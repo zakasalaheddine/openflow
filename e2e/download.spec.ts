@@ -238,6 +238,55 @@ test('one frame downloads as one file, no zip to unpack', async ({ page, request
   expect(download.suggestedFilename()).toMatch(/^marble-9-16\.png$/)
 })
 
+/** Two clips wired into a cut, positions pre-set so Run needs no wiring step. */
+const filmGraph = () => ({
+  nodes: [
+    {
+      id: 'one',
+      type: 'video',
+      position: { x: 60, y: 60 },
+      prompt: 'she opens the door',
+      durationSec: 5,
+      audio: false,
+      modelId: 'hailuo-2-3-pro',
+      seed: 1,
+    },
+    {
+      id: 'two',
+      type: 'video',
+      position: { x: 320, y: 60 },
+      prompt: 'she steps into the light',
+      durationSec: 5,
+      audio: false,
+      modelId: 'hailuo-2-3-pro',
+      seed: 1,
+    },
+    { id: 'cut', type: 'sequence', position: { x: 580, y: 60 }, label: 'film' },
+  ],
+  edges: [
+    { id: 'e1', from: 'one', to: 'cut', role: 'input', position: 0 },
+    { id: 'e2', from: 'two', to: 'cut', role: 'input', position: 1 },
+  ],
+})
+
+test('a film alone downloads as one .mp4, with the mp4 content type', async ({ page, request }) => {
+  // Every other single-file test in this file ships a still. The route's mp4
+  // arm (a single video entry, content-type video/mp4) is otherwise never
+  // exercised.
+  await setGraph(request, filmGraph())
+  await page.goto('/')
+  await waitForLedger(page)
+  await page.getByTestId('run').click()
+  await expect(page.getByTestId('status-cut')).toHaveText(/done/, { timeout: 30_000 })
+
+  const response = await request.post('/api/download?flow=default', {
+    data: { nodeIds: ['cut'], formats: [{ name: '9:16', w: 1080, h: 1920 }] },
+  })
+  expect(response.ok()).toBe(true)
+  expect(response.headers()['content-type']).toBe('video/mp4')
+  expect(response.headers()['content-disposition']).toMatch(/\.mp4"$/)
+})
+
 test('a headline in the safe zone cannot be ticked past', async ({ page, request }) => {
   // The refusal is the product rule, not a nicety: shipping it anyway is the
   // same as not checking, and the rejection arrives from the client instead,
