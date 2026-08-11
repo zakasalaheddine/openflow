@@ -232,7 +232,7 @@ side-stripe borders, no identical card grids, no modal as a first thought):
   working.
 - **Display fonts in labels, buttons or data.** Two families, and neither is a
   display face.
-- **Reinvented standard affordances.** Native `<dialog>` for modals, native
+- **Reinvented standard affordances.** The `<dialog>` for modals, native
   form controls in the inspector, real `<button>`s for everything clickable.
 - **A component shipped with half its states.** Default, hover, focus, active,
   disabled, loading, error. All seven or it is not done.

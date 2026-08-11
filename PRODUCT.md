@@ -32,7 +32,9 @@ built on it goes stale, priced, before anything re-renders.
 A local-first, open-source node editor for on-brand ad creative. Four node types:
 `source`, `image`, `video`, `sequence`. A sequence cuts clips into one film.
 Wire an asset into as many shots as you like, each with its own direction and
-its own model, and read the bill on the card before you press Run.
+its own model, and read the bill on the card before you press Run. Getting a
+render out, cropped to the placements you need, is a separate action from
+paying for it, and free every time you ask.
 
 Success is that the canvas answers a comparison: three shots off one source
 differing only by their model, judged at a glance, with both prices on screen.
