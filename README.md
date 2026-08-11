@@ -24,7 +24,7 @@ Chat needs an OpenRouter key. Put `OPENROUTER_API_KEY` in `.env` and, if you wan
 
 **Node 22.16.0 or newer is required** (`.nvmrc` pins it). Older 22.x patch releases ship a `better-sqlite3` prebuild that segfaults on macOS arm64: you get exit code 139 and no error message, so the launcher refuses to start on one.
 
-**ffmpeg** is needed for video and for exporting clips (`brew install ffmpeg` / `apt install ffmpeg`). Image-only flows work without it.
+**ffmpeg** is needed for video: rendering it, cutting a sequence, and downloading it (`brew install ffmpeg` / `apt install ffmpeg`). Image-only flows work without it.
 
 Without the canvas:
 
@@ -40,7 +40,7 @@ FAL_KEY=... FAL_MODE=live npm run -- run flows/demo.json
 
 Copy [`.env.example`](./.env.example) to `.env` and edit it — `next dev`, `next start`, `npm run studio` and the headless runner all read it, so nothing has to be exported by hand. An exported variable still wins over the file, which is what keeps `FAL_MODE=off npm run …` honest.
 
-Assets live on your machine. Set `CLOUDINARY_URL` and uploads and rendered frames are pushed to Cloudinary as well, and fal is handed a URL instead of the file inlined into its request — the difference between a reference that works and one refused for being over 12 MB. Local copies are kept regardless: `ffmpeg` and `sharp` read files, so export never depends on the network.
+Assets live on your machine. Set `CLOUDINARY_URL` and uploads and rendered frames are pushed to Cloudinary as well, and fal is handed a URL instead of the file inlined into its request — the difference between a reference that works and one refused for being over 12 MB. Local copies are kept regardless: `ffmpeg` and `sharp` read files, so download never depends on the network.
 
 `FAL_MODE` is `live` by default and forced to `replay`/`off`/`stub` by the test configs, so a test run can never bill you. `DEMO=1` forces `replay`, pre-bakes the demo flow from recorded fixtures, and refuses every render request — that is the mode a public demo runs in. `OPENFLOW_DATA_DIR` moves the SQLite file and generated assets off `./data`.
 
@@ -130,7 +130,7 @@ Upgrading a database written before per-node models: `npm run migrate:model-ids`
 
 `/core` imports no React and no Next. That boundary is what makes the headless runner — and a later MCP server — nearly free.
 
-Every render is keyed by an input hash chained through the graph, so a second run costs $0 and a changed prompt invalidates exactly its descendants. Exports are matched on that same hash: a shot you edited but did not re-render is refused rather than shipped under its new prompt.
+Every render is keyed by an input hash chained through the graph, so a second run costs $0 and a changed prompt invalidates exactly its descendants. Downloads are matched on that same hash: a shot you edited but did not re-render is refused rather than shipped under its new prompt.
 
 **Run all** renders the whole flow. Every generator card also carries its own **Run**, which renders that shot and whatever upstream it still needs — never the shot alone, because a clip whose start frame was never rendered would dispatch as text-to-video and be billed in full for an anchor it never saw. The spend cap is judged on that narrowed run, so pricing one shot is not a confirmation dialog about the graph beside it.
 
