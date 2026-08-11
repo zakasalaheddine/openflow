@@ -6,7 +6,7 @@ import { DicesIcon, DownloadIcon, GitBranchIcon, Trash2Icon } from 'lucide-react
 import { Hint } from '@/ui/hint'
 import type { FlowNode } from '@/core/types'
 import { MIN_CARD } from './slots'
-import { money, type NodeState, type SourceRow } from './state'
+import { money, RUNNING, type NodeState, type SourceRow } from './state'
 import type { Preview } from './lightbox'
 
 /**
@@ -47,7 +47,12 @@ export type CardData = {
   runtime?: { clipCount: number; seconds: number }
   onPrompt: (nodeId: string, prompt: string) => void
   onReplace: (sourceId: string) => void
-  onRun: (nodeId: string) => void
+  /**
+   * `force` re-renders a card that has already finished, and bills again. The
+   * card passes its own estimate up so the confirmation can name the price
+   * without the canvas re-reading the polled ledger — see canvas's `onRun`.
+   */
+  onRun: (nodeId: string, force?: boolean, estimatedCents?: number) => void
   onPreview: (item: Preview) => void
   onEditText: (sourceId: string, text: string) => void
   onReroll: (nodeId: string) => void
@@ -323,12 +328,18 @@ export function NodeCard({ data }: NodeProps) {
             drag handler and off the canvas's alt-click fan-out. */}
         {/* A cut runs like anything else, and its button says $0.00 because it
             is: the clips were paid for and ffmpeg is local. */}
+        {/* A finished card runs again too. The cache is there to stop a second
+            click costing money by accident, not to make a render permanent —
+            a shot that came back wrong, or a cut that has no seed to re-roll,
+            had no way back except editing the prompt into something you did
+            not want. So the button stays, renamed, and the accident guard
+            moves to a dialog that names the second bill (canvas's `onRun`). */}
         <Hint
           label={
             state.status === 'succeeded'
               ? node.type === 'sequence'
-                ? 'Already cut. Reorder the clips to cut it again.'
-                : 'Already rendered. Re-roll the seed to render it again.'
+                ? `Cut it again · ${money(state.estimatedCents)}`
+                : `Render it again · ${money(state.estimatedCents)}. Re-roll the seed instead for a different take.`
               : node.type === 'sequence'
                 ? `Cut the film, and whatever clips it still needs rendered · ${money(state.estimatedCents)}`
                 : `Render this shot alone, and whatever upstream it still needs · ${money(state.estimatedCents)}`
@@ -342,13 +353,15 @@ export function NodeCard({ data }: NodeProps) {
             <button
               className="node__run nodrag"
               data-testid={`run-${node.id}`}
-              disabled={state.status !== 'stale' && state.status !== 'failed'}
+              // Only while it is actually in flight. Every resting state is
+              // runnable: never rendered, failed, or finished.
+              disabled={RUNNING.has(state.status)}
               onClick={(event) => {
                 event.stopPropagation()
-                onRun(node.id)
+                onRun(node.id, state.status === 'succeeded', state.estimatedCents)
               }}
             >
-              {state.status === 'failed' ? 'Retry' : 'Run'}
+              {state.status === 'failed' ? 'Retry' : state.status === 'succeeded' ? 'Re-run' : 'Run'}
             </button>
           </span>
         </Hint>

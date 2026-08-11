@@ -213,6 +213,72 @@ describe('enqueueRun', () => {
     expect(result.cached.map((p) => p.nodeId)).toEqual(['img'])
   })
 
+  test('force: renders a finished node again', () => {
+    // The cache stops a second click costing money by accident; it is not
+    // meant to make a render permanent. A shot that came back wrong, or a cut
+    // with no seed to re-roll, has no other way back.
+    const { db, flowId } = setup(branchFlow)
+    enqueueRun(db, flowId, { only: 'img' })
+    const [first] = db.select().from(nodeRuns).all()
+    db.update(nodeRuns).set({ status: 'succeeded', costCents: 15 }).where(eq(nodeRuns.id, first.id)).run()
+
+    expect(enqueueRun(db, flowId, { only: 'img' }).enqueued).toHaveLength(0)
+
+    const forced = enqueueRun(db, flowId, { only: 'img', force: true })
+    expect(forced.enqueued.map((p) => p.nodeId)).toEqual(['img'])
+    // A second bill, and priced as one: the estimate the cap is judged on has
+    // to count a re-render, or a forced clip could walk past the cap at $0.
+    expect(forced.estimatedCents).toBeGreaterThan(0)
+    // The hash is unchanged — that is the whole point. Two succeeded rows for
+    // one hash is a state nothing else in the app creates.
+    expect(db.select().from(nodeRuns).all()).toHaveLength(2)
+  })
+
+  test('force: a second click while it is re-rendering does not bill twice', () => {
+    // The guard that is not the dialog. `previewRun` files a node with both a
+    // succeeded row and a queued one as in flight rather than cached, and this
+    // is what depends on it — without that, every click enqueues another run.
+    const { db, flowId } = setup(branchFlow)
+    enqueueRun(db, flowId, { only: 'img' })
+    const [first] = db.select().from(nodeRuns).all()
+    db.update(nodeRuns).set({ status: 'succeeded', costCents: 15 }).where(eq(nodeRuns.id, first.id)).run()
+
+    enqueueRun(db, flowId, { only: 'img', force: true })
+    expect(enqueueRun(db, flowId, { only: 'img', force: true }).enqueued).toHaveLength(0)
+    expect(db.select().from(nodeRuns).all()).toHaveLength(2)
+  })
+
+  test('force: re-renders the node named and nothing it was built from', () => {
+    // "Another take of this clip" is not "throw away the frame it starts on".
+    const { db, flowId } = setup(branchFlow)
+    enqueueRun(db, flowId, { only: 'clip' })
+    db.update(nodeRuns).set({ status: 'succeeded', costCents: 15 }).run()
+
+    const forced = enqueueRun(db, flowId, { only: 'clip', force: true })
+    expect(forced.enqueued.map((p) => p.nodeId)).toEqual(['clip'])
+    expect(forced.cached.map((p) => p.nodeId)).toEqual(['img'])
+  })
+
+  test('force: still answers to the spend cap', () => {
+    const { db, flowId } = setup(branchFlow)
+    enqueueRun(db, flowId, { only: 'img' })
+    db.update(nodeRuns).set({ status: 'succeeded', costCents: 15 }).run()
+
+    db.update(projects).set({ settings: { ...DEFAULT_SETTINGS, spendCapPerRun: 1 } }).run()
+    expect(() => enqueueRun(db, flowId, { only: 'img', force: true })).toThrow(SpendCapExceededError)
+    expect(db.select().from(nodeRuns).all()).toHaveLength(1)
+  })
+
+  test('force: without a node named, changes nothing', () => {
+    // Otherwise one click re-renders an entire canvas.
+    const { db, flowId } = setup(twoImageFlow)
+    enqueueRun(db, flowId)
+    db.update(nodeRuns).set({ status: 'succeeded', costCents: 15 }).run()
+
+    expect(enqueueRun(db, flowId, { force: true }).enqueued).toHaveLength(0)
+    expect(db.select().from(nodeRuns).all()).toHaveLength(2)
+  })
+
   test('only: the spend cap is judged on the narrowed run, not the whole flow', () => {
     // The money path. Quoting the flow's total against the cap would make one
     // cheap node demand confirmation because the graph beside it is expensive.

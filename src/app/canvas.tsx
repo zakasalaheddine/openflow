@@ -80,6 +80,7 @@ import {
   previewReplace,
   replaceSource,
   money,
+  RUNNING,
   type BlastRadius,
   type FlowState,
   type NodeState,
@@ -96,14 +97,6 @@ const BLANK: NodeState = {
   subtree: { nodeCount: 0, cents: 0 },
   outputs: [],
 }
-
-/** Dispatched, not yet answered — the states a spinner would be for. */
-const RUNNING: ReadonlySet<NodeState['status']> = new Set([
-  'queued',
-  'claimed',
-  'submitted',
-  'polling',
-])
 
 /**
  * Two grids, and the fine one leaves at low zoom.
@@ -199,7 +192,19 @@ function CanvasInner({ flow }: { flow: string }) {
   )
   // Carries the node so "Render anyway" repeats the click that was refused,
   // rather than silently widening one shot into the whole flow.
-  const [confirming, setConfirming] = useState<{ message: string; nodeId?: NodeId } | null>(null)
+  //
+  // Two things get confirmed here and they are not the same permission.
+  // `overspend` waives the per-run cap, and is only ever set by a 409 that
+  // named a figure; `force` re-renders a node that already has. A re-run that
+  // is *also* over the cap therefore asks twice — once for the second bill,
+  // once for its size — because answering "yes, render it again" is not
+  // answering "yes, spend $14".
+  const [confirming, setConfirming] = useState<{
+    message: string
+    nodeId?: NodeId
+    force?: boolean
+    overspend?: boolean
+  } | null>(null)
   const [showRefs, setShowRefs] = useState(true)
   // Open by default. A map you have to find first is a map nobody uses, and the
   // shape of the work is twelve cards spread wider than one screen.
@@ -575,10 +580,18 @@ function CanvasInner({ flow }: { flow: string }) {
    * that card still needs rather than dispatching it unanchored.
    */
   const run = useCallback(
-    async (options: { nodeId?: NodeId; confirmOverspend?: boolean } = {}) => {
-      const outcome = await startRun(flow, options.confirmOverspend === true, options.nodeId)
+    async (options: { nodeId?: NodeId; confirmOverspend?: boolean; force?: boolean } = {}) => {
+      const outcome = await startRun(flow, options)
       if (outcome.kind === 'needs-confirmation') {
-        setConfirming({ message: outcome.message, nodeId: options.nodeId })
+        // `force` rides through: the cap refused this exact click, so agreeing
+        // to the price must repeat it — not quietly downgrade it to a run that
+        // finds the hash satisfied and does nothing.
+        setConfirming({
+          message: outcome.message,
+          nodeId: options.nodeId,
+          force: options.force,
+          overspend: true,
+        })
         return
       }
       setConfirming(null)
@@ -598,7 +611,37 @@ function CanvasInner({ flow }: { flow: string }) {
     [load, say, flow],
   )
 
-  const onRun = useCallback((nodeId: NodeId) => void run({ nodeId }), [run])
+  /**
+   * A card that has never rendered runs on the click. One that already has
+   * asks first.
+   *
+   * The cache is what makes a second click on a finished card free today, and
+   * taking it away for `force` takes the accident guard with it — so the guard
+   * moves to where it can still be read: a dialog naming the second bill. The
+   * price is the node's own estimate, not the branch's; force renders that one
+   * node and leaves what it was built from alone.
+   *
+   * The price comes from the card rather than from `state` here, and that is
+   * not laziness: reading `state.nodes[nodeId]` would put the polled ledger in
+   * this callback's deps, rebuild it every 1.2 seconds, and re-render every
+   * card on the canvas for it — the same trap `fanOutRef` below exists to
+   * avoid. The card already holds the figure it is displaying.
+   */
+  const onRun = useCallback(
+    (nodeId: NodeId, force = false, estimatedCents = 0) => {
+      // The dialog guards money, so a re-render that costs none skips it. That
+      // is the sequence node: a cut is ffmpeg on this machine, and asking
+      // "render it again — it bills again · $0.00" is a confirmation that
+      // contradicts itself in the sentence it is asking with.
+      if (!force || estimatedCents === 0) return void run({ nodeId, force })
+      setConfirming({
+        nodeId,
+        force: true,
+        message: `${nodeId} already rendered. Rendering it again bills again · ${money(estimatedCents)}.`,
+      })
+    },
+    [run],
+  )
 
   /**
    * `fanOut` is declared below as a plain function — it reads the catalog off
@@ -1324,7 +1367,16 @@ function CanvasInner({ flow }: { flow: string }) {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               data-testid="confirm-spend"
-              onClick={() => void run({ nodeId: confirming?.nodeId, confirmOverspend: true })}
+              onClick={() =>
+                void run({
+                  nodeId: confirming?.nodeId,
+                  force: confirming?.force,
+                  // Only the dialog the cap opened waives the cap. A re-run
+                  // confirmed here is still subject to it, and answers the
+                  // second dialog on its own.
+                  confirmOverspend: confirming?.overspend,
+                })
+              }
             >
               Render anyway
             </AlertDialogAction>

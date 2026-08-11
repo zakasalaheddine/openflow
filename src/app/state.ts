@@ -17,6 +17,21 @@ export type NodeState = {
   }[]
 }
 
+/**
+ * Dispatched, not yet answered — the states a spinner would be for.
+ *
+ * Here rather than in canvas.tsx because the card reads it too: these are the
+ * only statuses in which Run is disabled, and a card holding its own copy of
+ * the list is a card that goes on offering the button mid-render the next time
+ * a status is added.
+ */
+export const RUNNING: ReadonlySet<NodeState['status']> = new Set([
+  'queued',
+  'claimed',
+  'submitted',
+  'polling',
+])
+
 export type SourceRow = {
   id: string
   kind: 'image' | 'video' | 'text'
@@ -205,16 +220,22 @@ export type RunOutcome =
   | { kind: 'needs-confirmation'; message: string; estimatedCents: number }
   | { kind: 'refused'; message: string }
 
-/** `nodeId` renders that one node plus any upstream it still needs; omit it for the whole flow. */
+/**
+ * `nodeId` renders that one node plus any upstream it still needs; omit it for
+ * the whole flow. `force` renders it again even though it already has.
+ */
 export async function startRun(
   flow: string,
-  confirmOverspend = false,
-  nodeId?: string,
+  options: { confirmOverspend?: boolean; nodeId?: string; force?: boolean } = {},
 ): Promise<RunOutcome> {
   const response = await fetch(scoped('/api/run', flow), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ confirmOverspend, nodeId }),
+    body: JSON.stringify({
+      confirmOverspend: options.confirmOverspend === true,
+      nodeId: options.nodeId,
+      force: options.force === true,
+    }),
   })
   const body = await response.json()
 

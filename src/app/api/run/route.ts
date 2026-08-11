@@ -25,12 +25,15 @@ export async function POST(request: Request) {
     confirmOverspend?: boolean
     /** Render one node and whatever upstream it still needs. */
     nodeId?: NodeId
+    /** Render `nodeId` again even though it already has. */
+    force?: boolean
   }
 
   try {
     const result = enqueueRun(db, flowId, {
       confirmOverspend: body.confirmOverspend === true,
       only: body.nodeId,
+      force: body.force === true,
     })
     return NextResponse.json({
       enqueued: result.enqueued.length,

@@ -37,8 +37,15 @@ export function previewRun(db: Db, flowId: string): Preview {
     existing.filter((r) => (IN_FLIGHT as readonly string[]).includes(r.status)).map((r) => r.inputHash),
   )
 
-  const cached = planned.filter((p) => satisfied.has(p.inputHash))
+  // In flight beats satisfied, and this is a money rule rather than a cosmetic
+  // one. A forced re-render (`enqueueRun`'s `force`) queues a second run against
+  // a hash that has already succeeded, so for as long as it runs the node has
+  // both a succeeded row and a queued one. Counted as cached it would stay
+  // eligible to be forced again — two clicks, two bills, with nothing in the
+  // executor to stop the second. Counted as in flight it reads as what it is:
+  // rendering, and not runnable again until it lands.
   const inFlight = planned.filter((p) => running.has(p.inputHash))
+  const cached = planned.filter((p) => satisfied.has(p.inputHash) && !running.has(p.inputHash))
   const stale = planned.filter((p) => !satisfied.has(p.inputHash) && !running.has(p.inputHash))
 
   const flow = db.select().from(flows).where(eq(flows.id, flowId)).get()

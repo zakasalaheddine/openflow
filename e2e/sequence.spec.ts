@@ -111,4 +111,13 @@ test('a cut is rendered from the canvas and shows the film it made', async ({ pa
   await expect(page.locator('[data-testid="node-cut"] video')).toBeVisible()
   // Free: the clips were paid for.
   await expect(page.getByTestId('price-cut')).toHaveText('$0.00')
+
+  // And it cuts again on the click, with no confirmation in the way — the
+  // dialog guards a second bill, and there is no bill. This is the node with
+  // no seed to re-roll: cutting again is its only way back.
+  await expect(page.getByTestId('run-cut')).toHaveText('Re-run')
+  await page.getByTestId('run-cut').click()
+  await expect(page.getByTestId('status-cut')).not.toHaveText(/done/, { timeout: 30_000 })
+  await expect(page.getByTestId('status-cut')).toHaveText(/done/, { timeout: 30_000 })
+  await expect(page.locator('[data-testid="node-cut"] video')).toBeVisible()
 })

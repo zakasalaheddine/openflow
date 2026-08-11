@@ -66,4 +66,23 @@ describe('a sequence in the plan', () => {
     // The two clips are already rendered, so the only work is the free one.
     expect(result.estimatedCents).toBe(0)
   })
+
+  test('can be cut again once it already has been', () => {
+    // The node with no seed to re-roll. Every other way of re-rendering a
+    // finished node changes its hash — editing a prompt, re-rolling a seed,
+    // reordering the shots — and a cut whose order is already right has none
+    // of those, so before `force` a bad film was permanent.
+    const { db, flowId } = prepared(['one', 'two'])
+    enqueueRun(db, flowId)
+    db.update(nodeRuns).set({ status: 'succeeded' }).run()
+
+    expect(enqueueRun(db, flowId, { only: 'cut' }).enqueued).toHaveLength(0)
+
+    const forced = enqueueRun(db, flowId, { only: 'cut', force: true })
+    expect(forced.enqueued.map((p) => p.nodeId)).toEqual(['cut'])
+    // ffmpeg on this machine, the second time as much as the first. Nothing
+    // about a re-cut is a second invoice.
+    expect(forced.estimatedCents).toBe(0)
+    expect(forced.cached.map((p) => p.nodeId).sort()).toEqual(['one', 'two'])
+  })
 })

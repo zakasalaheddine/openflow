@@ -237,11 +237,18 @@ export type EnqueueResult = {
  * `only` narrows the run to one node and the ancestors it needs. Not the node
  * alone: a clip whose start frame was never rendered would dispatch as
  * text-to-video and be billed in full for a frame it never saw.
+ *
+ * `force` renders that one node again even though its hash is already
+ * satisfied — the cache exists to stop accidental re-billing, not to make a
+ * finished node permanent. Only the named node: its ancestors keep their
+ * renders, because "give me another take of this shot" is not "throw away
+ * everything it was built from". Ignored without `only`, which would otherwise
+ * mean re-rendering an entire canvas on one click.
  */
 export function enqueueRun(
   db: Db,
   flowId: string,
-  options: { confirmOverspend?: boolean; only?: NodeId } = {},
+  options: { confirmOverspend?: boolean; only?: NodeId; force?: boolean } = {},
 ): EnqueueResult {
   const { settings, graph } = loadContext(db, flowId)
 
@@ -265,6 +272,15 @@ export function enqueueRun(
     const wanted = new Set<NodeId>([options.only, ...ancestors(shape, options.only)])
     enqueued = enqueued.filter((p) => wanted.has(p.nodeId))
     cached = cached.filter((p) => wanted.has(p.nodeId))
+
+    // The cache moved aside for one node, not switched off. A node already
+    // rendering is in neither list (previewRun files it as in flight), so this
+    // cannot queue a second attempt on top of one that is still running.
+    if (options.force) {
+      enqueued = [...enqueued, ...cached.filter((p) => p.nodeId === options.only)]
+      cached = cached.filter((p) => p.nodeId !== options.only)
+    }
+
     // Re-derived, and before the cap: quoting the whole graph's price for one
     // node makes a $0.40 click demand confirmation against a $50 cap.
     estimatedCents = enqueued.reduce((sum, p) => sum + p.estimatedCents, 0)
