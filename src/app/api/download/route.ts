@@ -97,8 +97,13 @@ export async function POST(request: Request) {
   const raw = await request.json().catch(() => ({}))
   const parsedBody = downloadBodySchema.safeParse(raw)
   if (!parsedBody.success) {
+    const issue = parsedBody.error.issues[0]
+    // zod's bare message ("Invalid input: expected int, received number")
+    // doesn't say which field — the path is what makes this actionable
+    // rather than a puzzle to reverse-engineer from the request body.
+    const where = issue?.path.join('.')
     return NextResponse.json(
-      { error: parsedBody.error.issues[0]?.message ?? 'Invalid request body' },
+      { error: where ? `${where}: ${issue.message}` : (issue?.message ?? 'Invalid request body') },
       { status: 400 },
     )
   }
@@ -110,6 +115,12 @@ export async function POST(request: Request) {
   const settings: ProjectSettings = { ...DEFAULT_SETTINGS, ...(project?.settings as ProjectSettings) }
 
   const nodeIds = body.nodeIds ?? everythingRendered(db, flowId)
+  // Falls back to the project's stored settings when the body carries no
+  // formats of its own. That settings value is read via the `as
+  // ProjectSettings` cast above with no runtime check — `downloadBodySchema`
+  // only validates what arrived over HTTP in `body`, not what was already
+  // sitting in the database. Pre-existing, out of scope here; noted so this
+  // fallback isn't mistaken for covered by the same schema.
   const formats = body.formats?.length ? body.formats : settings.formats
 
   try {
