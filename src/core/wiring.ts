@@ -180,7 +180,7 @@ export const sequenceInputs = (flow: Flow, sequenceId: NodeId): NodeId[] =>
  * reason to know this is to budget a sixty-second piece before paying for it,
  * and every video row caps out at eight or ten seconds, so the arithmetic is
  * the difference between eleven shots and a guess. What the file actually
- * measures is checked again at export, against the format's own limit.
+ * measures is checked again at download, against the format's own limit.
  */
 export function sequenceRuntime(flow: Flow, sequenceId: NodeId) {
   const byId = new Map(flow.nodes.map((n) => [n.id, n]))

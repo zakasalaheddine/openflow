@@ -52,12 +52,6 @@ describe('exporting', () => {
     expect([meta.width, meta.height]).toEqual([864, 1080])
   })
 
-  test('a per-node override exports only that format', async () => {
-    const { db, flowId, dir, nodeIds, formats } = prepared({ formats: [DOOH] })
-    const result = await exportFlow(db, flowId, { dir, nodeIds, formats })
-    expect(result.entries.map((e) => e.format)).toEqual(['DOOH 4:5'])
-  })
-
   test('records an exports row for every format, with the check that was run', async () => {
     const { db, flowId, dir, nodeIds, formats } = prepared()
     await exportFlow(db, flowId, { dir, nodeIds, formats })

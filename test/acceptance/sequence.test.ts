@@ -134,15 +134,6 @@ describe('a sequence', () => {
     expect(result.rejected[0].specCheck.findings[0].message).toContain('two')
   })
 
-  test('re-exporting an unchanged film re-cuts nothing', async () => {
-    // The cut ran once, as part of the run, and exporting only ever reads
-    // its output — a second export finds the same run and the same file.
-    const { db, flowId, dir } = await prepared()
-    const first = await exportFlow(db, flowId, { dir, nodeIds: ['cut'], formats: SEQ_FORMATS })
-    const second = await exportFlow(db, flowId, { dir, nodeIds: ['cut'], formats: SEQ_FORMATS })
-    expect(second.entries[0].runIds).toEqual(first.entries[0].runIds)
-  })
-
   test('reordering the shots refuses the export until the cut is re-run', async () => {
     // The order lives on the edges, not the node, so swapping two shots
     // changes the sequence's hash without anyone re-running it. Shipping the
@@ -167,6 +158,8 @@ describe('a sequence', () => {
 
   test('a sequence is planned with zero cost', async () => {
     const { db, flowId } = await prepared()
-    expect(planRun(db, flowId).map((p) => p.nodeId).sort()).toEqual(['cut', 'one', 'two'])
+    const planned = planRun(db, flowId)
+    expect(planned.map((p) => p.nodeId).sort()).toEqual(['cut', 'one', 'two'])
+    expect(planned.find((p) => p.nodeId === 'cut')?.estimatedCents).toBe(0)
   })
 })

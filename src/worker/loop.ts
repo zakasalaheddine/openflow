@@ -337,8 +337,8 @@ export type Measured = { width?: number; height?: number; durationMs?: number; f
  *
  * Dimensions are deliberately left alone. There is no project-level canvas
  * size to normalise to, and cropping a clip on the way in would throw away
- * framing the export step needs: geometry is a per-format decision, made once,
- * at export.
+ * framing the download step needs: geometry is a per-format decision, made
+ * once, at download.
  */
 async function normalise(
   file: string,
@@ -358,7 +358,7 @@ async function normalise(
     // same clip again on the next tick — three times, then failed, with the
     // bytes sitting on disk and no row pointing at them. The file is kept with
     // the model's own claim about it; fps and codec stay null, and the loud
-    // error arrives at export time, where it costs nothing.
+    // error arrives at download time, where it costs nothing.
     if (error instanceof FfmpegMissingError) {
       return { width: output.width, height: output.height, durationMs: output.durationMs }
     }
