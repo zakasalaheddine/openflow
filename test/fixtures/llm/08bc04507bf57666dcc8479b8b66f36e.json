@@ -1,0 +1,400 @@
+{
+  "chunks": [
+    {
+      "type": "stream-start",
+      "warnings": []
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433191-tDm1UehtYbYFEdBWUIvi"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-start",
+      "id": "peKRhCkfFBJawlQy"
+    },
+    {
+      "type": "reasoning-delta",
+      "delta": "I",
+      "id": "peKRhCkfFBJawlQy"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433191-tDm1UehtYbYFEdBWUIvi"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-delta",
+      "delta": " don",
+      "id": "peKRhCkfFBJawlQy"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433191-tDm1UehtYbYFEdBWUIvi"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-delta",
+      "delta": "'t have",
+      "id": "peKRhCkfFBJawlQy"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433191-tDm1UehtYbYFEdBWUIvi"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-delta",
+      "delta": " any brand",
+      "id": "peKRhCkfFBJawlQy"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433191-tDm1UehtYbYFEdBWUIvi"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-delta",
+      "delta": " information or sources to work with, so I'm caught between adding a placeholder image node with a generic prompt",
+      "id": "peKRhCkfFBJawlQy"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433191-tDm1UehtYbYFEdBWUIvi"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-delta",
+      "delta": " or asking the user for details first. The problem is that any prompt I write will inevitably invent specifics like bottle shape",
+      "id": "peKRhCkfFBJawlQy"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433191-tDm1UehtYbYFEdBWUIvi"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-delta",
+      "delta": " or styling that might not match their actual brand, so I should probably ask some key questions about",
+      "id": "peKRhCkfFBJawlQy"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433191-tDm1UehtYbYFEdBWUIvi"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-delta",
+      "delta": " the brand before scaffolding anything out.",
+      "id": "peKRhCkfFBJawlQy"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433191-tDm1UehtYbYFEdBWUIvi"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-delta",
+      "delta": "…",
+      "id": "peKRhCkfFBJawlQy"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433191-tDm1UehtYbYFEdBWUIvi"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-delta",
+      "delta": "",
+      "id": "peKRhCkfFBJawlQy"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433191-tDm1UehtYbYFEdBWUIvi"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433191-tDm1UehtYbYFEdBWUIvi"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-start",
+      "id": "toolu_01JGECGT2MnpvZSkyABTFvdr",
+      "toolName": "add_node"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01JGECGT2MnpvZSkyABTFvdr",
+      "delta": ""
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433191-tDm1UehtYbYFEdBWUIvi"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01JGECGT2MnpvZSkyABTFvdr",
+      "delta": "{\"type\": \"image"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433191-tDm1UehtYbYFEdBWUIvi"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01JGECGT2MnpvZSkyABTFvdr",
+      "delta": "\", \"label\": \"Hero — serum on marble"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433191-tDm1UehtYbYFEdBWUIvi"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01JGECGT2MnpvZSkyABTFvdr",
+      "delta": "\", \"modelId\": \"flux-2-pro"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433191-tDm1UehtYbYFEdBWUIvi"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01JGECGT2MnpvZSkyABTFvdr",
+      "delta": "\", \"prompt\": \"Hero product still: a single glass serum dropper bottle standing centred on a honed white marble slab, soft"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433191-tDm1UehtYbYFEdBWUIvi"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01JGECGT2MnpvZSkyABTFvdr",
+      "delta": " veining. Single large soft window light from the upper left, gentle falloff, one cl"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433191-tDm1UehtYbYFEdBWUIvi"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01JGECGT2MnpvZSkyABTFvdr",
+      "delta": "ean specular highlight down the glass, soft contact shadow. Shallow depth of field, slightly above eye level, product filling the midd"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433191-tDm1UehtYbYFEdBWUIvi"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01JGECGT2MnpvZSkyABTFvdr",
+      "delta": "le third of the frame. Calm neutral palette, no props, no hands, no text."
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433191-tDm1UehtYbYFEdBWUIvi"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "tool-input-delta",
+      "id": "toolu_01JGECGT2MnpvZSkyABTFvdr",
+      "delta": "\"}"
+    },
+    {
+      "type": "tool-input-end",
+      "id": "toolu_01JGECGT2MnpvZSkyABTFvdr"
+    },
+    {
+      "type": "tool-call",
+      "toolCallId": "toolu_01JGECGT2MnpvZSkyABTFvdr",
+      "toolName": "add_node",
+      "input": "{\"type\": \"image\", \"label\": \"Hero — serum on marble\", \"modelId\": \"flux-2-pro\", \"prompt\": \"Hero product still: a single glass serum dropper bottle standing centred on a honed white marble slab, soft veining. Single large soft window light from the upper left, gentle falloff, one clean specular highlight down the glass, soft contact shadow. Shallow depth of field, slightly above eye level, product filling the middle third of the frame. Calm neutral palette, no props, no hands, no text.\"}",
+      "providerMetadata": {
+        "openrouter": {
+          "reasoning_details": [
+            {
+              "type": "reasoning.text",
+              "text": "I don't have any brand information or sources to work with, so I'm caught between adding a placeholder image node with a generic prompt or asking the user for details first. The problem is that any prompt I write will inevitably invent specifics like bottle shape or styling that might not match their actual brand, so I should probably ask some key questions about the brand before scaffolding anything out.…",
+              "format": "anthropic-claude-v1",
+              "index": 0,
+              "signature": "CAISlwoKhwEIEBgCKkDzbnUE24Mj/FC/2JrwgGMhtyaigAhEQybW/0Dy7Si2sQ03uM7MTm08NT76Yo61OWaXEwGw7B6ffeWbzLKqkhZbMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiQ0YzBmMDQ2Zi0yNWZkLTQ1ZmItYmZiMy1hMDhhOGUyNDljYTcSDE/jdnuCWtMIWbiBcBoMkcVR2t+t1lN+2yCvIjDcYn/uptl3WJEMB+k4e+CBFPvlyHnefBPF2YAiyYNZY1BEsOpkz0svr4zpYMIE0KcqvAjJier1krA9DxOpde8QWllHIZN3dhH1O5C4pkef3GvaOINkOg+bfd7i4K3VhZy0IZEKMA9A2UwGG33rC0II9/jhyoXe1l04dneiV7q4usB3mmaj9r86/0VKxPDrv7fd0sN/nhmP1iXEJpivpSiif235duiga10hAZ9HLXx8atROn8PcbkPDj6RQ4yNhzFpIZcE25amc63BKsAsBqNt2mfr3M3FffBZW+GZt/PMhlDpV7K/VAatFHg0oM+rTGUNGUs1GRFeyjyqAVlFR7Map+/g9iohLQZs74bXFJqPupMMbHptDbLfYFtR1Bw0Vm2OOOri/MIQnkCBuTtCmt+DALkVSIt3F8I+aSVsgJ0e4g9EzmHbfTw0iIsSzXb5d3CpfrGxArdnVHtLRm7ZqS8qHz72CjFoF6bc7OYWhF+4Jo8GN7g/qrbBEigk/6+UiGxjNOFMX5PK21W8o9nEWvwr+MY5tOccowDd1+2m+66y1DvobJs0cAof4XGG/u031vvY+SZ8i4uTBOhoOfRB2BdWhd03QAcnjB+8YvBeOEXwYzldpHxRmG+a7bnNv5sXqcLSeQLLORLT8c5JZTE1xDtQWK888a9Adqr2uOb9C1NOQ5FPzNUPcC2yLebaQOgohGekggxnOgaA7qqIdMmhdVgzGeTts9wvpjDI5H6Xh07anq1nRdcbT1ITPmcHNK6tfJZmyndN2e/cvQtUeqMVqihs7YGc0lIX9yxlUhZEOh+VFnV4cKo9kgJgDmrJC+S2xIahH6VSdsOVjncRB3UTt6Kzg1cp+vyrLnzqzKGdc+yiOJJDHbTkHepfTI3p5JMO/80ktyGCoKnBFKEelN1VQYtWjKhHrDK+ShthY/f5ae7X8L46AzdxRgPS34GtdNs3iFBKXa2QjDA3+0Cky05KDAOx/Aq6HBjair51iBf2PkpISiE3Hfx1omlcxJJbj5Q53ecHGhD5ItXaAl+pd9yP4VpORa/ZxStswkARTwY/JJMduqh63O5IBLnQFu89T1oBUq45WAT0OXbXjTbaUSmcvncGCwxMo48AwO9wQxR24W8AR9B3Gl3CxmeLduvqjiqAwhR+8ckBAqogk3CISjaP3cZAM93QTojXIDT7x9OUeoTQvctJCFut+BO3S91OffCwBvh+zNcTK0ezeo4b3JP0S9b3s1Mfdf4eyvg4pRoNcozmBRQVjtxgnrIIjnqbj1VpkT6hc6DbnZ6X2hudzYg6HMYOhPxxQh6CIgj9xZIoN81LDQou7Ku5XT8UlxMP7VHrov1QoR2lTKUfghCDui8IHBzTqFLpxgbohGmxi+OrQqFlELo1Ew8iCwtRl6t6kMowAruKot46gMFFGL4CwV5HhicgXom4wuUt3iaCHHv6uYcGsQKB8d8QX1zB4wsdDbqHnSrv8cf2bI4h6PDZiwOY9m+d/d0NLXohC/HkU+Wmt7trDGAE="
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433191-tDm1UehtYbYFEdBWUIvi"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433191-tDm1UehtYbYFEdBWUIvi"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-end",
+      "id": "peKRhCkfFBJawlQy",
+      "providerMetadata": {
+        "openrouter": {
+          "reasoning_details": [
+            {
+              "type": "reasoning.text",
+              "text": "I don't have any brand information or sources to work with, so I'm caught between adding a placeholder image node with a generic prompt or asking the user for details first. The problem is that any prompt I write will inevitably invent specifics like bottle shape or styling that might not match their actual brand, so I should probably ask some key questions about the brand before scaffolding anything out.…",
+              "format": "anthropic-claude-v1",
+              "index": 0,
+              "signature": "CAISlwoKhwEIEBgCKkDzbnUE24Mj/FC/2JrwgGMhtyaigAhEQybW/0Dy7Si2sQ03uM7MTm08NT76Yo61OWaXEwGw7B6ffeWbzLKqkhZbMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiQ0YzBmMDQ2Zi0yNWZkLTQ1ZmItYmZiMy1hMDhhOGUyNDljYTcSDE/jdnuCWtMIWbiBcBoMkcVR2t+t1lN+2yCvIjDcYn/uptl3WJEMB+k4e+CBFPvlyHnefBPF2YAiyYNZY1BEsOpkz0svr4zpYMIE0KcqvAjJier1krA9DxOpde8QWllHIZN3dhH1O5C4pkef3GvaOINkOg+bfd7i4K3VhZy0IZEKMA9A2UwGG33rC0II9/jhyoXe1l04dneiV7q4usB3mmaj9r86/0VKxPDrv7fd0sN/nhmP1iXEJpivpSiif235duiga10hAZ9HLXx8atROn8PcbkPDj6RQ4yNhzFpIZcE25amc63BKsAsBqNt2mfr3M3FffBZW+GZt/PMhlDpV7K/VAatFHg0oM+rTGUNGUs1GRFeyjyqAVlFR7Map+/g9iohLQZs74bXFJqPupMMbHptDbLfYFtR1Bw0Vm2OOOri/MIQnkCBuTtCmt+DALkVSIt3F8I+aSVsgJ0e4g9EzmHbfTw0iIsSzXb5d3CpfrGxArdnVHtLRm7ZqS8qHz72CjFoF6bc7OYWhF+4Jo8GN7g/qrbBEigk/6+UiGxjNOFMX5PK21W8o9nEWvwr+MY5tOccowDd1+2m+66y1DvobJs0cAof4XGG/u031vvY+SZ8i4uTBOhoOfRB2BdWhd03QAcnjB+8YvBeOEXwYzldpHxRmG+a7bnNv5sXqcLSeQLLORLT8c5JZTE1xDtQWK888a9Adqr2uOb9C1NOQ5FPzNUPcC2yLebaQOgohGekggxnOgaA7qqIdMmhdVgzGeTts9wvpjDI5H6Xh07anq1nRdcbT1ITPmcHNK6tfJZmyndN2e/cvQtUeqMVqihs7YGc0lIX9yxlUhZEOh+VFnV4cKo9kgJgDmrJC+S2xIahH6VSdsOVjncRB3UTt6Kzg1cp+vyrLnzqzKGdc+yiOJJDHbTkHepfTI3p5JMO/80ktyGCoKnBFKEelN1VQYtWjKhHrDK+ShthY/f5ae7X8L46AzdxRgPS34GtdNs3iFBKXa2QjDA3+0Cky05KDAOx/Aq6HBjair51iBf2PkpISiE3Hfx1omlcxJJbj5Q53ecHGhD5ItXaAl+pd9yP4VpORa/ZxStswkARTwY/JJMduqh63O5IBLnQFu89T1oBUq45WAT0OXbXjTbaUSmcvncGCwxMo48AwO9wQxR24W8AR9B3Gl3CxmeLduvqjiqAwhR+8ckBAqogk3CISjaP3cZAM93QTojXIDT7x9OUeoTQvctJCFut+BO3S91OffCwBvh+zNcTK0ezeo4b3JP0S9b3s1Mfdf4eyvg4pRoNcozmBRQVjtxgnrIIjnqbj1VpkT6hc6DbnZ6X2hudzYg6HMYOhPxxQh6CIgj9xZIoN81LDQou7Ku5XT8UlxMP7VHrov1QoR2lTKUfghCDui8IHBzTqFLpxgbohGmxi+OrQqFlELo1Ew8iCwtRl6t6kMowAruKot46gMFFGL4CwV5HhicgXom4wuUt3iaCHHv6uYcGsQKB8d8QX1zB4wsdDbqHnSrv8cf2bI4h6PDZiwOY9m+d/d0NLXohC/HkU+Wmt7trDGAE="
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "finish",
+      "finishReason": {
+        "unified": "tool-calls",
+        "raw": "tool_calls"
+      },
+      "usage": {
+        "inputTokens": {
+          "total": 3019,
+          "noCache": 3019,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        },
+        "outputTokens": {
+          "total": 616,
+          "text": 513,
+          "reasoning": 103
+        },
+        "raw": {
+          "prompt_tokens": 3019,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "audio_tokens": 0,
+            "video_tokens": 0
+          },
+          "completion_tokens": 616,
+          "completion_tokens_details": {
+            "reasoning_tokens": 103,
+            "image_tokens": 0,
+            "audio_tokens": 0
+          },
+          "total_tokens": 3635,
+          "cost": 0.030495,
+          "cost_details": {
+            "upstream_inference_cost": 0.030495,
+            "upstream_inference_prompt_cost": 0.015095,
+            "upstream_inference_completions_cost": 0.0154
+          },
+          "is_byok": false
+        }
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "usage": {
+            "promptTokens": 3019,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 616,
+            "completionTokensDetails": {
+              "reasoningTokens": 103
+            },
+            "cost": 0.030495,
+            "totalTokens": 3635,
+            "costDetails": {
+              "upstreamInferenceCost": 0.030495
+            }
+          },
+          "provider": "Amazon Bedrock",
+          "reasoning_details": [
+            {
+              "type": "reasoning.text",
+              "text": "I don't have any brand information or sources to work with, so I'm caught between adding a placeholder image node with a generic prompt or asking the user for details first. The problem is that any prompt I write will inevitably invent specifics like bottle shape or styling that might not match their actual brand, so I should probably ask some key questions about the brand before scaffolding anything out.…",
+              "format": "anthropic-claude-v1",
+              "index": 0,
+              "signature": "CAISlwoKhwEIEBgCKkDzbnUE24Mj/FC/2JrwgGMhtyaigAhEQybW/0Dy7Si2sQ03uM7MTm08NT76Yo61OWaXEwGw7B6ffeWbzLKqkhZbMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiQ0YzBmMDQ2Zi0yNWZkLTQ1ZmItYmZiMy1hMDhhOGUyNDljYTcSDE/jdnuCWtMIWbiBcBoMkcVR2t+t1lN+2yCvIjDcYn/uptl3WJEMB+k4e+CBFPvlyHnefBPF2YAiyYNZY1BEsOpkz0svr4zpYMIE0KcqvAjJier1krA9DxOpde8QWllHIZN3dhH1O5C4pkef3GvaOINkOg+bfd7i4K3VhZy0IZEKMA9A2UwGG33rC0II9/jhyoXe1l04dneiV7q4usB3mmaj9r86/0VKxPDrv7fd0sN/nhmP1iXEJpivpSiif235duiga10hAZ9HLXx8atROn8PcbkPDj6RQ4yNhzFpIZcE25amc63BKsAsBqNt2mfr3M3FffBZW+GZt/PMhlDpV7K/VAatFHg0oM+rTGUNGUs1GRFeyjyqAVlFR7Map+/g9iohLQZs74bXFJqPupMMbHptDbLfYFtR1Bw0Vm2OOOri/MIQnkCBuTtCmt+DALkVSIt3F8I+aSVsgJ0e4g9EzmHbfTw0iIsSzXb5d3CpfrGxArdnVHtLRm7ZqS8qHz72CjFoF6bc7OYWhF+4Jo8GN7g/qrbBEigk/6+UiGxjNOFMX5PK21W8o9nEWvwr+MY5tOccowDd1+2m+66y1DvobJs0cAof4XGG/u031vvY+SZ8i4uTBOhoOfRB2BdWhd03QAcnjB+8YvBeOEXwYzldpHxRmG+a7bnNv5sXqcLSeQLLORLT8c5JZTE1xDtQWK888a9Adqr2uOb9C1NOQ5FPzNUPcC2yLebaQOgohGekggxnOgaA7qqIdMmhdVgzGeTts9wvpjDI5H6Xh07anq1nRdcbT1ITPmcHNK6tfJZmyndN2e/cvQtUeqMVqihs7YGc0lIX9yxlUhZEOh+VFnV4cKo9kgJgDmrJC+S2xIahH6VSdsOVjncRB3UTt6Kzg1cp+vyrLnzqzKGdc+yiOJJDHbTkHepfTI3p5JMO/80ktyGCoKnBFKEelN1VQYtWjKhHrDK+ShthY/f5ae7X8L46AzdxRgPS34GtdNs3iFBKXa2QjDA3+0Cky05KDAOx/Aq6HBjair51iBf2PkpISiE3Hfx1omlcxJJbj5Q53ecHGhD5ItXaAl+pd9yP4VpORa/ZxStswkARTwY/JJMduqh63O5IBLnQFu89T1oBUq45WAT0OXbXjTbaUSmcvncGCwxMo48AwO9wQxR24W8AR9B3Gl3CxmeLduvqjiqAwhR+8ckBAqogk3CISjaP3cZAM93QTojXIDT7x9OUeoTQvctJCFut+BO3S91OffCwBvh+zNcTK0ezeo4b3JP0S9b3s1Mfdf4eyvg4pRoNcozmBRQVjtxgnrIIjnqbj1VpkT6hc6DbnZ6X2hudzYg6HMYOhPxxQh6CIgj9xZIoN81LDQou7Ku5XT8UlxMP7VHrov1QoR2lTKUfghCDui8IHBzTqFLpxgbohGmxi+OrQqFlELo1Ew8iCwtRl6t6kMowAruKot46gMFFGL4CwV5HhicgXom4wuUt3iaCHHv6uYcGsQKB8d8QX1zB4wsdDbqHnSrv8cf2bI4h6PDZiwOY9m+d/d0NLXohC/HkU+Wmt7trDGAE="
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
