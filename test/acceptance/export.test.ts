@@ -32,6 +32,37 @@ function prepared(
   return { db, flowId, dir: tempExportDir(), nodeIds: ['shot'], formats, overlay: over.overlay }
 }
 
+describe('two nodes with the same label', () => {
+  test('both files arrive, neither overwrites the other', async () => {
+    const twoHeroes: Flow = {
+      nodes: [
+        { id: 'shot-1', type: 'image', prompt: 'bottle on marble', modelId: 'flux-2-pro', label: 'Hero' },
+        { id: 'shot-2', type: 'image', prompt: 'bottle on slate', modelId: 'flux-2-pro', label: 'Hero' },
+      ],
+      edges: [],
+    }
+    const { db } = tempDb()
+    const projectId = seedProject(db)
+    const flowId = seedFlow(db, projectId, twoHeroes)
+    seedRenderedNode(db, flowId, 'shot-1')
+    seedRenderedNode(db, flowId, 'shot-2')
+    const dir = tempExportDir()
+
+    const result = await exportFlow(db, flowId, {
+      dir,
+      nodeIds: ['shot-1', 'shot-2'],
+      formats: [SQUARE],
+    })
+
+    expect(result.rejected).toEqual([])
+    expect(result.entries).toHaveLength(2)
+    const files = result.entries.map((e) => e.file)
+    expect(new Set(files).size).toBe(2)
+    // Both actually landed on disk, not just named distinctly in the manifest.
+    expect(readdirSync(dir).filter((f) => f.endsWith('.png'))).toHaveLength(2)
+  })
+})
+
 describe('an export that fails its spec check', () => {
   const breaching: TextOverlay = { headline: 'BUY NOW', box: { x: 0.1, y: 0.01, w: 0.8, h: 0.15 } }
 

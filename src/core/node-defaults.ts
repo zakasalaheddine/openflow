@@ -30,7 +30,7 @@ export type NewNodeOverrides = {
 
 /**
  * The repo's one set of defaults for a brand-new node — seed 1, a silent
- * 5-second clip, no formats yet. The model comes from the caller, because it
+ * 5-second clip. The model comes from the caller, because it
  * comes from the catalog: the canvas reads it off the rows the flow route sent,
  * the agent reads it with defaultModelFor.
  *

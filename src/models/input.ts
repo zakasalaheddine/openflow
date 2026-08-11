@@ -102,7 +102,10 @@ export function buildModelInput(
       }
     }
     default:
-      // source and sequence nodes never dispatch; planRun does not plan them.
+      // A source node is never planned at all — planRun's isRunnable check
+      // excludes it, so no run ever reaches here for one. A sequence is
+      // planned (see executor.ts), but dispatch branches on LOCAL_CUT before
+      // it would ever call buildModelInput (worker/loop.ts's dispatch).
       throw new Error(`Node type '${node.type}' does not dispatch to a model.`)
   }
 }
