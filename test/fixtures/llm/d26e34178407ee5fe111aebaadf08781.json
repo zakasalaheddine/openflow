@@ -1,0 +1,279 @@
+{
+  "chunks": [
+    {
+      "type": "stream-start",
+      "warnings": []
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-start",
+      "id": "ApMP5HD70EITBylE"
+    },
+    {
+      "type": "reasoning-delta",
+      "delta": "",
+      "id": "ApMP5HD70EITBylE"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "reasoning-end",
+      "id": "ApMP5HD70EITBylE",
+      "providerMetadata": {
+        "openrouter": {
+          "reasoning_details": [
+            {
+              "type": "reasoning.text",
+              "signature": "CAISiQIKhwEIEBgCKkByzvIbWE5aKPYBjzXUmveGCyHr1BPm4IjeP1F7qW29UwmMm6/UGW4ejvbjS3yiyg1rpeywwDgtNcV8rmYTxYtWMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiQ0YzBmMDQ2Zi0yNWZkLTQ1ZmItYmZiMy1hMDhhOGUyNDljYTcSDNyMVw1eo1J2O3iFBRoMkJEblA9yzvv69tRkIjAwBMnpdzkeLbB8fPcyuuVpi2VjKwMLrBYMW4z3X26z9/P2Cfko3y5iDH+/dmKea90qL5csfkachUjtLNg5Dy86IbTpbKexlAWtYR7SGI7h+5tuj4jsnwPZ0bcCFghoDxzHGAE=",
+              "format": "anthropic-claude-v1",
+              "index": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "text-start",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "text-delta",
+      "delta": "Added",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": " it",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": ": one image node, **Hero — serum on marble** (`image-1`), on flux-2-pro — a single glass dropper bottle centred on hon",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": "ed white marble, one soft window light from upper left, shallow depth of field, no props or hands. That's the whole canvas right now; at roughly a megapixel it prices at about 3 cents to run, and n",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": "othing renders until you press Run.\n\nOne thing I deliberately left vague: I don't have a brand profile, so the bottle in that prompt is a generic dropper b",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": "ottle. Before you spend anything on a hero, tell me:\n\n- **The brand and the bottle** — name, and can",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": " you upload a product photo? A source image wired in as a reference is the only way the actual bottle shape, glass t",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": "int and cap survive the render.\n- **The label** — if any text has to be legible, I'd switch this node to nano-banana-pro (0.15 per image) which",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": " renders type; flux is the cheap draft option.\n- **The look** — warm and editorial, or cool and clinical? Marble reads either way depending on the light",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": ".\n- **Where it runs** — a feed still, or the first frame of a clip? If it's leading to motion, I'd build this as a hero-",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-delta",
+      "delta": "and-clips shape instead of a lone still.",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "response-metadata",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "response-metadata",
+      "modelId": "anthropic/claude-opus-5"
+    },
+    {
+      "type": "text-end",
+      "id": "gen-1786433203-pvylTQgrgTNvuusrnWvg"
+    },
+    {
+      "type": "finish",
+      "finishReason": {
+        "unified": "stop",
+        "raw": "stop"
+      },
+      "usage": {
+        "inputTokens": {
+          "total": 3650,
+          "noCache": 3650,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        },
+        "outputTokens": {
+          "total": 406,
+          "text": 406,
+          "reasoning": 0
+        },
+        "raw": {
+          "prompt_tokens": 3650,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "audio_tokens": 0,
+            "video_tokens": 0
+          },
+          "completion_tokens": 406,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "image_tokens": 0,
+            "audio_tokens": 0
+          },
+          "total_tokens": 4056,
+          "cost": 0.0284,
+          "cost_details": {
+            "upstream_inference_cost": 0.0284,
+            "upstream_inference_prompt_cost": 0.01825,
+            "upstream_inference_completions_cost": 0.01015
+          },
+          "is_byok": false
+        }
+      },
+      "providerMetadata": {
+        "openrouter": {
+          "usage": {
+            "promptTokens": 3650,
+            "promptTokensDetails": {
+              "cachedTokens": 0
+            },
+            "completionTokens": 406,
+            "completionTokensDetails": {
+              "reasoningTokens": 0
+            },
+            "cost": 0.0284,
+            "totalTokens": 4056,
+            "costDetails": {
+              "upstreamInferenceCost": 0.0284
+            }
+          },
+          "provider": "Amazon Bedrock",
+          "reasoning_details": [
+            {
+              "type": "reasoning.text",
+              "signature": "CAISiQIKhwEIEBgCKkByzvIbWE5aKPYBjzXUmveGCyHr1BPm4IjeP1F7qW29UwmMm6/UGW4ejvbjS3yiyg1rpeywwDgtNcV8rmYTxYtWMg1jbGF1ZGUtb3B1cy01OAFCCHRoaW5raW5nWiQ0YzBmMDQ2Zi0yNWZkLTQ1ZmItYmZiMy1hMDhhOGUyNDljYTcSDNyMVw1eo1J2O3iFBRoMkJEblA9yzvv69tRkIjAwBMnpdzkeLbB8fPcyuuVpi2VjKwMLrBYMW4z3X26z9/P2Cfko3y5iDH+/dmKea90qL5csfkachUjtLNg5Dy86IbTpbKexlAWtYR7SGI7h+5tuj4jsnwPZ0bcCFghoDxzHGAE=",
+              "format": "anthropic-claude-v1",
+              "index": 0
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
